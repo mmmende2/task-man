@@ -1,0 +1,41 @@
+{
+  "name": "task-man",
+  "version": "0.1.0",
+  "description": "Personal task manager for developers who live in the terminal",
+  "type": "module",
+  "bin": {
+    "task-man": "./dist/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./store": "./dist/store.js",
+    "./types": "./dist/types.js",
+    "./config": "./dist/config.js",
+    "./report": "./dist/report.js",
+    "./render-html": "./dist/render-html.js",
+    "./email": "./dist/email.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "ink": "^6.8.0",
+    "proper-lockfile": "^4.1.2",
+    "react": "^19.2.4",
+    "resend": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/proper-lockfile": "^4.1.4",
+    "@types/react": "^19.2.14",
+    "ink-testing-library": "^4.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}
