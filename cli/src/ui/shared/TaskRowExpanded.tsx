@@ -3,7 +3,6 @@ import type { Task } from '../../types.js';
 import { PriorityDot } from './PriorityDot.js';
 import { StatusBadge } from './StatusBadge.js';
 import { SubtaskCheckbox } from './SubtaskCheckbox.js';
-import { BorderRow } from './BorderRow.js';
 import { useTerminalWidth } from '../hooks/useTerminalWidth.js';
 
 interface Props {
@@ -13,73 +12,47 @@ interface Props {
 
 export function TaskRowExpanded({ task, subtasks }: Props) {
   const width = useTerminalWidth();
-  // Inner card width: total width minus outer indent (4 chars: ║ + 2 spaces + ┌/│/└)
   const cardInner = width - 4;
 
   const titleLine = `─ ${task.title} `;
-  // 6 chars reserved for: space + dot + space + ─┐
   const titlePad = Math.max(0, cardInner - titleLine.length - 6);
-
-  // Bottom border: status badge is ~11 chars ("in_progress" is longest), reserve 9 for " ─────┘"
   const bottomDash = Math.max(0, cardInner - 18);
+
+  const descriptionRow = task.description
+    ? <Box key="desc"><Text>{'    │  '}</Text><Text dimColor>{task.description}</Text></Box>
+    : null;
+
+  const spacerRow = (task.description || subtasks.length > 0)
+    ? <Box key="spacer-mid"><Text>{'    │'}</Text></Box>
+    : null;
+
+  const subtaskRows = subtasks.map((sub) => (
+    <Box key={sub.id}><Text>{'    │  '}</Text><SubtaskCheckbox subtask={sub} /></Box>
+  ));
+
+  const postSubtaskSpacer = subtasks.length > 0
+    ? <Box key="spacer-post"><Text>{'    │'}</Text></Box>
+    : null;
 
   return (
     <Box flexDirection="column">
-      {/* Top border */}
-      <BorderRow>
-        <Text>  </Text>
+      <Box>
+        <Text>{'    '}</Text>
         <Text color="white">{'┌' + titleLine + '─'.repeat(titlePad) + ' '}</Text>
         <PriorityDot priority={task.priority} />
         <Text color="white">{' ─┐'}</Text>
-      </BorderRow>
-
-      {/* Empty line */}
-      <BorderRow>
-        <Text>  </Text>
-        <Text color="white">{'│'}</Text>
-      </BorderRow>
-
-      {/* Description */}
-      {task.description && (
-        <BorderRow>
-          <Text>  </Text>
-          <Text color="white">{'│  '}</Text>
-          <Text dimColor>{task.description}</Text>
-        </BorderRow>
-      )}
-
-      {/* Empty line before subtasks */}
-      {(task.description || subtasks.length > 0) && (
-        <BorderRow>
-          <Text>  </Text>
-          <Text color="white">{'│'}</Text>
-        </BorderRow>
-      )}
-
-      {/* Subtasks */}
-      {subtasks.map((sub) => (
-        <BorderRow key={sub.id}>
-          <Text>  </Text>
-          <Text color="white">{'│  '}</Text>
-          <SubtaskCheckbox subtask={sub} />
-        </BorderRow>
-      ))}
-
-      {/* Empty line after subtasks */}
-      {subtasks.length > 0 && (
-        <BorderRow>
-          <Text>  </Text>
-          <Text color="white">{'│'}</Text>
-        </BorderRow>
-      )}
-
-      {/* Bottom border with status */}
-      <BorderRow>
-        <Text>  </Text>
+      </Box>
+      <Box><Text>{'    │'}</Text></Box>
+      {descriptionRow}
+      {spacerRow}
+      {subtaskRows}
+      {postSubtaskSpacer}
+      <Box>
+        <Text>{'    '}</Text>
         <Text color="white">{'└' + '─'.repeat(bottomDash) + ' '}</Text>
         <StatusBadge status={task.status} />
         <Text color="white">{' ─────┘'}</Text>
-      </BorderRow>
+      </Box>
     </Box>
   );
 }

@@ -1,6 +1,5 @@
 import { Box, Text } from 'ink';
 import type { AppMode } from '../types.js';
-import { useTerminalWidth } from '../hooks/useTerminalWidth.js';
 
 interface Props {
   mode?: AppMode;
@@ -9,8 +8,6 @@ interface Props {
 }
 
 export function Footer({ mode, isWatch, interval }: Props) {
-  const width = useTerminalWidth();
-
   let navContent: string;
   let pageContent: string;
   if (isWatch) {
@@ -33,14 +30,12 @@ export function Footer({ mode, isWatch, interval }: Props) {
     pageContent = '';
   }
 
-  const gap = Math.max(1, width - navContent.length - pageContent.length - 2);
-  const line = '  ' + navContent + ' '.repeat(gap) + pageContent;
-
   return (
-    <Box flexDirection="column">
-      <Text color="magenta" bold>{'╠' + '═'.repeat(width) + '╣'}</Text>
-      <Text color="magenta" bold>{'║'}<Text dimColor>{' '.repeat(2) + navContent}</Text>{' '.repeat(gap)}<Text color="#00a5a5">{pageContent}</Text>{'║'}</Text>
-      <Text color="magenta" bold>{'╚' + '═'.repeat(width) + '╝'}</Text>
+    <Box borderStyle="double" borderColor="magenta" flexShrink={0}>
+      <Box justifyContent="space-between" flexGrow={1}>
+        <Text dimColor>  {navContent}</Text>
+        {pageContent ? <Text color="#00a5a5">{pageContent}  </Text> : null}
+      </Box>
     </Box>
   );
 }

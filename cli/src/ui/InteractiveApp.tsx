@@ -1,12 +1,11 @@
-import { useState, useMemo, createElement } from 'react';
-import { Box, useInput, useStdout } from 'ink';
+import { useState, useMemo, useEffect, createElement } from 'react';
+import { Box, useInput } from 'ink';
 import type { Task, TaskScope } from '../types.js';
 import type { AppMode } from './types.js';
 import { useTaskStore } from './hooks/useTaskStore.js';
-import { useTerminalWidthSetup, TerminalWidthProvider } from './hooks/useTerminalWidth.js';
+import { useTerminalDimensionsSetup, TerminalDimensionsProvider, useTerminalHeight } from './hooks/useTerminalWidth.js';
 import { Header } from './shared/Header.js';
 import { Footer } from './shared/Footer.js';
-import { BorderFill } from './shared/BorderRow.js';
 import { ViewMode } from './modes/ViewMode.js';
 import { PlanMode } from './modes/PlanMode.js';
 import { WriteMode } from './modes/WriteMode.js';
@@ -15,8 +14,8 @@ import { MetricsMode } from './modes/MetricsMode.js';
 const SCOPE_CYCLE: (TaskScope | 'all')[] = ['all', 'personal', 'professional'];
 
 export function InteractiveApp() {
-  const width = useTerminalWidthSetup();
-  return createElement(TerminalWidthProvider, { value: width }, createElement(InteractiveAppInner));
+  const dims = useTerminalDimensionsSetup();
+  return createElement(TerminalDimensionsProvider, { value: dims }, createElement(InteractiveAppInner));
 }
 
 function InteractiveAppInner() {
@@ -50,7 +49,34 @@ function InteractiveAppInner() {
     return parentTasks.filter(t => t.scope === scopeFilter);
   }, [parentTasks, scopeFilter]);
 
-  const focusedCount = filteredTasks.filter(t => t.focused).length;
+  // Derive per-mode lists — done tasks excluded from view/plan
+  const activeTasks = useMemo(() =>
+    filteredTasks.filter(t => t.status !== 'done'),
+  [filteredTasks]);
+
+  const focusedTasks = useMemo(() =>
+    activeTasks.filter(t => t.focused),
+  [activeTasks]);
+
+  const backlogTasks = useMemo(() =>
+    activeTasks.filter(t => !t.focused),
+  [activeTasks]);
+
+  // The navigable list depends on the mode
+  const navigableList = useMemo(() => {
+    if (mode === 'view') return focusedTasks;
+    if (mode === 'plan') return [...focusedTasks, ...backlogTasks];
+    return [];
+  }, [mode, focusedTasks, backlogTasks]);
+
+  // Clamp selectedIndex when the list shrinks
+  useEffect(() => {
+    if (navigableList.length === 0) {
+      if (selectedIndex !== 0) setSelectedIndex(0);
+    } else if (selectedIndex >= navigableList.length) {
+      setSelectedIndex(navigableList.length - 1);
+    }
+  }, [navigableList.length, selectedIndex]);
 
   const switchMode = (newMode: AppMode) => {
     setMode(newMode);
@@ -81,43 +107,37 @@ function InteractiveAppInner() {
     }
   }, { isActive: mode !== 'write' });
 
-  const { stdout } = useStdout();
-  const termHeight = stdout.rows ?? 24;
-
-  // Fixed height: header (3 rows) + footer (3 rows) = 6, content fills the rest
-  const contentHeight = Math.max(6, termHeight - 6);
+  const termHeight = useTerminalHeight();
 
   return (
-    <Box flexDirection="column" height={termHeight}>
+    <Box flexDirection="column" height={termHeight} overflow="hidden">
       <Header
         mode={mode}
         scope={scopeFilter}
-        taskCount={{ focused: focusedCount, total: filteredTasks.length }}
+        taskCount={{ focused: focusedTasks.length, total: filteredTasks.length }}
       />
 
-      <Box flexDirection="column" flexGrow={1} height={contentHeight}>
-      {mode === 'view' && (
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+      {mode === 'view' ? (
         <ViewMode
-          tasks={filteredTasks}
+          focusedTasks={focusedTasks}
+          backlogCount={backlogTasks.length}
           subtaskMap={subtaskMap}
           selectedIndex={selectedIndex}
           onSelectedIndexChange={setSelectedIndex}
           store={store}
           reload={reload}
         />
-      )}
-
-      {mode === 'plan' && (
+      ) : mode === 'plan' ? (
         <PlanMode
-          tasks={filteredTasks}
+          focusedTasks={focusedTasks}
+          backlogTasks={backlogTasks}
           selectedIndex={selectedIndex}
           onSelectedIndexChange={setSelectedIndex}
           store={store}
           reload={reload}
         />
-      )}
-
-      {mode === 'write' && (
+      ) : mode === 'write' ? (
         <WriteMode
           store={store}
           reload={reload}
@@ -125,12 +145,10 @@ function InteractiveAppInner() {
           onModeChange={switchMode}
           onCycleScope={cycleScope}
         />
-      )}
-
-      {mode === 'metrics' && (
+      ) : (
         <MetricsMode store={store} />
       )}
-      <BorderFill />
+      <Box flexGrow={1} />
       </Box>
 
       <Footer mode={mode} />

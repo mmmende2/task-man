@@ -10,7 +10,7 @@ import { createElement } from 'react';
 import { render } from 'ink-testing-library';
 import { Box } from 'ink';
 import { TaskStore } from './store.js';
-import { TerminalWidthProvider } from './ui/hooks/useTerminalWidth.js';
+import { TerminalDimensionsProvider } from './ui/hooks/useTerminalWidth.js';
 import { Header } from './ui/shared/Header.js';
 import { Footer } from './ui/shared/Footer.js';
 import { ViewMode } from './ui/modes/ViewMode.js';
@@ -45,9 +45,14 @@ const PREVIEW_WIDTH = Math.max(52, (process.stdout.columns ?? 80) - 2);
 function renderMode(mode: AppMode) {
   let modeElement: React.ReactElement;
 
+  const activeTasks = parentTasks.filter(t => t.status !== 'done');
+  const focusedTasks = activeTasks.filter(t => t.focused);
+  const backlogTasks = activeTasks.filter(t => !t.focused);
+
   if (mode === 'view') {
     modeElement = createElement(ViewMode, {
-      tasks: parentTasks,
+      focusedTasks,
+      backlogCount: backlogTasks.length,
       subtaskMap,
       selectedIndex: 0,
       onSelectedIndexChange: noop,
@@ -56,7 +61,8 @@ function renderMode(mode: AppMode) {
     });
   } else if (mode === 'plan') {
     modeElement = createElement(PlanMode, {
-      tasks: parentTasks,
+      focusedTasks,
+      backlogTasks,
       selectedIndex: 0,
       onSelectedIndexChange: noop,
       store,
@@ -75,8 +81,8 @@ function renderMode(mode: AppMode) {
   }
 
   const tree = createElement(
-    TerminalWidthProvider,
-    { value: PREVIEW_WIDTH },
+    TerminalDimensionsProvider,
+    { value: { width: PREVIEW_WIDTH, height: 40 } },
     createElement(
       Box,
       { flexDirection: 'column' },

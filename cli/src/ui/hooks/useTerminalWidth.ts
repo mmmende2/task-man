@@ -3,38 +3,52 @@ import { useStdout } from 'ink';
 
 const MIN_INNER_WIDTH = 52;
 
-const TerminalWidthContext = createContext<number>(MIN_INNER_WIDTH);
+export interface TerminalDimensions {
+  width: number;
+  height: number;
+}
 
-/**
- * Provider component — call useTerminalWidthSetup() at the app root
- * and pass the result to TerminalWidthProvider.
- */
-export const TerminalWidthProvider = TerminalWidthContext.Provider;
+const TerminalDimensionsContext = createContext<TerminalDimensions>({
+  width: MIN_INNER_WIDTH,
+  height: 24,
+});
+
+export const TerminalDimensionsProvider = TerminalDimensionsContext.Provider;
 
 /**
  * Setup hook — call once in the root component.
- * Returns the current inner width (columns - 2 for borders).
- * Listens for resize events.
+ * Returns terminal dimensions: inner width and raw height.
  */
-export function useTerminalWidthSetup(): number {
+export function useTerminalDimensionsSetup(): TerminalDimensions {
   const { stdout } = useStdout();
 
-  const getWidth = () => Math.max(MIN_INNER_WIDTH, (stdout.columns ?? 54) - 2);
+  const getDimensions = (): TerminalDimensions => {
+    const width = Math.max(MIN_INNER_WIDTH, (stdout.columns ?? 54) - 2);
+    const height = stdout.rows ?? 24;
+    return { width, height };
+  };
 
-  const [width, setWidth] = useState(getWidth);
+  const [dims, setDims] = useState(getDimensions);
 
   useEffect(() => {
-    const onResize = () => setWidth(getWidth());
+    const onResize = () => setDims(getDimensions());
     stdout.on('resize', onResize);
     return () => { stdout.off('resize', onResize); };
   }, [stdout]);
 
-  return width;
+  return dims;
 }
 
 /**
- * Consumer hook — call in any child component to read the terminal width.
+ * Consumer hook — returns the inner width (columns - 2 for borders).
  */
 export function useTerminalWidth(): number {
-  return useContext(TerminalWidthContext);
+  return useContext(TerminalDimensionsContext).width;
+}
+
+/**
+ * Consumer hook — returns the raw terminal height.
+ */
+export function useTerminalHeight(): number {
+  return useContext(TerminalDimensionsContext).height;
 }

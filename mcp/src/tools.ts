@@ -16,7 +16,7 @@ export function registerTools(server: McpServer): void {
     'Create a new task',
     {
       title: z.string().describe('Task title (required)'),
-      priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('Task priority'),
+      priority: z.enum(['low', 'medium', 'high']).optional().describe('Task priority'),
       scope: z.enum(['personal', 'professional']).optional().describe('Task scope'),
       categories: z.array(z.string()).optional().describe('Category tags'),
       parent_id: z.string().optional().describe('Parent task ID (prefix OK)'),
@@ -70,7 +70,7 @@ export function registerTools(server: McpServer): void {
       id: z.string().describe('Task ID (prefix OK)'),
       title: z.string().optional().describe('New title'),
       status: z.enum(['todo', 'in_progress', 'done']).optional().describe('New status'),
-      priority: z.enum(['low', 'medium', 'high', 'urgent']).optional().describe('New priority'),
+      priority: z.enum(['low', 'medium', 'high']).optional().describe('New priority'),
       scope: z.enum(['personal', 'professional']).optional().describe('New scope'),
       categories: z.array(z.string()).optional().describe('New categories'),
       description: z.string().optional().describe('New description'),

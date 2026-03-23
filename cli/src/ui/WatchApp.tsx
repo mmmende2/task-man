@@ -1,26 +1,25 @@
 import { createElement } from 'react';
 import { Box, Text } from 'ink';
 import { useTaskStore } from './hooks/useTaskStore.js';
-import { useTerminalWidthSetup, TerminalWidthProvider } from './hooks/useTerminalWidth.js';
+import { useTerminalDimensionsSetup, TerminalDimensionsProvider, useTerminalHeight } from './hooks/useTerminalWidth.js';
 import { Header } from './shared/Header.js';
 import { Footer } from './shared/Footer.js';
 import { TaskRow } from './shared/TaskRow.js';
 import { TaskRowExpanded } from './shared/TaskRowExpanded.js';
-import { BorderRow, BorderRowEmpty } from './shared/BorderRow.js';
 
 interface Props {
   interval: number;
 }
 
 export function WatchApp({ interval }: Props) {
-  const width = useTerminalWidthSetup();
-  return createElement(TerminalWidthProvider, { value: width }, createElement(WatchAppInner, { interval }));
+  const dims = useTerminalDimensionsSetup();
+  return createElement(TerminalDimensionsProvider, { value: dims }, createElement(WatchAppInner, { interval }));
 }
 
 function WatchAppInner({ interval }: Props) {
   const { tasks } = useTaskStore(undefined, interval);
+  const termHeight = useTerminalHeight();
 
-  // Separate parent tasks from subtasks
   const subtaskMap = new Map<string, typeof tasks>();
   const parentTasks: typeof tasks = [];
 
@@ -34,61 +33,56 @@ function WatchAppInner({ interval }: Props) {
     }
   }
 
-  // Find the first focused, non-done task to expand
   const focusedActive = parentTasks.filter(t => t.focused && t.status !== 'done');
   const expandedTask = focusedActive[0];
   const compactTasks = focusedActive.slice(1);
   const backlogCount = parentTasks.filter(t => !t.focused || t.status === 'done').length;
-
   const focusedCount = parentTasks.filter(t => t.focused).length;
 
+  const expandedRow = expandedTask
+    ? <Box flexDirection="column" key="expanded">
+        <TaskRowExpanded
+          task={expandedTask}
+          subtasks={subtaskMap.get(expandedTask.id) ?? []}
+        />
+        <Text> </Text>
+      </Box>
+    : null;
+
+  const emptyRow = focusedActive.length === 0
+    ? <Text key="empty" dimColor>  No focused tasks. Use <Text color="cyan">task-man focus {'<id>'}</Text> to add some.</Text>
+    : null;
+
+  const backlogRow = backlogCount > 0
+    ? <Text key="backlog" dimColor>{'  + ' + backlogCount + ' more in backlog'}</Text>
+    : null;
+
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height={termHeight}>
       <Header
         mode="view"
         taskCount={{ focused: focusedCount, total: parentTasks.length }}
       />
 
-      <BorderRowEmpty />
+      <Box flexDirection="column" flexGrow={1} overflow="hidden">
+        <Text> </Text>
 
-      {/* Expanded card for the top focused task */}
-      {expandedTask && (
-        <Box flexDirection="column">
-          <TaskRowExpanded
-            task={expandedTask}
-            subtasks={subtaskMap.get(expandedTask.id) ?? []}
-          />
-          <BorderRowEmpty />
-        </Box>
-      )}
+        {expandedRow}
 
-      {/* Compact rows for remaining focused tasks */}
-      {compactTasks.map((task) => (
-        <BorderRow key={task.id}>
+        {compactTasks.map((task) => (
           <TaskRow
+            key={task.id}
             task={task}
             subtaskProgress={getSubtaskProgress(task.id, subtaskMap)}
           />
-        </BorderRow>
-      ))}
+        ))}
 
-      {/* No tasks message */}
-      {focusedActive.length === 0 && (
-        <BorderRow>
-          <Text dimColor>  No focused tasks. Use </Text>
-          <Text color="cyan">task-man focus {'<id>'}</Text>
-          <Text dimColor> to add some.</Text>
-        </BorderRow>
-      )}
+        {emptyRow}
+        {backlogRow}
 
-      {/* Backlog count */}
-      {backlogCount > 0 && (
-        <BorderRow>
-          <Text dimColor>{'                          + ' + backlogCount + ' more in backlog'}</Text>
-        </BorderRow>
-      )}
-
-      <BorderRowEmpty />
+        <Text> </Text>
+        <Box flexGrow={1} />
+      </Box>
 
       <Footer isWatch interval={interval} />
     </Box>

@@ -3,7 +3,6 @@ import { Box, Text, useInput } from 'ink';
 import type { TaskScope } from '../../types.js';
 import type { TaskStore } from '../../store.js';
 import type { AppMode } from '../types.js';
-import { BorderRow, BorderRowEmpty, BorderFill } from '../shared/BorderRow.js';
 
 interface Props {
   store: TaskStore;
@@ -32,13 +31,11 @@ export function WriteMode({ store, reload, scopeFilter, onModeChange, onCycleSco
   const [entries, setEntries] = useState<WrittenEntry[]>([]);
 
   useInput((input, key) => {
-    // ESC → back to view mode
     if (key.escape) {
       onModeChange('view');
       return;
     }
 
-    // Shift+Tab → cycle scope
     if (key.tab && key.shift) {
       onCycleScope();
       return;
@@ -48,7 +45,6 @@ export function WriteMode({ store, reload, scopeFilter, onModeChange, onCycleSco
       if (key.return) {
         if (inputText.trim().length === 0) return;
 
-        // Parse "title - category" format
         const text = inputText.trim();
         const subtask = text.startsWith(':');
         const cleanText = subtask ? text.slice(1).trim() : text;
@@ -71,15 +67,14 @@ export function WriteMode({ store, reload, scopeFilter, onModeChange, onCycleSco
         setInputText(prev => prev + input);
       }
     } else if (phase === 'priority') {
-      const priorityMap: Record<string, 'low' | 'medium' | 'high' | 'urgent'> = {
+      const priorityMap: Record<string, 'low' | 'medium' | 'high'> = {
         l: 'low',
         m: 'medium',
         h: 'high',
-        u: 'urgent',
       };
 
-      if (input && priorityMap[input]) {
-        const priority = priorityMap[input];
+      const priority = key.return ? 'high' : priorityMap[input];
+      if (priority) {
         const scope: TaskScope = scopeFilter !== 'all' ? scopeFilter : 'personal';
         const isSub = isSubtask && lastCreatedId !== null;
 
@@ -110,79 +105,68 @@ export function WriteMode({ store, reload, scopeFilter, onModeChange, onCycleSco
           reload();
         });
       } else if (key.escape) {
-        // Cancel back to title phase
         setPhase('title');
         setInputText('');
       }
     }
   });
 
+  const entryRows = entries.length === 0
+    ? [<Text key="empty" dimColor>  No tasks added yet.</Text>]
+    : entries.map((entry, i) => (
+        entry.isSubtask
+          ? <Text key={i} color="green">      └─ ✓ {entry.title}</Text>
+          : <Text key={i} color="green">  ✓ {entry.title}</Text>
+      ));
+
+  const subtaskHint = lastCreatedId
+    ? <Box key="subtask-hint">
+        <Text dimColor>  Start with ":" to add subtask of </Text>
+        <Text dimColor italic>{lastCreatedTitle}</Text>
+      </Box>
+    : null;
+
   return (
     <Box flexDirection="column" flexGrow={1} justifyContent="space-between">
       {/* Top: list of written tasks */}
       <Box flexDirection="column">
-        <BorderRowEmpty />
-        {entries.map((entry, i) => (
-          <BorderRow key={i}>
-            {entry.isSubtask ? (
-              <Text color="green">      └─ ✓ {entry.title}</Text>
-            ) : (
-              <Text color="green">  ✓ {entry.title}</Text>
-            )}
-          </BorderRow>
-        ))}
-        {entries.length === 0 && (
-          <BorderRow>
-            <Text dimColor>  No tasks added yet.</Text>
-          </BorderRow>
-        )}
+        <Text> </Text>
+        {entryRows}
       </Box>
-
-      {/* Fill middle with bordered empty space */}
-      <BorderFill />
 
       {/* Bottom: input area pinned near footer */}
       <Box flexDirection="column">
-        <BorderRowEmpty />
+        <Text> </Text>
 
-        {phase === 'title' && (
+        {phase === 'title' ? (
           <Box flexDirection="column">
-            <BorderRow>
+            <Box>
               <Text>  {'> '}</Text>
               <Text color="white">{inputText}</Text>
               <Text color="magenta">█</Text>
-            </BorderRow>
-            <BorderRow>
-              <Text dimColor>  Type task title. Use "title - category" format.</Text>
-            </BorderRow>
-            {lastCreatedId && (
-              <BorderRow>
-                <Text dimColor>  Start with ":" to add subtask of </Text>
-                <Text dimColor italic>{lastCreatedTitle}</Text>
-              </BorderRow>
-            )}
+            </Box>
+            <Text dimColor>  Type task title. Use "title - category" format.</Text>
+            {subtaskHint}
           </Box>
-        )}
-
-        {phase === 'priority' && (
+        ) : (
           <Box flexDirection="column">
-            <BorderRow>
+            <Box>
               <Text>  </Text>
               <Text color="white" bold>{parsedTitle}</Text>
-              {parsedCategory && <Text dimColor> [{parsedCategory}]</Text>}
-              {isSubtask && <Text color="cyan"> (subtask)</Text>}
-            </BorderRow>
-            <BorderRow>
+              {parsedCategory ? <Text dimColor> [{parsedCategory}]</Text> : null}
+              {isSubtask ? <Text color="cyan"> (subtask)</Text> : null}
+            </Box>
+            <Box>
               <Text>  Priority: </Text>
               <Text color="gray">(l)</Text><Text>ow  </Text>
               <Text color="cyan">(m)</Text><Text>ed  </Text>
               <Text color="magenta">(h)</Text><Text>igh  </Text>
-              <Text color="red">(u)</Text><Text>rgent</Text>
-            </BorderRow>
+              <Text dimColor>enter:high</Text>
+            </Box>
           </Box>
         )}
 
-        <BorderRowEmpty />
+        <Text> </Text>
       </Box>
     </Box>
   );

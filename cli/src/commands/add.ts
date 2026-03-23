@@ -6,7 +6,7 @@ import type { CreatedBy, TaskPriority, TaskScope } from '../types.js';
 export const addCommand = new Command('add')
   .description('Add a new task')
   .argument('<title>', 'Task title')
-  .option('-p, --priority <priority>', 'Priority: low, medium, high, urgent', 'medium')
+  .option('-p, --priority <priority>', 'Priority: low, medium, high', 'high')
   .option('-s, --scope <scope>', 'Scope: personal, professional', 'personal')
   .option('-c, --category <category...>', 'Categories (repeatable)')
   .option('--parent <id>', 'Parent task ID (creates a subtask)')

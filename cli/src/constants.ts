@@ -16,7 +16,6 @@ export const DEFAULT_CONFIG: TaskManConfig = {
 };
 
 export const PRIORITY_COLORS: Record<TaskPriority, string> = {
-  urgent: 'red',
   high: 'magenta',
   medium: 'cyan',
   low: 'gray',

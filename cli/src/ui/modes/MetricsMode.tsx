@@ -9,7 +9,6 @@ import { loadConfig } from '../../config.js';
 import { ProgressBar } from '../shared/ProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
-import { BorderRow, BorderRowEmpty } from '../shared/BorderRow.js';
 
 interface Props {
   store: TaskStore;
@@ -22,13 +21,11 @@ export function MetricsMode({ store }: Props) {
   const report = buildDayReport(store, today);
   const { stats } = report;
 
-  // Focused task progress
   const focusedTasks = store.query({ focused: true });
   const focusedDone = focusedTasks.filter(t => t.status === 'done').length;
   const focusedTotal = focusedTasks.length;
   const progressPercent = focusedTotal > 0 ? Math.round((focusedDone / focusedTotal) * 100) : 0;
 
-  // Parent focused tasks for display
   const focusedActive = focusedTasks.filter(t => t.parent_id === null);
 
   useInput((input) => {
@@ -59,81 +56,68 @@ export function MetricsMode({ store }: Props) {
     return '☐';
   };
 
+  const focusedRows = focusedActive.length === 0
+    ? [<Text key="no-focused" dimColor>    No focused tasks.</Text>]
+    : focusedActive.map((task) => (
+        <Box key={task.id}>
+          <Text>  {statusIcon(task.status)} </Text>
+          <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
+          <Text> {task.title} </Text>
+          <Text dimColor>[{task.created_by === 'claude' ? 'claude' : 'you'}]</Text>
+        </Box>
+      ));
+
+  const insightRow = report.insight
+    ? <Box key="insight"><Text>  💡 </Text><Text color="cyan">{report.insight}</Text></Box>
+    : null;
+
+  const emailRow = emailStatus
+    ? <Box key="email"><Text>  </Text><Text color={emailStatus.startsWith('Error') ? 'red' : 'green'}>{emailStatus}</Text></Box>
+    : null;
+
   return (
     <Box flexDirection="column">
-      <BorderRowEmpty />
+      <Text> </Text>
 
-      {/* Progress bar */}
-      <BorderRow>
+      <Box>
         <Text>  Focus progress  </Text>
         <ProgressBar current={focusedDone} total={focusedTotal} width={16} showPercent color="magenta" />
-      </BorderRow>
+      </Box>
 
-      <BorderRowEmpty />
+      <Text> </Text>
 
-      {/* Stats */}
-      <BorderRow>
+      <Box>
         <Text>  </Text>
         <Text color="green">Completed: {stats.completed}</Text>
         <Text dimColor>  |  </Text>
         <Text color="yellow">In Progress: {stats.inProgress}</Text>
         <Text dimColor>  |  </Text>
         <Text>Todo: {stats.started}</Text>
-      </BorderRow>
+      </Box>
 
-      {/* Attribution */}
-      <BorderRow>
+      <Box>
         <Text>  </Text>
         <Text dimColor>You: {stats.completedByHuman}  |  Claude: {stats.completedByClaude}</Text>
-      </BorderRow>
+      </Box>
 
-      <BorderRowEmpty />
+      <Text> </Text>
 
-      {/* Focused tasks section */}
-      <BorderRow>
-        <SectionDivider label="Focused Tasks" />
-      </BorderRow>
+      <SectionDivider label="Focused Tasks" />
 
-      {focusedActive.map((task) => (
-        <BorderRow key={task.id}>
-          <Text>  {statusIcon(task.status)} </Text>
-          <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
-          <Text> {task.title} </Text>
-          <Text dimColor>[{task.created_by === 'claude' ? 'claude' : 'you'}]</Text>
-        </BorderRow>
-      ))}
+      {focusedRows}
 
-      {focusedActive.length === 0 && (
-        <BorderRow>
-          <Text dimColor>    No focused tasks.</Text>
-        </BorderRow>
-      )}
+      <Text> </Text>
 
-      <BorderRowEmpty />
+      {insightRow}
 
-      {/* Insight */}
-      {report.insight && (
-        <BorderRow>
-          <Text>  💡 </Text>
-          <Text color="cyan">{report.insight}</Text>
-        </BorderRow>
-      )}
-
-      {/* Encouraging message */}
-      <BorderRow>
+      <Box>
         <Text>  </Text>
         <Text color="yellow">{getMidDayMessage(progressPercent)}</Text>
-      </BorderRow>
+      </Box>
 
-      {/* Email status */}
-      {emailStatus && (
-        <BorderRow>
-          <Text>  </Text>
-          <Text color={emailStatus.startsWith('Error') ? 'red' : 'green'}>{emailStatus}</Text>
-        </BorderRow>
-      )}
+      {emailRow}
 
-      <BorderRowEmpty />
+      <Text> </Text>
     </Box>
   );
 }
