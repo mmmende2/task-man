@@ -1,1 +1,1 @@
-export type AppMode = 'view' | 'plan' | 'write' | 'metrics';
+export type AppMode = 'focus' | 'plan' | 'write' | 'metrics';

@@ -13,17 +13,17 @@ export function Footer({ mode, isWatch, interval }: Props) {
   if (isWatch) {
     navContent = `Refreshing every ${(interval ?? 2000) / 1000}s · Ctrl+C to exit`;
     pageContent = '';
-  } else if (mode === 'view') {
-    navContent = 'p:plan w:write m:metrics S-tab:scope';
-    pageContent = 'jk:nav d:done ret:expand';
+  } else if (mode === 'focus') {
+    navContent = 'p:plan w:write m:metrics S:scope';
+    pageContent = 'jk:nav tab:subtasks D:done';
   } else if (mode === 'plan') {
-    navContent = 'v:view w:write m:metrics S-tab:scope';
+    navContent = 'f:focus w:write m:metrics S:scope';
     pageContent = 'jk:nav spc:focus';
   } else if (mode === 'write') {
-    navContent = 'esc:back  S-tab:scope';
+    navContent = 'esc:back  S:scope';
     pageContent = 'enter:add  :subtask';
   } else if (mode === 'metrics') {
-    navContent = 'v:view  p:plan  w:write';
+    navContent = 'f:focus  p:plan  w:write';
     pageContent = 'e:end-day';
   } else {
     navContent = '';

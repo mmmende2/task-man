@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { Task } from '../../types.js';
 import type { TaskStore } from '../../store.js';
@@ -26,17 +27,54 @@ function getSubtaskProgress(
   };
 }
 
-export function ViewMode({ focusedTasks, backlogCount, subtaskMap, selectedIndex, onSelectedIndexChange, store, reload }: Props) {
+export function FocusMode({ focusedTasks, backlogCount, subtaskMap, selectedIndex, onSelectedIndexChange, store, reload }: Props) {
+  // 'tasks' = navigating parent tasks, 'subtasks' = navigating subtasks of selected task
+  const [navTarget, setNavTarget] = useState<'tasks' | 'subtasks'>('tasks');
+  const [subtaskIndex, setSubtaskIndex] = useState(0);
+
+  const selectedTask = focusedTasks[selectedIndex];
+  const currentSubtasks = selectedTask ? (subtaskMap.get(selectedTask.id) ?? []) : [];
+
   useInput((input, key) => {
     if (focusedTasks.length === 0) return;
-    if (key.downArrow || input === 'j') {
-      onSelectedIndexChange(Math.min(selectedIndex + 1, focusedTasks.length - 1));
-    } else if (key.upArrow || input === 'k') {
-      onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
-    } else if (input === 'd' || input === 'D') {
-      const task = focusedTasks[selectedIndex];
-      if (task) {
-        store.update(task.id, { status: 'done' }).then(() => reload());
+
+    // Tab toggles between task and subtask navigation
+    if (key.tab && !key.shift) {
+      if (navTarget === 'tasks' && currentSubtasks.length > 0) {
+        setNavTarget('subtasks');
+        setSubtaskIndex(0);
+      } else {
+        setNavTarget('tasks');
+      }
+      return;
+    }
+
+    if (navTarget === 'subtasks') {
+      if (key.downArrow || input === 'j') {
+        setSubtaskIndex(Math.min(subtaskIndex + 1, currentSubtasks.length - 1));
+      } else if (key.upArrow || input === 'k') {
+        setSubtaskIndex(Math.max(subtaskIndex - 1, 0));
+      } else if (input === 'D') {
+        const sub = currentSubtasks[subtaskIndex];
+        if (sub) {
+          const newStatus = sub.status === 'done' ? 'todo' : 'done';
+          store.update(sub.id, { status: newStatus }).then(() => reload());
+        }
+      }
+    } else {
+      if (key.downArrow || input === 'j') {
+        onSelectedIndexChange(Math.min(selectedIndex + 1, focusedTasks.length - 1));
+        setNavTarget('tasks');
+        setSubtaskIndex(0);
+      } else if (key.upArrow || input === 'k') {
+        onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
+        setNavTarget('tasks');
+        setSubtaskIndex(0);
+      } else if (input === 'D') {
+        const task = focusedTasks[selectedIndex];
+        if (task) {
+          store.update(task.id, { status: 'done' }).then(() => reload());
+        }
       }
     }
   });
@@ -63,6 +101,9 @@ export function ViewMode({ focusedTasks, backlogCount, subtaskMap, selectedIndex
           <TaskRowExpanded
             task={task}
             subtasks={subtaskMap.get(task.id) ?? []}
+            subtaskProgress={getSubtaskProgress(task.id, subtaskMap)}
+            inSubtaskNav={navTarget === 'subtasks'}
+            selectedSubtaskIndex={subtaskIndex}
           />
           <Text> </Text>
         </Box>

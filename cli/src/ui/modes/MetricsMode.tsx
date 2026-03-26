@@ -51,9 +51,9 @@ export function MetricsMode({ store }: Props) {
   });
 
   const statusIcon = (status: string) => {
-    if (status === 'done') return '✅';
-    if (status === 'in_progress') return '🔄';
-    return '☐';
+    if (status === 'done') return '[x]';
+    if (status === 'in_progress') return '[~]';
+    return '[ ]';
   };
 
   const focusedRows = focusedActive.length === 0
@@ -68,7 +68,7 @@ export function MetricsMode({ store }: Props) {
       ));
 
   const insightRow = report.insight
-    ? <Box key="insight"><Text>  💡 </Text><Text color="cyan">{report.insight}</Text></Box>
+    ? <Box key="insight"><Text>  {'>>>'} </Text><Text color="cyan">{report.insight}</Text></Box>
     : null;
 
   const emailRow = emailStatus

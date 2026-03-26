@@ -60,7 +60,7 @@ function WatchAppInner({ interval }: Props) {
   return (
     <Box flexDirection="column" height={termHeight}>
       <Header
-        mode="view"
+        mode="focus"
         taskCount={{ focused: focusedCount, total: parentTasks.length }}
       />
 

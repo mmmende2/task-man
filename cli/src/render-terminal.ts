@@ -44,7 +44,7 @@ export function renderDayReportTerminal(report: DayReport): string {
 
   // Completed
   lines.push('');
-  lines.push(chalk.green.bold(`  ✅ Completed today (${report.completedTasks.length})`));
+  lines.push(chalk.green.bold(`  [x] Completed today (${report.completedTasks.length})`));
   for (const task of report.completedTasks) {
     lines.push(`    ${priorityDot(task)} ${task.title}  ${attribution(task)}`);
   }
@@ -54,7 +54,7 @@ export function renderDayReportTerminal(report: DayReport): string {
 
   // In Progress
   lines.push('');
-  lines.push(chalk.yellow.bold(`  🔄 In Progress (${report.inProgressTasks.length})`));
+  lines.push(chalk.yellow.bold(`  [~] In Progress (${report.inProgressTasks.length})`));
   for (const task of report.inProgressTasks) {
     lines.push(`    ${priorityDot(task)} ${task.title}`);
   }
@@ -64,7 +64,7 @@ export function renderDayReportTerminal(report: DayReport): string {
 
   // Started
   lines.push('');
-  lines.push(chalk.cyan.bold(`  📋 Started today (${report.startedTasks.length})`));
+  lines.push(chalk.cyan.bold(`  [+] Started today (${report.startedTasks.length})`));
   for (const task of report.startedTasks) {
     lines.push(`    ${priorityDot(task)} ${task.title}`);
   }
@@ -75,7 +75,7 @@ export function renderDayReportTerminal(report: DayReport): string {
   // Stats
   lines.push('');
   lines.push(`  ${hr}`);
-  lines.push(chalk.white.bold('  📊 Stats'));
+  lines.push(chalk.white.bold('  --- Stats'));
   const s = report.stats;
   lines.push(`    Completed:   ${chalk.green(String(s.completed))}  (${s.completedByHuman} you · ${s.completedByClaude} claude)`);
   lines.push(`    Started:     ${chalk.cyan(String(s.started))}`);
@@ -85,13 +85,13 @@ export function renderDayReportTerminal(report: DayReport): string {
   // Insight
   if (report.insight) {
     lines.push('');
-    lines.push(chalk.cyan.bold('  💡 Insight'));
+    lines.push(chalk.cyan.bold('  >>> Insight'));
     lines.push(`    ${report.insight}`);
   }
 
   // Encouraging message
   lines.push('');
-  lines.push(chalk.magenta.bold(`  🎉 ${report.encouragingMessage}`));
+  lines.push(chalk.magenta.bold(`  -- ${report.encouragingMessage}`));
 
   lines.push('');
   lines.push(chalk.magenta.bold(`  ╚${'═'.repeat(48)}╝`));

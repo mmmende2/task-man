@@ -6,7 +6,7 @@ import { useTaskStore } from './hooks/useTaskStore.js';
 import { useTerminalDimensionsSetup, TerminalDimensionsProvider, useTerminalHeight } from './hooks/useTerminalWidth.js';
 import { Header } from './shared/Header.js';
 import { Footer } from './shared/Footer.js';
-import { ViewMode } from './modes/ViewMode.js';
+import { FocusMode } from './modes/FocusMode.js';
 import { PlanMode } from './modes/PlanMode.js';
 import { WriteMode } from './modes/WriteMode.js';
 import { MetricsMode } from './modes/MetricsMode.js';
@@ -19,7 +19,7 @@ export function InteractiveApp() {
 }
 
 function InteractiveAppInner() {
-  const [mode, setMode] = useState<AppMode>('view');
+  const [mode, setMode] = useState<AppMode>('focus');
   const [scopeFilter, setScopeFilter] = useState<TaskScope | 'all'>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -49,7 +49,7 @@ function InteractiveAppInner() {
     return parentTasks.filter(t => t.scope === scopeFilter);
   }, [parentTasks, scopeFilter]);
 
-  // Derive per-mode lists — done tasks excluded from view/plan
+  // Derive per-mode lists — done tasks excluded from focus/plan
   const activeTasks = useMemo(() =>
     filteredTasks.filter(t => t.status !== 'done'),
   [filteredTasks]);
@@ -64,7 +64,7 @@ function InteractiveAppInner() {
 
   // The navigable list depends on the mode
   const navigableList = useMemo(() => {
-    if (mode === 'view') return focusedTasks;
+    if (mode === 'focus') return focusedTasks;
     if (mode === 'plan') return [...focusedTasks, ...backlogTasks];
     return [];
   }, [mode, focusedTasks, backlogTasks]);
@@ -94,15 +94,15 @@ function InteractiveAppInner() {
   useInput((input, key) => {
     if (input === 'q') {
       process.exit(0);
-    } else if (input === 'v' && mode !== 'view') {
-      switchMode('view');
+    } else if (input === 'f' && mode !== 'focus') {
+      switchMode('focus');
     } else if (input === 'p' && mode !== 'plan') {
       switchMode('plan');
     } else if (input === 'w' && mode !== 'write') {
       switchMode('write');
     } else if (input === 'm' && mode !== 'metrics') {
       switchMode('metrics');
-    } else if (key.tab && key.shift) {
+    } else if (input === 'S') {
       cycleScope();
     }
   }, { isActive: mode !== 'write' });
@@ -118,8 +118,8 @@ function InteractiveAppInner() {
       />
 
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
-      {mode === 'view' ? (
-        <ViewMode
+      {mode === 'focus' ? (
+        <FocusMode
           focusedTasks={focusedTasks}
           backlogCount={backlogTasks.length}
           subtaskMap={subtaskMap}

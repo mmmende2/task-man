@@ -32,11 +32,11 @@ export function WriteMode({ store, reload, scopeFilter, onModeChange, onCycleSco
 
   useInput((input, key) => {
     if (key.escape) {
-      onModeChange('view');
+      onModeChange('focus');
       return;
     }
 
-    if (key.tab && key.shift) {
+    if (input === 'S') {
       onCycleScope();
       return;
     }

@@ -3,7 +3,7 @@
  * so the output can be read as plain text.
  *
  * Usage: npx tsx src/preview.tsx [mode]
- *   modes: view, plan, write, metrics, all (default: all)
+ *   modes: focus, plan, write, metrics, all (default: all)
  */
 
 import { createElement } from 'react';
@@ -13,7 +13,7 @@ import { TaskStore } from './store.js';
 import { TerminalDimensionsProvider } from './ui/hooks/useTerminalWidth.js';
 import { Header } from './ui/shared/Header.js';
 import { Footer } from './ui/shared/Footer.js';
-import { ViewMode } from './ui/modes/ViewMode.js';
+import { FocusMode } from './ui/modes/FocusMode.js';
 import { PlanMode } from './ui/modes/PlanMode.js';
 import { WriteMode } from './ui/modes/WriteMode.js';
 import { MetricsMode } from './ui/modes/MetricsMode.js';
@@ -49,8 +49,8 @@ function renderMode(mode: AppMode) {
   const focusedTasks = activeTasks.filter(t => t.focused);
   const backlogTasks = activeTasks.filter(t => !t.focused);
 
-  if (mode === 'view') {
-    modeElement = createElement(ViewMode, {
+  if (mode === 'focus') {
+    modeElement = createElement(FocusMode, {
       focusedTasks,
       backlogCount: backlogTasks.length,
       subtaskMap,
@@ -101,7 +101,7 @@ function renderMode(mode: AppMode) {
 // Parse args
 const requestedMode = process.argv[2] ?? 'all';
 const modes: AppMode[] = requestedMode === 'all'
-  ? ['view', 'plan', 'write', 'metrics']
+  ? ['focus', 'plan', 'write', 'metrics']
   : [requestedMode as AppMode];
 
 for (const mode of modes) {
