@@ -61,46 +61,46 @@
 
 The interactive CLI has four modes:
 
-#### View Mode (default)
+#### Focus Mode (default)
 ```
 ╔══════════════════════════════════════════════════╗
-║  TASK MAN                  pro · backend   3/12  ║
-╠══════════════════════════════════════════════════╣
-║                                                  ║
-║  ┌─ Fix auth token refresh ─────────────── ● ─┐  ║
-║  │                                             │  ║
-║  │  Token expires mid-session causing 401s     │  ║
-║  │                                             │  ║
-║  │  ☐ Investigate token lifecycle              │  ║
-║  │  ☑ Add refresh logic to middleware          │  ║
-║  │  ☐ Write integration test                   │  ║
-║  │                                             │  ║
-║  └─────────────────────────── in_progress ─────┘  ║
-║                                                  ║
-║    ● Update API docs for v2 endpoints    2/5 ▰▰▱ ║
-║    ○ Review PR #847                      0/3 ▱▱▱ ║
-║                                                  ║
-║                          + 8 more in backlog     ║
-║                                                  ║
-╠══════════════════════════════════════════════════╣
-║  ↑↓ navigate  │  SPACE complete  │  w write     ║
-║  ⇧TAB scope   │  ENTER  expand   │  p plan      ║
-║  m metrics    │  q quit                          ║
+║  TASK MAN                             per  FOCUS ║
+╚══════════════════════════════════════════════════╝
+
+    ┌─ ○ Fix auth token refresh 2/3 ▰▰▱ ─────────┐
+    │                                               │
+    │  Token expires mid-session causing 401s       │
+    │                                               │
+    │   ○ Investigate token lifecycle               │
+    │   ◉ Add refresh logic to middleware           │
+    │   ○ Write integration test                    │
+    │                                               │
+    └──────────────────────────── in_progress ──────┘
+
+    ○ Update API docs for v2 endpoints    2/5 ▰▰▱
+    ○ Review PR #847                      0/3 ▱▱▱
+
+  + 8 more in backlog
+
+╔══════════════════════════════════════════════════╗
+║  p:plan w:write m:metrics S:scope                ║
+║                          jk:nav tab:subtasks D:done ║
 ╚══════════════════════════════════════════════════╝
 ```
 
-- **View mode only shows focused tasks** — tasks you've pulled into focus via plan mode
-- **Priority indicator**: A colored dot (`●`) on each task — red = urgent, magenta = high, cyan = medium, dim = low. Compact and always visible without taking space.
+- **Focus mode only shows focused tasks** — tasks you've pulled into focus via plan mode
+- **Priority indicator**: A colored dot (`●`/`○`) on each task — magenta = high, cyan = medium, dim = low. Compact and always visible without taking space.
+- **Subtask checkboxes**: `◉` (done, dimmed) / `○` (todo) — radio-button style, no emojis
 - **Secondary tasks show progress** instead of priority text: `2/5 ▰▰▱` (subtasks completed / total with a mini progress bar). Priority is still visible via the dot color.
 - **Backlog count** shown below secondary tasks: `+ 8 more in backlog`. Unobtrusive reminder that more work exists without cluttering the view.
-- **Header shows scope + active category filter** (e.g., `pro · backend`). Scopes abbreviated: `pro` / `per`. Categories cycle with arrow keys or tab.
-- One **focused task** shown large with full details and subtasks
-- Two **peripheral tasks** shown smaller with progress bars
-- Arrow keys to navigate between tasks
-- **Shift+Tab** to swap scope (buried — not a frequent action)
-- Space to toggle a task/subtask as `done`
-- Enter to expand a peripheral task into focus
-- Status bar shows scope, category, and progress count
+- **Header shows scope + mode label** (e.g., `per  FOCUS`). Scopes abbreviated: `pro` / `per`.
+- One **focused task** shown large with full details, description, and subtasks
+- Remaining **peripheral tasks** shown smaller with progress bars
+- `j`/`k` or arrow keys to navigate between tasks
+- `Tab` to enter subtask navigation on the expanded task (border changes from cyan to white); `j`/`k` to cycle subtasks; `Tab` again to return to task nav
+- `D` to mark the selected task or subtask as done
+- `S` to cycle scope filter (`all` → `personal` → `professional`)
+- Status bar shows scope and progress count
 
 #### Plan Mode
 ```
@@ -122,17 +122,17 @@ The interactive CLI has four modes:
 ║    ···5 more                                     ║
 ║                                                  ║
 ╠══════════════════════════════════════════════════╣
-║  ↑↓ navigate  │  SPACE toggle focus  │  v view  ║
-║  ⇧TAB scope   │  ←→ reorder         │  w write ║
-║  m metrics    │                                  ║
+║  f:focus w:write m:metrics S:scope               ║
+║                              jk:nav spc:focus    ║
 ╚══════════════════════════════════════════════════╝
 ```
 
 - **Plan mode is where you decide what to work on.** It shows all tasks split into two lists: focused and backlog.
 - **Space** toggles a task between focused and backlog — pull tasks in when you're ready, push them back when your plate is full
-- **Arrow keys** navigate the combined list; **Left/Right** reorder tasks within their section (priority ordering)
+- `j`/`k` or arrow keys navigate the combined list (crosses from focused to backlog seamlessly)
 - The view is intentionally flat — no subtask expansion, just titles and status. This is a triage view, not a detail view.
-- Press `v` to return to view mode with your newly curated focus list
+- Press `f` to return to focus mode with your newly curated focus list
+- `S` to cycle scope filter
 - **Future AI integration**: In plan mode, an AI could suggest which backlog tasks to focus on based on priority, deadlines, scope balance, and what you completed recently
 
 #### Write Mode
@@ -149,54 +149,50 @@ The interactive CLI has four modes:
 ║  → Priority (l/m/h/u): _                         ║
 ║                                                  ║
 ╠══════════════════════════════════════════════════╣
-║  Type task and ENTER  │  - for category          ║
-║  ESC to view mode     │  : for subtask           ║
-║  m metrics                                       ║
+║  esc:back  S:scope              enter:add  :subtask ║
 ╚══════════════════════════════════════════════════╝
 ```
 
 - Continually accepts tasks — after one is saved, the prompt immediately reappears
+- **Two-phase input**: Type title → press Enter → select priority (`l`/`m`/`h` or Enter for high)
 - **Quick-entry syntax**: `task title - category` on one line (dash-delimited)
 - **Subtask syntax**: `: subtask title` adds a subtask to the most recently created task
-- After entering a title, it prompts for missing fields (priority, scope) — or you can pack it all in one line
-- ESC returns to view mode
+- After entering a title, it prompts for priority. Scope is inherited from the active scope filter.
+- ESC returns to focus mode; `S` cycles scope
 - No confirmation dialogs — tasks are saved immediately
 
 #### Metrics Mode
 ```
 ╔══════════════════════════════════════════════════╗
-║  TASK MAN  ◈ metrics            pro · all   3/12 ║
-╠══════════════════════════════════════════════════╣
-║                                                  ║
-║  📊 Today's Progress                             ║
-║  ████████████░░░░░░░░  60% (6/10)                ║
-║  Completed: 6  │  In Progress: 2  │  Todo: 2     ║
-║  You: 5  │  Claude: 1                            ║
-║                                                  ║
-║  ── Focused Tasks ──────────────────────────────  ║
-║  ✅ Fix auth token refresh           [you]       ║
-║  ✅ Write integration test           [claude]    ║
-║  🔄 Update API docs for v2          2/5 ▰▰▱     ║
-║  ☐  Review PR #847                  0/3 ▱▱▱     ║
-║                                                  ║
-║  💡 Insight                                      ║
-║  You completed 2 more tasks than yesterday!      ║
-║                                                  ║
-║  🔥 Keep crushing it! You're on a roll today.    ║
-║                                                  ║
-╠══════════════════════════════════════════════════╣
-║  v view  │  p plan  │  w write  │  e end-day     ║
-║  ⇧TAB scope  │  q quit                           ║
+║  TASK MAN                           METRICS      ║
+╚══════════════════════════════════════════════════╝
+
+  Focus progress  3/5 ▰▰▰▱▱ 60%
+
+  Completed: 3  |  In Progress: 1  |  Todo: 1
+  You: 2  |  Claude: 1
+
+  --- Focused Tasks ---
+  [x] Fix auth token refresh           [you]
+  [x] Write integration test           [claude]
+  [~] Update API docs for v2           [you]
+  [ ] Review PR #847                   [you]
+
+  >>> You completed 2 more tasks than yesterday!
+  You're on fire today, don't stop now!
+
+╔══════════════════════════════════════════════════╗
+║  f:focus  p:plan  w:write             e:end-day  ║
 ╚══════════════════════════════════════════════════╝
 ```
 
 - **Metrics mode is the progress dashboard.** Press `m` from any mode to see how your day is going.
-- **Progress bar**: Visual completion % of today's focused tasks
+- **Progress bar**: Visual completion % of today's focused tasks (magenta ▰▱ bar)
 - **Stats row**: Completed / In Progress / Todo counts, split by you vs Claude
-- **Focused task list**: Today's focused tasks with status icons and attribution
-- **Insight**: One data-driven insight from the Insights Engine (see below)
-- **Encouraging message**: Rotating motivational mid-day message (see Encouraging Messages below)
-- **Keybindings**: `v` → view, `p` → plan, `w` → write, `e` → trigger end-of-day email, `Shift+Tab` → scope swap, `q` → quit
+- **Focused task list**: Today's focused tasks with text-art status icons (`[x]` done, `[~]` in progress, `[ ]` todo) and attribution — no emojis
+- **Insight**: One data-driven insight from the Insights Engine, prefixed with `>>>` (see below)
+- **Encouraging message**: Deterministic daily motivational message — changes once per day, not randomly per render (see Encouraging Messages below)
+- **Keybindings**: `f` → focus, `p` → plan, `w` → write, `e` → trigger end-of-day email
 
 ### Non-Interactive CLI
 
@@ -272,33 +268,33 @@ The key insight: since both human and AI write to the same task store, your view
 Invoked via `task-man end-day`, the `/end-day` Claude Code skill, or the `task_end_day` MCP tool. This is the daily wrap-up — run it before you close your laptop.
 
 ```
-╔══════════════════════════════════════════════════╗
-║  END OF DAY — 2026-03-14                        ║
-╠══════════════════════════════════════════════════╣
-║                                                  ║
-║  ✅ Completed today (4)                          ║
-║    • Fix auth token refresh          [you]       ║
-║    • Write integration test          [claude]    ║
-║    • Review PR #847                  [you]       ║
-║    • Do dishes                       [you]       ║
-║                                                  ║
-║  🔄 Worked on / In Progress (2)                  ║
-║    • Update API docs for v2          2/5 ▰▰▱    ║
-║    • Refactor logger module          0/3 ▱▱▱    ║
-║                                                  ║
-║  📋 Started today (3)                            ║
-║    • Refactor logger module                      ║
-║    • Update API docs for v2                      ║
-║    • Do dishes                                   ║
-║                                                  ║
-║ ─────────────────────────────────────────────── ║
-║  📊 Stats                                        ║
-║    Completed:  4  (3 you · 1 claude)             ║
-║    Started:    3                                  ║
-║    In progress:2  (carrying over to tomorrow)    ║
-║    Completion: 67%                                ║
-║                                                  ║
-╚══════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════╗
+║  END OF DAY — 2026-03-14                           ║
+╠════════════════════════════════════════════════════╣
+
+  [x] Completed today (4)
+    ● Fix auth token refresh          [you]
+    ● Write integration test          [claude]
+    ● Review PR #847                  [you]
+    ● Do dishes                       [you]
+
+  [~] In Progress (2)
+    ● Update API docs for v2          2/5 ▰▰▱
+    ● Refactor logger module          0/3 ▱▱▱
+
+  [+] Started today (3)
+    ● Refactor logger module
+    ● Update API docs for v2
+    ● Do dishes
+
+  ──────────────────────────────────────────────────
+  --- Stats
+    Completed:   4  (3 you · 1 claude)
+    Started:     3
+    In progress: 2  (carrying over to tomorrow)
+    Completion:  67%
+
+╚════════════════════════════════════════════════════╝
 ```
 
 - **Completed today**: Tasks whose `completed_at` falls on this day, with attribution
@@ -317,40 +313,38 @@ The end-of-day report can be emailed so you can reference it the next morning fo
 ```
 Subject: Task Man — End of Day (2026-03-15)
 
-╔══════════════════════════════════════════════════╗
-║  END OF DAY — 2026-03-15                         ║
-╠══════════════════════════════════════════════════╣
-║                                                  ║
-║  ✅ Completed today (4)                          ║
-║    • Fix auth token refresh          [you]       ║
-║    • Write integration test          [claude]    ║
-║    • Review PR #847                  [you]       ║
-║    • Do dishes                       [you]       ║
-║                                                  ║
-║  🔄 In Progress (2)                              ║
-║    • Update API docs for v2          2/5 ▰▰▱    ║
-║    • Refactor logger module          0/3 ▱▱▱    ║
-║                                                  ║
-║  📋 Started today (3)                            ║
-║    • Refactor logger module                      ║
-║    • Update API docs for v2                      ║
-║    • Do dishes                                   ║
-║                                                  ║
-║  📊 Stats                                        ║
-║    Completed:  4  (3 you · 1 claude)             ║
-║    Started:    3                                  ║
-║    In progress:2  (carrying over)                ║
-║    Completion: 67%                                ║
-║                                                  ║
-║  💡 Insight                                      ║
-║  You completed 2 more tasks than yesterday and   ║
-║  had your best completion rate this week!         ║
-║                                                  ║
-║  🎉 Whew, what a day! Look what you              ║
-║  accomplished — 4 tasks knocked out. Rest up,    ║
-║  you earned it.                                   ║
-║                                                  ║
-╚══════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════╗
+║  END OF DAY — 2026-03-15                           ║
+╠════════════════════════════════════════════════════╣
+
+  [x] Completed today (4)
+    ● Fix auth token refresh          [you]
+    ● Write integration test          [claude]
+    ● Review PR #847                  [you]
+    ● Do dishes                       [you]
+
+  [~] In Progress (2)
+    ● Update API docs for v2          2/5 ▰▰▱
+    ● Refactor logger module          0/3 ▱▱▱
+
+  [+] Started today (3)
+    ● Refactor logger module
+    ● Update API docs for v2
+    ● Do dishes
+
+  --- Stats
+    Completed:   4  (3 you · 1 claude)
+    Started:     3
+    In progress: 2  (carrying over)
+    Completion:  67%
+
+  >>> Insight
+  You completed 2 more tasks than yesterday and
+  had your best completion rate this week!
+
+  -- What a day. Look at everything you got done.
+
+╚════════════════════════════════════════════════════╝
 ```
 
 **Trigger mechanisms**:
@@ -399,31 +393,36 @@ The insights engine queries the task store with date filters to compute all metr
 
 ## Encouraging Messages
 
-Two pools of motivational messages with distinct tones for different contexts.
+Two pools of motivational messages with distinct tones for different contexts. All messages use plain text — no emojis.
 
 ### Mid-Day Messages (Metrics Mode)
 
-Tone: Energy, momentum, keep-going encouragement.
+Two sub-pools based on progress:
 
-- "Keep going, you're making great progress!"
-- "Hang in there! Every task done is a win."
+**High progress (>= 50%)** — 15 messages with energy/momentum tone:
 - "You're on fire today, don't stop now!"
-- "Look at that progress bar move!"
-- "One task at a time — you've got this."
+- "Shipping machine. Keep it rolling."
+- "Clear eyes, full lists, can't lose."
+- _(12 more — see `messages.ts`)_
 
-**Selection**: Random from pool, weighted toward relevance. If progress > 50%, prefer "on fire" / momentum messages. If progress < 25%, prefer supportive "hang in there" messages.
+**Low progress (< 50%)** — 15 messages with supportive tone:
+- "Hang in there. Every task done is a win."
+- "The hardest part is starting. You already did that."
+- "Brick by brick. You're building something."
+- _(12 more — see `messages.ts`)_
+
+**Selection**: Deterministic daily pick using day-of-year index into the pool. The message changes once per day, not on each render. The pool is selected based on progress percentage.
 
 ### End-of-Day Messages (Email & Report)
 
-Tone: Closure, accomplishment, rest.
+Tone: Closure, accomplishment, rest. 12 messages:
 
-- "Whew, what a day! Look at everything you got done."
-- "That's a wrap! You crushed it today."
-- "Another day, another set of wins. Time to recharge."
-- "Solid day of work. Tomorrow's you will thank today's you."
-- "You showed up and shipped. That's what counts."
+- "What a day. Look at everything you got done."
+- "Today's diff: +progress, -stress. Ship it."
+- "Good work compounds. Today was an investment."
+- _(9 more — see `messages.ts`)_
 
-**Selection**: Random from pool. Message is included in both the terminal report and the email version.
+**Selection**: Deterministic daily pick (same `dailyPick` function). Message is included in both the terminal report and the email version.
 
 ---
 
@@ -497,7 +496,7 @@ task-man config email.to <address>
 ## Aesthetic / Design Principles
 
 - **Outrun / Vaporwave / Hacker** aesthetic — vibrant magenta, cyan, purple on dark backgrounds
-- **ASCII art only** — box-drawing characters, block elements, no images or external renderers
+- **ASCII/text art only** — box-drawing characters, block elements, bracket-style icons (`[x]`, `>>>`, `◉`/`○`). No emojis anywhere in TUI or terminal output — this is a text-mode application.
 - **Focus over clutter** — one task in focus at a time, minimal chrome
 - **Instant feedback** — no loading spinners, no confirmation dialogs for common actions
 - **Color coding**: priorities and statuses get distinct colors
@@ -548,13 +547,13 @@ These are ideas beyond what you described — take or leave any of them:
 - [x] Data model and JSON file storage with file locking — _completed 2026-03-15, uses `proper-lockfile` + atomic writes via tmp file rename_
 - [x] Non-interactive CLI (`add`, `list`, `done`, `start`, `focus`, `unfocus`, `end-day --email`, `config`, `watch`) — _completed 2026-03-15_
 - [x] MCP server with 9 tools (`task_add`, `task_list`, `task_update`, `task_complete`, `task_start`, `task_focus`, `task_unfocus`, `task_end_day`, `task_search`) — _completed 2026-03-15, lives in `mcp/`, stdio transport, shares `TaskStore` with CLI via `file:../cli` dep_
-- [ ] Basic interactive CLI with view mode, write mode, and **metrics mode**
+- [x] Interactive CLI with focus mode, plan mode, write mode, and metrics mode — _completed 2026-03-26, all four modes fully functional with keyboard navigation, subtask management, scope cycling_
 - [x] ASCII art UI with outrun color scheme — _completed 2026-03-17, Ink (React for terminal) component library: Header, Footer, PriorityDot, StatusBadge, ProgressBar, SubtaskCheckbox, TaskRow, TaskRowExpanded, SectionDivider_
 - [x] Watch mode (live-updating, non-interactive view) — _completed 2026-03-15 (basic), rebuilt 2026-03-17 with Ink — flicker-free rendering, outrun-themed double-line box frame, expanded card for top focused task, compact rows with progress bars_
 - [x] `created_by` tracking for human vs AI actions — _completed 2026-03-15_
 - [x] **Insights engine** with historical comparison and streak tracking — _completed 2026-03-15, 8 insight types with repeat-avoidance via `~/.task-man/insights-log.json`_
 - [x] **End-of-day email** via Resend API with encouraging messages — _completed 2026-03-15, HTML email with outrun-themed inline CSS_
-- [x] **Encouraging messages** — mid-day (metrics mode) and end-of-day (email/report) pools — _completed 2026-03-15_
+- [x] **Encouraging messages** — mid-day (metrics mode) and end-of-day (email/report) pools — _completed 2026-03-15, updated 2026-03-26: expanded to 15/15/12 messages across three pools, switched from random to deterministic daily pick_
 
 #### Session 2 Deviations & Notes (2026-03-15)
 - **9 tools instead of 8**: Added `task_search` (full-text case-insensitive substring search on title + description) beyond the PRD's original 8 MCP tools.
@@ -571,6 +570,16 @@ These are ideas beyond what you described — take or leave any of them:
 - **`watch.ts` uses `createElement`**: Kept as `.ts` (not `.tsx`) and uses `React.createElement` to avoid renaming the file.
 - **No `ViewMode` reuse yet**: `WatchApp` has its own rendering logic. Will be refactored to use `<ViewMode isWatch={true} />` once ViewMode is built in a future session.
 
+#### Session 4 Deviations & Notes (2026-03-26)
+- **View Mode renamed to Focus Mode**: `f` keybinding (was `v`). All references updated. The PRD originally called it "View Mode" but "Focus Mode" better describes its purpose — showing only focused tasks.
+- **Emojis removed throughout**: All emoji usage replaced with text art across metrics mode (`[x]`/`[~]`/`[ ]`), terminal reports (`[x]`/`[~]`/`[+]`/`---`/`>>>`/`--`), subtask checkboxes (`◉`/`○`), and insight prefix (`>>>`). This is a TUI — text art fits the aesthetic better.
+- **Subtask checkboxes redesigned**: Changed from `☑`/`☐` (hard to read at terminal font sizes) to `◉`/`○` (radio-button style, high contrast). Done subtasks use dim color to match done title text.
+- **Scope cycling changed**: `Shift+Tab` replaced with `S` key across all modes. Simpler, more discoverable.
+- **Done action changed**: `Space` replaced with `D` key in focus mode. `Space` retained in plan mode for focus toggle.
+- **Subtask navigation implemented**: `Tab` toggles between task and subtask nav in focus mode. Border changes from cyan to white when in subtask nav. `j`/`k` cycles subtasks, `D` toggles subtask done status.
+- **Encouraging messages overhauled**: Pools expanded from 5/5/8 to 15/15/12 messages. Selection changed from random-per-render to deterministic daily pick using day-of-year index — message stays stable throughout the day.
+- **Test suite expanded**: 77 tests across 8 test files (was 50 across 5). New coverage: WriteMode (9 tests), MetricsMode (7 tests), focus mode ANSI color assertions (5 tests, require `FORCE_COLOR=1`), subtask navigation (5 tests), scope cycling, footer keybinding hints. Test helper extended with `rawText()`/`rawLines()` for ANSI-preserving assertions.
+
 #### Session 1 Deviations & Notes (2026-03-15)
 - **`summary` command replaced by `end-day`**: The PRD listed `summary` as a CLI command, but the plan consolidated daily summary functionality into `end-day` (with `--date yesterday` for standup prep). No separate `summary` command was created.
 - **`focus`/`unfocus` commands added**: Not originally listed in the Phase 1 CLI commands above, but specified in the Non-Interactive CLI section of the PRD. Implemented as part of Session 1.
@@ -579,11 +588,11 @@ These are ideas beyond what you described — take or leave any of them:
 - **13 store tests**: Basic CRUD test suite via vitest covers add, persist, prefix resolve, update, query filters, scope inheritance, and date queries.
 
 ### Phase 2 — Polish & Daily Use
-- [ ] Subtask management in the interactive UI
-- [ ] Quick-entry syntax parsing (`task - category`)
+- [x] Subtask management in the interactive UI — _completed 2026-03-26, Tab-based subtask navigation in focus mode with j/k cycling and D to toggle done_
+- [x] Quick-entry syntax parsing (`task - category`) — _completed 2026-03-26, two-phase write mode with dash-delimited category and `:` subtask prefix_
+- [x] Priority and status color coding — _completed 2026-03-17 (component library), refined 2026-03-26 (text art icons, dim styling for done)_
 - [ ] Daily summary / standup command
 - [ ] Category management (list, rename, merge)
-- [ ] Priority and status color coding
 - [ ] Keyboard shortcut help overlay
 - [ ] Task search and filtering in interactive mode
 
