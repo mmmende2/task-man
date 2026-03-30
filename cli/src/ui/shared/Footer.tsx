@@ -24,8 +24,8 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle }: Props
     navContent = '';
     pageContent = `-- cut: ${holdingTitle} -- p:put P:put esc:delete`;
   } else if (mode === 'focus') {
-    navContent = 'p:plan w:write m:metrics S:scope';
-    pageContent = 'jk:nav tab:sub x:done dd:del i:edit o:new /:find u:undo';
+    navContent = 't:triage w:write m:metrics S:scope';
+    pageContent = 'jk:nav tab:sub x:done dd:cut i:edit o:new /:find u:undo';
   } else if (mode === 'plan') {
     navContent = 'f:focus w:write m:metrics S:scope';
     pageContent = 'jk:nav spc:focus dd:cut x:done i:edit o:new /:find u:undo';
@@ -33,7 +33,7 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle }: Props
     navContent = 'esc:back  S:scope';
     pageContent = 'enter:add  :subtask  -p -c -s flags';
   } else if (mode === 'metrics') {
-    navContent = 'f:focus  p:plan  w:write';
+    navContent = 'f:focus  t:triage  w:write';
     pageContent = 'e:end-day';
   } else {
     navContent = '';

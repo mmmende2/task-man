@@ -20,7 +20,7 @@ interface Props {
 
 export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editText, cursorPos }: Props) {
   const width = useTerminalWidth();
-  const cardInner = width - 4;
+  const cardInner = width - 2;
 
   // Border color: cyan when navigating tasks, white when navigating subtasks
   const borderColor = inSubtaskNav ? 'white' : 'cyan';
@@ -28,11 +28,11 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
   const bottomDash = Math.max(0, cardInner - 18);
 
   const descriptionRow = task.description
-    ? <Box key="desc"><Text color={borderColor}>{'    │  '}</Text><Text dimColor>{task.description}</Text></Box>
+    ? <Box key="desc"><Text color={borderColor}>{' │  '}</Text><Text dimColor>{task.description}</Text></Box>
     : null;
 
   const spacerRow = (task.description || subtasks.length > 0)
-    ? <Box key="spacer-mid"><Text color={borderColor}>{'    │'}</Text></Box>
+    ? <Box key="spacer-mid"><Text color={borderColor}>{' │'}</Text></Box>
     : null;
 
   const subtaskRows = subtasks.map((sub, i) => {
@@ -42,7 +42,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
     if (editingSubtaskId === sub.id && editText !== undefined && cursorPos !== undefined) {
       return (
         <Box key={sub.id}>
-          <Text color={borderColor}>{'    │ '}</Text>
+          <Text color={borderColor}>{' │   '}</Text>
           <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
         </Box>
       );
@@ -50,7 +50,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
 
     return (
       <Box key={sub.id}>
-        <Text color={borderColor}>{'    │ '}</Text>
+        <Text color={borderColor}>{' │   '}</Text>
         <Text color={isSelected ? 'cyan' : undefined}>{indicator}</Text>
         <SubtaskCheckbox subtask={sub} highlighted={isSelected} />
       </Box>
@@ -58,12 +58,10 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
   });
 
   const postSubtaskSpacer = subtasks.length > 0
-    ? <Box key="spacer-post"><Text color={borderColor}>{'    │'}</Text></Box>
+    ? <Box key="spacer-post"><Text color={borderColor}>{' │'}</Text></Box>
     : null;
 
   // Build the title line content to measure for padding
-  // Format: ┌─ ●  Title 0/9 ▰▱▱ ────
-  // We need to calculate the visible width of the progress portion
   let progressText = '';
   if (subtaskProgress && subtaskProgress.total > 0) {
     const filled = Math.round((subtaskProgress.done / subtaskProgress.total) * subtaskProgress.total);
@@ -72,13 +70,13 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
   }
 
   // ┌─ ●  Title{progressText} {pad}────
-  const contentWidth = 2 + 1 + 2 + task.title.length + progressText.length + 1; // "─ " + dot + "  " + title + progress + " "
-  const trailingDashes = Math.max(4, cardInner - contentWidth - 1); // -1 for the ┌
+  const contentWidth = 2 + 1 + 2 + task.title.length + progressText.length + 1;
+  const trailingDashes = Math.max(4, cardInner - contentWidth - 1);
 
   return (
     <Box flexDirection="column">
       <Box>
-        <Text>{'    '}</Text>
+        <Text>{' '}</Text>
         <Text color={borderColor}>{'┌─ '}</Text>
         <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
         <Text color={borderColor}>{' '}</Text>
@@ -88,13 +86,13 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
         ) : null}
         <Text color={borderColor}>{' ' + '─'.repeat(Math.max(0, trailingDashes - 1)) + '┐'}</Text>
       </Box>
-      <Box><Text color={borderColor}>{'    │'}</Text></Box>
+      <Box><Text color={borderColor}>{' │'}</Text></Box>
       {descriptionRow}
       {spacerRow}
       {subtaskRows}
       {postSubtaskSpacer}
       <Box>
-        <Text>{'    '}</Text>
+        <Text>{' '}</Text>
         <Text color={borderColor}>{'└' + '─'.repeat(bottomDash) + ' '}</Text>
         <StatusBadge status={task.status} />
         <Text color={borderColor}>{' ─────┘'}</Text>

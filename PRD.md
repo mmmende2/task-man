@@ -598,13 +598,22 @@ These are ideas beyond what you described — take or leave any of them:
 - **`useUndoStack` hook created**: Action-based undo (inverse operations pushed onto a ref-based stack, max 10 entries) rather than snapshot-based. Lighter weight and works across all mutation types.
 - **Store extended with `remove()` and `insertAt()`**: Array-splice reordering — no `position` field needed. `remove` returns `{ task, index }` for undo support. `insertAt` clamps to bounds.
 - **PlanMode fully rewritten**: All vim features — `dd`/`p` cut-paste reordering with cross-boundary focus toggling, `i`/`A`/`cc` inline title editing, `o`/`O` task creation, `x` mark done (replaced `D`), `u` undo, `/` real-time search filtering, `Space` toggle-focus with guardrail. Clipboard state tracks original position and focused status for undo. `dd` doubles as delete: `Esc` in holding mode confirms deletion (task stays removed, undoable via `u`), while `p`/`P` moves the task to a new position.
-- **FocusMode rewritten**: Vim subset — `x` done, `dd` delete (tasks and subtasks, immediate with undo), `i`/`A`/`cc` edit, `o`/`O` create (including subtasks via Tab into subtask nav on any task), `u` undo, `/` search, `Tab` subtask nav. No holding mode — `dd` is a direct delete. Both `i` and `A` place cursor at end of title (user preference for backspace-to-delete workflow).
+- **FocusMode rewritten**: Vim subset — `x` done, `dd`/`p` cut-paste (tasks and subtasks, with holding mode and undo), `i`/`A`/`cc` edit, `o`/`O` create (including subtasks via Tab into subtask nav on any task), `u` undo, `/` search, `Tab` subtask nav. Same `dd` semantics as plan mode: `Esc` confirms delete, `p`/`P` moves. Both `i` and `A` place cursor at end of title (user preference for backspace-to-delete workflow).
 - **New shared components**: `InlineEdit.tsx` (editable text with magenta cursor block) and `SearchBar.tsx` (renders `/ query|`).
 - **Footer updated**: Vim mode awareness — shows context-specific keybinding hints for normal, insert, and holding modes. Holding mode displays cut task title.
 - **InteractiveApp guards global keys**: `vimMode` lifted to parent. Global `useInput` skips all keys when not in `normal` mode, preventing mode switches during editing.
 - **`D` key replaced by `x`**: More vim-native for marking done. Works in both focus and plan modes.
 - **Stale closure handling**: Ink's `useInput` re-registers handlers on every render (dependency array includes the handler function). Rapid keystrokes can arrive between renders, causing stale closure reads. Solution: combined state objects (e.g., `editState = { text, cursor }`) with functional updaters (`setEditState(prev => ...)`) which always receive latest state. Refs only needed for values mutated inside the handler itself between renders (`keyBufferRef`, `timeoutRef` in `useVimKeys`).
 - **Test suite expanded**: 85 tests across 9 test files (was 73 across 8). New file: `vim-keys.test.tsx` with 12 integration tests covering store operations, cut/paste reorder, cancel cut, mark done, inline edit, task creation, search filtering, and undo.
+
+#### Session 7 Deviations & Notes (2026-03-29)
+- **`dd` behavior unified**: In both plan and focus modes, `dd` cuts a task into clipboard and enters holding mode. `Esc` confirms deletion (task stays removed, undoable via `u`), while `p`/`P` pastes to move. Previously focus mode had immediate delete without holding mode.
+- **`j`/`k` navigation in holding mode**: Arrow keys and `j`/`k` now work while holding a cut task, allowing navigation to the paste target.
+- **Focus mode gets full cut/paste**: `dd`/`p`/`P` now work in focus mode for both tasks and subtasks. Pasting in subtask nav attaches the task as a subtask of the selected parent.
+- **Plan mode key changed from `p` to `t`**: `p` conflicted conceptually with paste. `t` stands for "triage" which better describes the mode's purpose. Footer updated to show `t:triage`.
+- **Expanded card alignment fixed**: `TaskRowExpanded` left margin reduced from 4 spaces to 1 space, aligning the priority dot at column 4 — same as non-selected `TaskRow`. Eliminates visual jumping when navigating with `j`/`k`. `cardInner` updated from `width - 4` to `width - 2`.
+- **README created**: User-facing documentation with installation instructions (including nvm), CLI command reference (all 9 commands with flags and examples), interactive mode guide with vim keybinding tables, and MCP server setup + tool reference (all 9 tools with parameter tables).
+- **Global install set up**: `npm link` for both `cli/` and `mcp/` packages, making `task-man` and `task-man-mcp` available on PATH.
 
 #### Session 1 Deviations & Notes (2026-03-15)
 - **`summary` command replaced by `end-day`**: The PRD listed `summary` as a CLI command, but the plan consolidated daily summary functionality into `end-day` (with `--date yesterday` for standup prep). No separate `summary` command was created.
@@ -622,7 +631,7 @@ These are ideas beyond what you described — take or leave any of them:
 - [ ] Category management (list, rename, merge)
 - [ ] Keyboard shortcut help overlay
 - [x] Task search and filtering in interactive mode — _completed 2026-03-29, `/` key opens search bar in both focus and plan modes, filters tasks by title substring match in real-time_
-- [x] Vim-like keybindings — _completed 2026-03-29: `dd`/`p` cut-paste reordering (plan mode), `dd` delete (focus mode, immediate), `i`/`A`/`cc` inline editing, `o`/`O` task creation, `x` mark done, `u` undo, `/` search. Custom `useVimKeys` hook with three-mode state machine (normal/insert/holding). `dd` in plan mode doubles as delete (Esc confirms) or move (p/P pastes). `D` key replaced by `x`._
+- [x] Vim-like keybindings — _completed 2026-03-29: `dd`/`p` cut-paste reordering in both plan and focus modes, `i`/`A`/`cc` inline editing, `o`/`O` task creation, `x` mark done, `u` undo, `/` search. Custom `useVimKeys` hook with three-mode state machine (normal/insert/holding). `dd` doubles as delete (Esc confirms) or move (p/P pastes). `D` key replaced by `x`._
 
 ### Phase 3 — AI Integration
 - [ ] AI-assisted task prioritization — _spec in `docs/adhd-feature-specs.md` §7: MCP tool `task_prioritize` + CLI `task-man prioritize` + plan mode `a` key integration. AI reviews tasks and suggests priority changes with reasons, user confirms._

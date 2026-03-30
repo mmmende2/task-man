@@ -102,7 +102,7 @@ function InteractiveAppInner() {
       process.exit(0);
     } else if (input === 'f' && mode !== 'focus') {
       switchMode('focus');
-    } else if (input === 'p' && mode !== 'plan') {
+    } else if (input === 't' && mode !== 'plan') {
       switchMode('plan');
     } else if (input === 'w' && mode !== 'write') {
       switchMode('write');
@@ -136,6 +136,7 @@ function InteractiveAppInner() {
           vimMode={vimMode}
           setVimMode={setVimMode}
           scopeFilter={scopeFilter}
+          onHoldingChange={setHoldingTitle}
         />
       ) : mode === 'plan' ? (
         <PlanMode

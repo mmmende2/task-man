@@ -70,7 +70,11 @@ export function useVimKeys(
 
     // --- Holding mode ---
     if (vimMode === 'holding') {
-      if (input === 'p') {
+      if (key.downArrow || input === 'j') {
+        options.onAction({ type: 'move', direction: 'down' });
+      } else if (key.upArrow || input === 'k') {
+        options.onAction({ type: 'move', direction: 'up' });
+      } else if (input === 'p') {
         options.onAction({ type: 'paste', above: false });
       } else if (input === 'P') {
         options.onAction({ type: 'paste', above: true });

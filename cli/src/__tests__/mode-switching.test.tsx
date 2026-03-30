@@ -37,10 +37,10 @@ describe('Mode switching', () => {
     expect(text(instance)).toContain('FOCUS');
   });
 
-  it('p switches to plan mode', async () => {
+  it('t switches to triage mode', async () => {
     instance = render(createElement(InteractiveApp));
 
-    instance.stdin.write('p');
+    instance.stdin.write('t');
 
     await vi.waitFor(() => {
       expect(text(instance)).toContain('PLAN');
@@ -50,7 +50,7 @@ describe('Mode switching', () => {
   it('f switches back to focus mode', async () => {
     instance = render(createElement(InteractiveApp));
 
-    instance.stdin.write('p');
+    instance.stdin.write('t');
     await vi.waitFor(() => {
       expect(text(instance)).toContain('PLAN');
     });

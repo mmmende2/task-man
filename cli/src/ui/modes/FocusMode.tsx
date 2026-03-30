@@ -21,6 +21,14 @@ interface Props {
   vimMode: VimMode;
   setVimMode: (mode: VimMode) => void;
   scopeFilter: TaskScope | 'all';
+  onHoldingChange?: (title: string | undefined) => void;
+}
+
+interface Clipboard {
+  task: Task;
+  index: number;
+  isSubtask: boolean;
+  parentId?: string;
 }
 
 function getSubtaskProgress(
@@ -37,12 +45,13 @@ function getSubtaskProgress(
 
 export function FocusMode({
   focusedTasks, backlogCount, subtaskMap, selectedIndex, onSelectedIndexChange,
-  store, reload, vimMode, setVimMode, scopeFilter,
+  store, reload, vimMode, setVimMode, scopeFilter, onHoldingChange,
 }: Props) {
   const [navTarget, setNavTarget] = useState<'tasks' | 'subtasks'>('tasks');
   const [subtaskIndex, setSubtaskIndex] = useState(0);
 
   // Vim feature state
+  const [clipboard, setClipboard] = useState<Clipboard | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState({ text: '', cursor: 0 });
   const [creatingAt, setCreatingAt] = useState<number | null>(null);
@@ -162,19 +171,14 @@ export function FocusMode({
         break;
       }
 
-      case 'cancel': {
-        // In normal mode, Esc clears search if active
-        if (searchQuery) {
-          setSearchQuery('');
-        }
-        break;
-      }
-
       case 'cut': {
         if (navTarget === 'subtasks') {
           const sub = currentSubtasks[subtaskIndex];
           if (sub) {
             store.remove(sub.id).then(({ index }) => {
+              setClipboard({ task: sub, index, isSubtask: true, parentId: sub.parent_id ?? undefined });
+              setVimMode('holding');
+              onHoldingChange?.(sub.title);
               undoStack.push({
                 undo: async () => { await store.insertAt(sub, index); },
               });
@@ -185,6 +189,9 @@ export function FocusMode({
           const task = filteredTasks[selectedIndex];
           if (task) {
             store.remove(task.id).then(({ index }) => {
+              setClipboard({ task, index, isSubtask: false });
+              setVimMode('holding');
+              onHoldingChange?.(task.title);
               undoStack.push({
                 undo: async () => { await store.insertAt(task, index); },
               });
@@ -195,7 +202,71 @@ export function FocusMode({
         break;
       }
 
-      // paste/toggle-focus not supported in focus mode
+      case 'paste': {
+        if (!clipboard) return;
+        const allTasks = store.load();
+
+        // Determine target position
+        let targetIndex: number;
+        if (navTarget === 'subtasks') {
+          const anchorSub = currentSubtasks[subtaskIndex];
+          if (anchorSub) {
+            targetIndex = allTasks.findIndex(t => t.id === anchorSub.id);
+            if (!action.above) targetIndex += 1;
+          } else if (selectedTask) {
+            // No subtasks — insert after parent
+            targetIndex = allTasks.findIndex(t => t.id === selectedTask.id) + 1;
+          } else {
+            targetIndex = allTasks.length;
+          }
+        } else {
+          const anchorTask = filteredTasks[selectedIndex];
+          if (anchorTask) {
+            targetIndex = allTasks.findIndex(t => t.id === anchorTask.id);
+            if (!action.above) targetIndex += 1;
+          } else {
+            targetIndex = allTasks.length;
+          }
+        }
+
+        const origClipboard = clipboard;
+        const taskToInsert = { ...clipboard.task };
+
+        // If pasting in subtask nav, make it a subtask of the selected task
+        if (navTarget === 'subtasks' && selectedTask) {
+          taskToInsert.parent_id = selectedTask.id;
+        } else {
+          taskToInsert.parent_id = null;
+        }
+
+        store.insertAt(taskToInsert, targetIndex).then(() => {
+          undoStack.push({
+            undo: async () => {
+              await store.remove(taskToInsert.id);
+              await store.insertAt(origClipboard.task, origClipboard.index);
+            },
+          });
+          setClipboard(null);
+          setVimMode('normal');
+          onHoldingChange?.(undefined);
+          reload();
+        });
+        break;
+      }
+
+      case 'cancel': {
+        if (vimMode === 'holding' && clipboard) {
+          // Confirm delete — task stays removed, undo available via 'u'
+          setClipboard(null);
+          setVimMode('normal');
+          onHoldingChange?.(undefined);
+        } else if (searchQuery) {
+          setSearchQuery('');
+        }
+        break;
+      }
+
+      // toggle-focus not supported in focus mode
       default:
         break;
     }
@@ -350,6 +421,13 @@ export function FocusMode({
       {isSearching && <SearchBar query={searchQuery} />}
       {searchQuery && !isSearching && (
         <Text dimColor>  filter: {searchQuery}</Text>
+      )}
+      {vimMode === 'holding' && clipboard && (
+        <Box>
+          <Text dimColor>  -- cut: </Text>
+          <Text color="yellow">{clipboard.task.title}</Text>
+          <Text dimColor> --</Text>
+        </Box>
       )}
       {taskRows}
       {backlogRow}
