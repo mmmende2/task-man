@@ -28,6 +28,12 @@ export function MetricsMode({ store }: Props) {
 
   const focusedActive = focusedTasks.filter(t => t.parent_id === null);
 
+  // Sort: done first, then in_progress, then todo
+  const sortedFocused = [...focusedActive].sort((a, b) => {
+    const order: Record<string, number> = { done: 0, in_progress: 1, todo: 2 };
+    return (order[a.status] ?? 2) - (order[b.status] ?? 2);
+  });
+
   useInput((input) => {
     if (input === 'e') {
       setEmailStatus('Sending...');
@@ -56,9 +62,9 @@ export function MetricsMode({ store }: Props) {
     return '[ ]';
   };
 
-  const focusedRows = focusedActive.length === 0
+  const focusedRows = sortedFocused.length === 0
     ? [<Text key="no-focused" dimColor>    No focused tasks.</Text>]
-    : focusedActive.map((task) => (
+    : sortedFocused.map((task) => (
         <Box key={task.id}>
           <Text>  {statusIcon(task.status)} </Text>
           <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
@@ -80,29 +86,20 @@ export function MetricsMode({ store }: Props) {
       <Text> </Text>
 
       <Box>
-        <Text>  Focus progress  </Text>
-        <ProgressBar current={focusedDone} total={focusedTotal} width={16} showPercent color="magenta" />
-      </Box>
-
-      <Text> </Text>
-
-      <Box>
         <Text>  </Text>
-        <Text color="green">Completed: {stats.completed}</Text>
-        <Text dimColor>  |  </Text>
-        <Text color="yellow">In Progress: {stats.inProgress}</Text>
-        <Text dimColor>  |  </Text>
-        <Text>Todo: {stats.started}</Text>
+        <Text color="green" bold>Done today: {stats.completed}</Text>
+        <Text>                        </Text>
+        <ProgressBar current={focusedDone} total={focusedTotal} width={10} color="magenta" />
       </Box>
 
       <Box>
         <Text>  </Text>
-        <Text dimColor>You: {stats.completedByHuman}  |  Claude: {stats.completedByClaude}</Text>
+        <Text dimColor>You: {stats.completedByHuman}  Claude: {stats.completedByClaude}</Text>
       </Box>
 
       <Text> </Text>
 
-      <SectionDivider label="Focused Tasks" />
+      <SectionDivider label="Today's Progress" />
 
       {focusedRows}
 

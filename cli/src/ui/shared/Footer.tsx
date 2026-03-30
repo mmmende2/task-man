@@ -1,27 +1,37 @@
 import { Box, Text } from 'ink';
 import type { AppMode } from '../types.js';
+import type { VimMode } from '../hooks/useVimKeys.js';
 
 interface Props {
   mode?: AppMode;
   isWatch?: boolean;
   interval?: number;
+  vimMode?: VimMode;
+  holdingTitle?: string;
 }
 
-export function Footer({ mode, isWatch, interval }: Props) {
+export function Footer({ mode, isWatch, interval, vimMode, holdingTitle }: Props) {
   let navContent: string;
   let pageContent: string;
+
   if (isWatch) {
     navContent = `Refreshing every ${(interval ?? 2000) / 1000}s · Ctrl+C to exit`;
     pageContent = '';
+  } else if (vimMode === 'insert') {
+    navContent = '';
+    pageContent = 'esc:save  enter:save';
+  } else if (vimMode === 'holding' && holdingTitle) {
+    navContent = '';
+    pageContent = `-- cut: ${holdingTitle} -- p:put P:put esc:delete`;
   } else if (mode === 'focus') {
     navContent = 'p:plan w:write m:metrics S:scope';
-    pageContent = 'jk:nav tab:subtasks D:done';
+    pageContent = 'jk:nav tab:sub x:done dd:del i:edit o:new /:find u:undo';
   } else if (mode === 'plan') {
     navContent = 'f:focus w:write m:metrics S:scope';
-    pageContent = 'jk:nav spc:focus';
+    pageContent = 'jk:nav spc:focus dd:cut x:done i:edit o:new /:find u:undo';
   } else if (mode === 'write') {
     navContent = 'esc:back  S:scope';
-    pageContent = 'enter:add  :subtask';
+    pageContent = 'enter:add  :subtask  -p -c -s flags';
   } else if (mode === 'metrics') {
     navContent = 'f:focus  p:plan  w:write';
     pageContent = 'e:end-day';

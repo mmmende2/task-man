@@ -13,6 +13,9 @@ export const DEFAULT_CONFIG: TaskManConfig = {
     to: null,
     autoPromptAfter: '17:00',
   },
+  focus: {
+    maxFocused: 3,
+  },
 };
 
 export const PRIORITY_COLORS: Record<TaskPriority, string> = {

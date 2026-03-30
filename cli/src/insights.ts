@@ -108,12 +108,12 @@ export function generateInsight(store: TaskStore, date: string): string | null {
     if (personal === 0 && professional > 0) {
       candidates.push({
         type: 'scope_balance',
-        message: "Today was all professional — don't forget personal tasks!",
+        message: 'Deep professional focus today.',
       });
     } else if (professional === 0 && personal > 0) {
       candidates.push({
         type: 'scope_balance',
-        message: "All personal tasks today — nice self-care day!",
+        message: 'All personal tasks today — nice self-care day!',
       });
     } else if (personal > 0 && professional > 0) {
       candidates.push({
@@ -153,14 +153,7 @@ export function generateInsight(store: TaskStore, date: string): string | null {
     }
   }
 
-  // 8. Productivity tip
-  const startedToday = store.getCreatedOn(date).length;
-  if (startedToday >= 5 && todayCount <= 1) {
-    candidates.push({
-      type: 'productivity_tip',
-      message: `You started ${startedToday} new tasks but only completed ${todayCount} — try finishing before starting new ones.`,
-    });
-  }
+  // 8. Productivity tip — removed (negative framing hurts more than it helps)
 
   // Filter out last type to avoid repeats
   const filtered = candidates.filter(c => c.type !== lastType);

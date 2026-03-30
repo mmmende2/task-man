@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, createElement } from 'react';
 import { Box, useInput } from 'ink';
 import type { Task, TaskScope } from '../types.js';
 import type { AppMode } from './types.js';
+import type { VimMode } from './hooks/useVimKeys.js';
 import { useTaskStore } from './hooks/useTaskStore.js';
 import { useTerminalDimensionsSetup, TerminalDimensionsProvider, useTerminalHeight } from './hooks/useTerminalWidth.js';
 import { Header } from './shared/Header.js';
@@ -22,6 +23,8 @@ function InteractiveAppInner() {
   const [mode, setMode] = useState<AppMode>('focus');
   const [scopeFilter, setScopeFilter] = useState<TaskScope | 'all'>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [vimMode, setVimMode] = useState<VimMode>('normal');
+  const [holdingTitle, setHoldingTitle] = useState<string | undefined>(undefined);
 
   const { tasks, reload, store } = useTaskStore(undefined, 2000);
 
@@ -81,6 +84,8 @@ function InteractiveAppInner() {
   const switchMode = (newMode: AppMode) => {
     setMode(newMode);
     setSelectedIndex(0);
+    setVimMode('normal');
+    setHoldingTitle(undefined);
   };
 
   const cycleScope = () => {
@@ -90,8 +95,9 @@ function InteractiveAppInner() {
     setSelectedIndex(0);
   };
 
-  // Global keys — disabled during write mode
+  // Global keys — disabled during write mode and non-normal vim modes
   useInput((input, key) => {
+    if (vimMode !== 'normal') return;
     if (input === 'q') {
       process.exit(0);
     } else if (input === 'f' && mode !== 'focus') {
@@ -127,6 +133,9 @@ function InteractiveAppInner() {
           onSelectedIndexChange={setSelectedIndex}
           store={store}
           reload={reload}
+          vimMode={vimMode}
+          setVimMode={setVimMode}
+          scopeFilter={scopeFilter}
         />
       ) : mode === 'plan' ? (
         <PlanMode
@@ -136,6 +145,10 @@ function InteractiveAppInner() {
           onSelectedIndexChange={setSelectedIndex}
           store={store}
           reload={reload}
+          vimMode={vimMode}
+          setVimMode={setVimMode}
+          scopeFilter={scopeFilter}
+          onHoldingChange={setHoldingTitle}
         />
       ) : mode === 'write' ? (
         <WriteMode
@@ -151,7 +164,7 @@ function InteractiveAppInner() {
       <Box flexGrow={1} />
       </Box>
 
-      <Footer mode={mode} />
+      <Footer mode={mode} vimMode={vimMode} holdingTitle={holdingTitle} />
     </Box>
   );
 }

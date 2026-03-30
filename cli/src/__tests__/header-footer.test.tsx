@@ -145,8 +145,8 @@ describe('Footer', () => {
     const line = result.lines()[1];
 
     expect(line).toContain('p:plan');
-    expect(line).toContain('D:done');
-    expect(line).toContain('tab:subtasks');
+    expect(line).toContain('x:done');
+    expect(line).toContain('tab:sub');
     expect(line).toContain('S:scope');
   });
 

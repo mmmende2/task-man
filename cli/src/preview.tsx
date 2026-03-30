@@ -58,6 +58,9 @@ function renderMode(mode: AppMode) {
       onSelectedIndexChange: noop,
       store,
       reload: noop,
+      vimMode: 'normal' as const,
+      setVimMode: noop as any,
+      scopeFilter: 'all' as const,
     });
   } else if (mode === 'plan') {
     modeElement = createElement(PlanMode, {
@@ -67,6 +70,9 @@ function renderMode(mode: AppMode) {
       onSelectedIndexChange: noop,
       store,
       reload: noop,
+      vimMode: 'normal' as const,
+      setVimMode: noop as any,
+      scopeFilter: 'all' as const,
     });
   } else if (mode === 'write') {
     modeElement = createElement(WriteMode, {

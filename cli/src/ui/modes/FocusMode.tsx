@@ -1,9 +1,14 @@
-import { useState } from 'react';
-import { Box, Text, useInput } from 'ink';
-import type { Task } from '../../types.js';
+import { useState, useMemo } from 'react';
+import { Box, Text } from 'ink';
+import type { Task, TaskScope } from '../../types.js';
 import type { TaskStore } from '../../store.js';
+import type { VimMode, VimAction } from '../hooks/useVimKeys.js';
+import { useVimKeys } from '../hooks/useVimKeys.js';
+import { useUndoStack } from '../hooks/useUndoStack.js';
 import { TaskRow } from '../shared/TaskRow.js';
 import { TaskRowExpanded } from '../shared/TaskRowExpanded.js';
+import { InlineEdit } from '../shared/InlineEdit.js';
+import { SearchBar } from '../shared/SearchBar.js';
 
 interface Props {
   focusedTasks: Task[];
@@ -13,6 +18,9 @@ interface Props {
   onSelectedIndexChange: (index: number) => void;
   store: TaskStore;
   reload: () => void;
+  vimMode: VimMode;
+  setVimMode: (mode: VimMode) => void;
+  scopeFilter: TaskScope | 'all';
 }
 
 function getSubtaskProgress(
@@ -27,59 +35,254 @@ function getSubtaskProgress(
   };
 }
 
-export function FocusMode({ focusedTasks, backlogCount, subtaskMap, selectedIndex, onSelectedIndexChange, store, reload }: Props) {
-  // 'tasks' = navigating parent tasks, 'subtasks' = navigating subtasks of selected task
+export function FocusMode({
+  focusedTasks, backlogCount, subtaskMap, selectedIndex, onSelectedIndexChange,
+  store, reload, vimMode, setVimMode, scopeFilter,
+}: Props) {
   const [navTarget, setNavTarget] = useState<'tasks' | 'subtasks'>('tasks');
   const [subtaskIndex, setSubtaskIndex] = useState(0);
 
-  const selectedTask = focusedTasks[selectedIndex];
+  // Vim feature state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editState, setEditState] = useState({ text: '', cursor: 0 });
+  const [creatingAt, setCreatingAt] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+
+  const editText = editState.text;
+  const cursorPos = editState.cursor;
+
+  const undoStack = useUndoStack();
+
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery) return focusedTasks;
+    const q = searchQuery.toLowerCase();
+    return focusedTasks.filter(t => t.title.toLowerCase().includes(q));
+  }, [focusedTasks, searchQuery]);
+
+  const selectedTask = filteredTasks[selectedIndex];
   const currentSubtasks = selectedTask ? (subtaskMap.get(selectedTask.id) ?? []) : [];
 
-  useInput((input, key) => {
-    if (focusedTasks.length === 0) return;
-
-    // Tab toggles between task and subtask navigation
-    if (key.tab && !key.shift) {
-      if (navTarget === 'tasks' && currentSubtasks.length > 0) {
-        setNavTarget('subtasks');
-        setSubtaskIndex(0);
-      } else {
-        setNavTarget('tasks');
+  const handleAction = (action: VimAction) => {
+    switch (action.type) {
+      case 'move': {
+        if (filteredTasks.length === 0) return;
+        if (navTarget === 'subtasks') {
+          if (action.direction === 'down') {
+            setSubtaskIndex(Math.min(subtaskIndex + 1, currentSubtasks.length - 1));
+          } else {
+            setSubtaskIndex(Math.max(subtaskIndex - 1, 0));
+          }
+        } else {
+          if (action.direction === 'down') {
+            onSelectedIndexChange(Math.min(selectedIndex + 1, filteredTasks.length - 1));
+          } else {
+            onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
+          }
+          setNavTarget('tasks');
+          setSubtaskIndex(0);
+        }
+        break;
       }
+
+      case 'tab': {
+        if (navTarget === 'tasks') {
+          setNavTarget('subtasks');
+          setSubtaskIndex(0);
+        } else {
+          setNavTarget('tasks');
+        }
+        break;
+      }
+
+      case 'mark-done': {
+        if (navTarget === 'subtasks') {
+          const sub = currentSubtasks[subtaskIndex];
+          if (sub) {
+            const prevStatus = sub.status;
+            const newStatus = sub.status === 'done' ? 'todo' : 'done';
+            store.update(sub.id, { status: newStatus }).then(() => {
+              undoStack.push({
+                undo: async () => { await store.update(sub.id, { status: prevStatus }); },
+              });
+              reload();
+            });
+          }
+        } else {
+          const task = filteredTasks[selectedIndex];
+          if (task) {
+            const prevStatus = task.status;
+            const newStatus = task.status === 'done' ? 'todo' : 'done';
+            store.update(task.id, { status: newStatus }).then(() => {
+              undoStack.push({
+                undo: async () => { await store.update(task.id, { status: prevStatus }); },
+              });
+              reload();
+            });
+          }
+        }
+        break;
+      }
+
+      case 'edit': {
+        const task = navTarget === 'subtasks' ? currentSubtasks[subtaskIndex] : filteredTasks[selectedIndex];
+        if (!task) return;
+        setEditingId(task.id);
+        if (action.variant === 'clear') {
+          setEditState({ text: '', cursor: 0 });
+        } else {
+          // Both 'start' (i) and 'end' (A) place cursor at end in focus mode
+          setEditState({ text: task.title, cursor: task.title.length });
+        }
+        setVimMode('insert');
+        break;
+      }
+
+      case 'create': {
+        const createIdx = navTarget === 'subtasks' && selectedTask
+          ? (action.above ? subtaskIndex : subtaskIndex + 1)
+          : (action.above ? selectedIndex : selectedIndex + 1);
+        setCreatingAt(createIdx);
+        setEditState({ text: '', cursor: 0 });
+        setVimMode('insert');
+        break;
+      }
+
+      case 'undo': {
+        undoStack.pop().then((didUndo) => {
+          if (didUndo) reload();
+        });
+        break;
+      }
+
+      case 'search': {
+        setIsSearching(true);
+        setSearchQuery('');
+        setVimMode('insert');
+        break;
+      }
+
+      case 'cancel': {
+        // In normal mode, Esc clears search if active
+        if (searchQuery) {
+          setSearchQuery('');
+        }
+        break;
+      }
+
+      case 'cut': {
+        if (navTarget === 'subtasks') {
+          const sub = currentSubtasks[subtaskIndex];
+          if (sub) {
+            store.remove(sub.id).then(({ index }) => {
+              undoStack.push({
+                undo: async () => { await store.insertAt(sub, index); },
+              });
+              reload();
+            });
+          }
+        } else {
+          const task = filteredTasks[selectedIndex];
+          if (task) {
+            store.remove(task.id).then(({ index }) => {
+              undoStack.push({
+                undo: async () => { await store.insertAt(task, index); },
+              });
+              reload();
+            });
+          }
+        }
+        break;
+      }
+
+      // paste/toggle-focus not supported in focus mode
+      default:
+        break;
+    }
+  };
+
+  const saveEdit = () => {
+    if (isSearching) {
+      setIsSearching(false);
+      setVimMode('normal');
       return;
     }
 
-    if (navTarget === 'subtasks') {
-      if (key.downArrow || input === 'j') {
-        setSubtaskIndex(Math.min(subtaskIndex + 1, currentSubtasks.length - 1));
-      } else if (key.upArrow || input === 'k') {
-        setSubtaskIndex(Math.max(subtaskIndex - 1, 0));
-      } else if (input === 'D') {
-        const sub = currentSubtasks[subtaskIndex];
-        if (sub) {
-          const newStatus = sub.status === 'done' ? 'todo' : 'done';
-          store.update(sub.id, { status: newStatus }).then(() => reload());
-        }
+    if (editingId) {
+      const allTasks = [...focusedTasks, ...focusedTasks.flatMap(t => subtaskMap.get(t.id) ?? [])];
+      const task = allTasks.find(t => t.id === editingId);
+      const prevTitle = task?.title ?? '';
+      if (editText.trim() && editText !== prevTitle) {
+        const id = editingId;
+        store.update(id, { title: editText.trim() }).then(() => {
+          undoStack.push({
+            undo: async () => { await store.update(id, { title: prevTitle }); },
+          });
+          reload();
+        });
       }
-    } else {
-      if (key.downArrow || input === 'j') {
-        onSelectedIndexChange(Math.min(selectedIndex + 1, focusedTasks.length - 1));
-        setNavTarget('tasks');
-        setSubtaskIndex(0);
-      } else if (key.upArrow || input === 'k') {
-        onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
-        setNavTarget('tasks');
-        setSubtaskIndex(0);
-      } else if (input === 'D') {
-        const task = focusedTasks[selectedIndex];
-        if (task) {
-          store.update(task.id, { status: 'done' }).then(() => reload());
-        }
-      }
+      setEditingId(null);
+      setEditState({ text: '', cursor: 0 });
+      setVimMode('normal');
+      return;
     }
+
+    if (creatingAt !== null) {
+      if (editText.trim()) {
+        const isSubtaskCreate = navTarget === 'subtasks' && selectedTask;
+        const scope = scopeFilter === 'all' ? 'personal' : scopeFilter;
+        const input = {
+          title: editText.trim(),
+          scope,
+          focused: true,
+          created_by: 'human' as const,
+          ...(isSubtaskCreate ? { parent_id: selectedTask!.id } : {}),
+        };
+        store.add(input).then((newTask) => {
+          undoStack.push({
+            undo: async () => { await store.remove(newTask.id); },
+          });
+          reload();
+        });
+      }
+      setCreatingAt(null);
+      setEditState({ text: '', cursor: 0 });
+      setVimMode('normal');
+      return;
+    }
+  };
+
+  useVimKeys(vimMode, setVimMode, {
+    isActive: true,
+    onAction: handleAction,
+    onInsertChar: (char) => {
+      if (isSearching) {
+        setSearchQuery(prev => prev + char);
+      } else {
+        setEditState(prev => ({
+          text: prev.text.slice(0, prev.cursor) + char + prev.text.slice(prev.cursor),
+          cursor: prev.cursor + 1,
+        }));
+      }
+    },
+    onInsertBackspace: () => {
+      if (isSearching) {
+        setSearchQuery(prev => prev.slice(0, -1));
+      } else {
+        setEditState(prev => {
+          if (prev.cursor <= 0) return prev;
+          return {
+            text: prev.text.slice(0, prev.cursor - 1) + prev.text.slice(prev.cursor),
+            cursor: prev.cursor - 1,
+          };
+        });
+      }
+    },
+    onInsertEnter: saveEdit,
+    onInsertEscape: saveEdit,
   });
 
-  if (focusedTasks.length === 0) {
+  if (filteredTasks.length === 0 && !searchQuery) {
     const backlogMsg = backlogCount > 0
       ? <Text key="backlog" dimColor>{'  + ' + backlogCount + ' in backlog'}</Text>
       : null;
@@ -94,7 +297,10 @@ export function FocusMode({ focusedTasks, backlogCount, subtaskMap, selectedInde
     );
   }
 
-  const taskRows = focusedTasks.map((task, i) => {
+  const taskRows = filteredTasks.map((task, i) => {
+    if (editingId === task.id) {
+      return <InlineEdit key={task.id} text={editText} cursorPos={cursorPos} />;
+    }
     if (selectedIndex === i) {
       return (
         <Box flexDirection="column" key={task.id}>
@@ -104,7 +310,14 @@ export function FocusMode({ focusedTasks, backlogCount, subtaskMap, selectedInde
             subtaskProgress={getSubtaskProgress(task.id, subtaskMap)}
             inSubtaskNav={navTarget === 'subtasks'}
             selectedSubtaskIndex={subtaskIndex}
+            editingSubtaskId={editingId}
+            editText={editText}
+            cursorPos={cursorPos}
           />
+          {/* Insert creation row for subtask */}
+          {creatingAt !== null && navTarget === 'subtasks' && (
+            <InlineEdit text={editText} cursorPos={cursorPos} prefix="      " />
+          )}
           <Text> </Text>
         </Box>
       );
@@ -119,6 +332,14 @@ export function FocusMode({ focusedTasks, backlogCount, subtaskMap, selectedInde
     );
   });
 
+  // Insert creation row for parent task
+  if (creatingAt !== null && navTarget === 'tasks') {
+    const insertIdx = Math.min(creatingAt, taskRows.length);
+    taskRows.splice(insertIdx, 0,
+      <InlineEdit key="__creating" text={editText} cursorPos={cursorPos} />
+    );
+  }
+
   const backlogRow = backlogCount > 0
     ? <Text key="backlog" dimColor>{'  + ' + backlogCount + ' more in backlog'}</Text>
     : null;
@@ -126,6 +347,10 @@ export function FocusMode({ focusedTasks, backlogCount, subtaskMap, selectedInde
   return (
     <Box flexDirection="column">
       <Text> </Text>
+      {isSearching && <SearchBar query={searchQuery} />}
+      {searchQuery && !isSearching && (
+        <Text dimColor>  filter: {searchQuery}</Text>
+      )}
       {taskRows}
       {backlogRow}
       <Text> </Text>

@@ -84,7 +84,7 @@ The interactive CLI has four modes:
 
 ╔══════════════════════════════════════════════════╗
 ║  p:plan w:write m:metrics S:scope                ║
-║                          jk:nav tab:subtasks D:done ║
+║         jk:nav tab:sub x:done dd:del i:edit o:new /:find u:undo ║
 ╚══════════════════════════════════════════════════╝
 ```
 
@@ -98,7 +98,10 @@ The interactive CLI has four modes:
 - Remaining **peripheral tasks** shown smaller with progress bars
 - `j`/`k` or arrow keys to navigate between tasks
 - `Tab` to enter subtask navigation on the expanded task (border changes from cyan to white); `j`/`k` to cycle subtasks; `Tab` again to return to task nav
-- `D` to mark the selected task or subtask as done
+- `x` to mark the selected task or subtask as done (vim-style)
+- `dd` to delete the selected task or subtask (undoable via `u`)
+- `i`/`A` to edit task title inline, `cc` to clear and retype, `o`/`O` to create task below/above
+- `u` to undo last action, `/` to search/filter tasks
 - `S` to cycle scope filter (`all` → `personal` → `professional`)
 - Status bar shows scope and progress count
 
@@ -123,7 +126,7 @@ The interactive CLI has four modes:
 ║                                                  ║
 ╠══════════════════════════════════════════════════╣
 ║  f:focus w:write m:metrics S:scope               ║
-║                              jk:nav spc:focus    ║
+║       jk:nav spc:focus dd:cut x:done i:edit o:new /:find u:undo  ║
 ╚══════════════════════════════════════════════════╝
 ```
 
@@ -536,7 +539,7 @@ These are ideas beyond what you described — take or leave any of them:
 
 6. **Export formats**: `task-man export --format markdown` for pasting into Slack, email, or docs.
 
-7. **Undo**: Since we're writing to a JSON file, keep the last N states for quick undo of accidental completions or deletions.
+7. **~~Undo~~**: ~~Since we're writing to a JSON file, keep the last N states for quick undo of accidental completions or deletions.~~ — _Implemented in session 6 via action-based undo stack (`u` key). Each mutation pushes an inverse operation; max 10 entries._
 
 ---
 
@@ -551,9 +554,9 @@ These are ideas beyond what you described — take or leave any of them:
 - [x] ASCII art UI with outrun color scheme — _completed 2026-03-17, Ink (React for terminal) component library: Header, Footer, PriorityDot, StatusBadge, ProgressBar, SubtaskCheckbox, TaskRow, TaskRowExpanded, SectionDivider_
 - [x] Watch mode (live-updating, non-interactive view) — _completed 2026-03-15 (basic), rebuilt 2026-03-17 with Ink — flicker-free rendering, outrun-themed double-line box frame, expanded card for top focused task, compact rows with progress bars_
 - [x] `created_by` tracking for human vs AI actions — _completed 2026-03-15_
-- [x] **Insights engine** with historical comparison and streak tracking — _completed 2026-03-15, 8 insight types with repeat-avoidance via `~/.task-man/insights-log.json`_
-- [x] **End-of-day email** via Resend API with encouraging messages — _completed 2026-03-15, HTML email with outrun-themed inline CSS_
-- [x] **Encouraging messages** — mid-day (metrics mode) and end-of-day (email/report) pools — _completed 2026-03-15, updated 2026-03-26: expanded to 15/15/12 messages across three pools, switched from random to deterministic daily pick_
+- [x] **Insights engine** with historical comparison and streak tracking — _completed 2026-03-15, 7 insight types (was 8, `productivity_tip` removed 2026-03-26 — negative framing) with repeat-avoidance via `~/.task-man/insights-log.json`_
+- [x] **End-of-day email** via Resend API with encouraging messages — _completed 2026-03-15, HTML email with outrun-themed inline CSS. Updated 2026-03-26: added "Tomorrow's Focus" section showing remaining focused tasks_
+- [x] **Encouraging messages** — mid-day (metrics mode) and end-of-day (email/report) pools — _completed 2026-03-15, updated 2026-03-26: expanded to 15/15/12 messages across three pools, switched from random to deterministic daily pick, low-progress pool rewritten to be shame-free_
 
 #### Session 2 Deviations & Notes (2026-03-15)
 - **9 tools instead of 8**: Added `task_search` (full-text case-insensitive substring search on title + description) beyond the PRD's original 8 MCP tools.
@@ -575,10 +578,33 @@ These are ideas beyond what you described — take or leave any of them:
 - **Emojis removed throughout**: All emoji usage replaced with text art across metrics mode (`[x]`/`[~]`/`[ ]`), terminal reports (`[x]`/`[~]`/`[+]`/`---`/`>>>`/`--`), subtask checkboxes (`◉`/`○`), and insight prefix (`>>>`). This is a TUI — text art fits the aesthetic better.
 - **Subtask checkboxes redesigned**: Changed from `☑`/`☐` (hard to read at terminal font sizes) to `◉`/`○` (radio-button style, high contrast). Done subtasks use dim color to match done title text.
 - **Scope cycling changed**: `Shift+Tab` replaced with `S` key across all modes. Simpler, more discoverable.
-- **Done action changed**: `Space` replaced with `D` key in focus mode. `Space` retained in plan mode for focus toggle.
+- **Done action changed**: `Space` replaced with `D` key in focus mode (later changed to `x` in session 6). `Space` retained in plan mode for focus toggle.
 - **Subtask navigation implemented**: `Tab` toggles between task and subtask nav in focus mode. Border changes from cyan to white when in subtask nav. `j`/`k` cycles subtasks, `D` toggles subtask done status.
 - **Encouraging messages overhauled**: Pools expanded from 5/5/8 to 15/15/12 messages. Selection changed from random-per-render to deterministic daily pick using day-of-year index — message stays stable throughout the day.
 - **Test suite expanded**: 77 tests across 8 test files (was 50 across 5). New coverage: WriteMode (9 tests), MetricsMode (7 tests), focus mode ANSI color assertions (5 tests, require `FORCE_COLOR=1`), subtask navigation (5 tests), scope cycling, footer keybinding hints. Test helper extended with `rawText()`/`rawLines()` for ANSI-preserving assertions.
+
+#### Session 5 Deviations & Notes (2026-03-26) — ADHD-Informed Modifications
+- **ADHD research conducted**: Three research documents created in `docs/` — brain overview, software UX patterns, and feature proposals. All modifications are grounded in specific ADHD mechanisms (time blindness, RSD, executive function deficits, dopamine system, etc.).
+- **Write mode: priority phase eliminated**: Two-phase input (title → priority) replaced with single-phase. Enter saves immediately with default priority `medium` (was `high`). CLI-style flag parsing added (`-p high -c housework -s professional -d "notes" -f`). Live preview of parsed flags below input.
+- **Metrics mode reframed**: "Done today: N" as hero metric (was "Completed: N | In Progress: N | Todo: N"). Stats line removed. Section renamed "Focused Tasks" → "Today's Progress". Tasks sorted done-first. Progress bar kept without percentage label.
+- **Low-progress messages rewritten**: All 15 `MID_DAY_LOW` messages replaced with shame-free, progress-neutral alternatives. No references to counts, no implied struggling, focus on presence and process.
+- **Negative insights removed**: `productivity_tip` insight type deleted (was the only critical one). `scope_balance` all-professional message reframed from directive to neutral observation. `InsightType` union reduced to 7 types.
+- **Focus guardrails added**: Plan mode now has a configurable soft limit on focused tasks (default 3). Warning shown when exceeding: "You have N focused tasks. Add another?" Override persists for session. Config: `focus.maxFocused` in `~/.task-man/config.json`.
+- **"Tomorrow's Focus" in end-of-day report**: New section showing remaining focused tasks (todo/in_progress), sorted by status then priority, capped at 5. Rendered in both terminal and HTML email.
+- **Tests updated**: 73 passing tests (78 total, 5 skipped). 9 tests rewritten to match new write mode and metrics behavior, 1 new test added for flag parsing.
+
+#### Session 6 Deviations & Notes (2026-03-29) — Vim-like Keybindings
+- **`useVimKeys` hook created**: Custom hook wrapping Ink's `useInput` with a three-mode state machine (`normal`, `insert`, `holding`). Multi-key sequences (`dd`, `cc`) use a key buffer ref with 300ms timeout. All state read inside callbacks uses `useRef` to avoid stale closures — a critical pattern for Ink's `useInput` which re-registers handlers via `useEffect`.
+- **`useUndoStack` hook created**: Action-based undo (inverse operations pushed onto a ref-based stack, max 10 entries) rather than snapshot-based. Lighter weight and works across all mutation types.
+- **Store extended with `remove()` and `insertAt()`**: Array-splice reordering — no `position` field needed. `remove` returns `{ task, index }` for undo support. `insertAt` clamps to bounds.
+- **PlanMode fully rewritten**: All vim features — `dd`/`p` cut-paste reordering with cross-boundary focus toggling, `i`/`A`/`cc` inline title editing, `o`/`O` task creation, `x` mark done (replaced `D`), `u` undo, `/` real-time search filtering, `Space` toggle-focus with guardrail. Clipboard state tracks original position and focused status for undo. `dd` doubles as delete: `Esc` in holding mode confirms deletion (task stays removed, undoable via `u`), while `p`/`P` moves the task to a new position.
+- **FocusMode rewritten**: Vim subset — `x` done, `dd` delete (tasks and subtasks, immediate with undo), `i`/`A`/`cc` edit, `o`/`O` create (including subtasks via Tab into subtask nav on any task), `u` undo, `/` search, `Tab` subtask nav. No holding mode — `dd` is a direct delete. Both `i` and `A` place cursor at end of title (user preference for backspace-to-delete workflow).
+- **New shared components**: `InlineEdit.tsx` (editable text with magenta cursor block) and `SearchBar.tsx` (renders `/ query|`).
+- **Footer updated**: Vim mode awareness — shows context-specific keybinding hints for normal, insert, and holding modes. Holding mode displays cut task title.
+- **InteractiveApp guards global keys**: `vimMode` lifted to parent. Global `useInput` skips all keys when not in `normal` mode, preventing mode switches during editing.
+- **`D` key replaced by `x`**: More vim-native for marking done. Works in both focus and plan modes.
+- **Stale closure handling**: Ink's `useInput` re-registers handlers on every render (dependency array includes the handler function). Rapid keystrokes can arrive between renders, causing stale closure reads. Solution: combined state objects (e.g., `editState = { text, cursor }`) with functional updaters (`setEditState(prev => ...)`) which always receive latest state. Refs only needed for values mutated inside the handler itself between renders (`keyBufferRef`, `timeoutRef` in `useVimKeys`).
+- **Test suite expanded**: 85 tests across 9 test files (was 73 across 8). New file: `vim-keys.test.tsx` with 12 integration tests covering store operations, cut/paste reorder, cancel cut, mark done, inline edit, task creation, search filtering, and undo.
 
 #### Session 1 Deviations & Notes (2026-03-15)
 - **`summary` command replaced by `end-day`**: The PRD listed `summary` as a CLI command, but the plan consolidated daily summary functionality into `end-day` (with `--date yesterday` for standup prep). No separate `summary` command was created.
@@ -589,14 +615,17 @@ These are ideas beyond what you described — take or leave any of them:
 
 ### Phase 2 — Polish & Daily Use
 - [x] Subtask management in the interactive UI — _completed 2026-03-26, Tab-based subtask navigation in focus mode with j/k cycling and D to toggle done_
-- [x] Quick-entry syntax parsing (`task - category`) — _completed 2026-03-26, two-phase write mode with dash-delimited category and `:` subtask prefix_
+- [x] Quick-entry syntax parsing (`task - category`) — _completed 2026-03-26, two-phase write mode with dash-delimited category and `:` subtask prefix. Updated 2026-03-26: added CLI-style flag parsing (`-p`, `-c`, `-s`, `-d`, `-f`)_
 - [x] Priority and status color coding — _completed 2026-03-17 (component library), refined 2026-03-26 (text art icons, dim styling for done)_
+- [x] ADHD-informed UX modifications — _completed 2026-03-26: shame-free messages, no negative insights, metrics reframe (accomplishment-first), focus guardrails (configurable, default 3), write mode friction reduction (single-phase entry), "Tomorrow's Focus" in end-of-day report_
 - [ ] Daily summary / standup command
 - [ ] Category management (list, rename, merge)
 - [ ] Keyboard shortcut help overlay
-- [ ] Task search and filtering in interactive mode
+- [x] Task search and filtering in interactive mode — _completed 2026-03-29, `/` key opens search bar in both focus and plan modes, filters tasks by title substring match in real-time_
+- [x] Vim-like keybindings — _completed 2026-03-29: `dd`/`p` cut-paste reordering (plan mode), `dd` delete (focus mode, immediate), `i`/`A`/`cc` inline editing, `o`/`O` task creation, `x` mark done, `u` undo, `/` search. Custom `useVimKeys` hook with three-mode state machine (normal/insert/holding). `dd` in plan mode doubles as delete (Esc confirms) or move (p/P pastes). `D` key replaced by `x`._
 
 ### Phase 3 — AI Integration
+- [ ] AI-assisted task prioritization — _spec in `docs/adhd-feature-specs.md` §7: MCP tool `task_prioritize` + CLI `task-man prioritize` + plan mode `a` key integration. AI reviews tasks and suggests priority changes with reasons, user confirms._
 - [ ] AI-assisted task entry (natural language → structured task)
 - [ ] AI auto-categorization based on title/description
 - [ ] Smart subtask suggestions for complex tasks

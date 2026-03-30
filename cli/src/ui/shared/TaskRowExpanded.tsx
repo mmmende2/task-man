@@ -4,6 +4,7 @@ import { PriorityDot } from './PriorityDot.js';
 import { StatusBadge } from './StatusBadge.js';
 import { SubtaskCheckbox } from './SubtaskCheckbox.js';
 import { ProgressBar } from './ProgressBar.js';
+import { InlineEdit } from './InlineEdit.js';
 import { useTerminalWidth } from '../hooks/useTerminalWidth.js';
 
 interface Props {
@@ -12,9 +13,12 @@ interface Props {
   subtaskProgress?: { done: number; total: number };
   inSubtaskNav?: boolean;
   selectedSubtaskIndex?: number;
+  editingSubtaskId?: string | null;
+  editText?: string;
+  cursorPos?: number;
 }
 
-export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex }: Props) {
+export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editText, cursorPos }: Props) {
   const width = useTerminalWidth();
   const cardInner = width - 4;
 
@@ -34,6 +38,16 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
   const subtaskRows = subtasks.map((sub, i) => {
     const isSelected = inSubtaskNav && selectedSubtaskIndex === i;
     const indicator = isSelected ? '▸ ' : '  ';
+
+    if (editingSubtaskId === sub.id && editText !== undefined && cursorPos !== undefined) {
+      return (
+        <Box key={sub.id}>
+          <Text color={borderColor}>{'    │ '}</Text>
+          <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
+        </Box>
+      );
+    }
+
     return (
       <Box key={sub.id}>
         <Text color={borderColor}>{'    │ '}</Text>

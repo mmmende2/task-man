@@ -17,21 +17,21 @@ const MID_DAY_HIGH: string[] = [
 ];
 
 const MID_DAY_LOW: string[] = [
-  "Hang in there. Every task done is a win.",
-  "One task at a time -- you've got this.",
-  "Progress is progress, no matter the pace.",
-  "Slow and steady wins the race. You're doing great.",
-  "Small steps add up. Keep pushing!",
-  "The hardest part is starting. You already did that.",
-  "Focus on the next task, not the whole list.",
-  "Even one completed task moves the needle.",
-  "Momentum builds. Knock out the next one.",
-  "You don't have to finish everything -- just keep going.",
-  "Every expert was once a beginner. Every pro was once stuck.",
-  "The list looks long, but you're longer.",
-  "Brick by brick. You're building something.",
-  "Don't count the tasks. Make the tasks count.",
-  "Start anywhere. Finish something. Repeat.",
+  "You showed up. That's the hardest part.",
+  "Some days are for thinking, not finishing.",
+  "Progress isn't always visible. Trust the process.",
+  "You're here. That counts.",
+  "Not every hour needs to be productive.",
+  "Rest is part of the work.",
+  "The day isn't over yet.",
+  "Small moves. Big picture.",
+  "Just being in the arena matters.",
+  "Your pace is your pace.",
+  "Today is today. That's enough.",
+  "Still here, still going. That's the whole game.",
+  "You don't have to earn the right to rest.",
+  "Showing up is a skill. You have it.",
+  "What you did today mattered, even if it doesn't feel like it.",
 ];
 
 const END_OF_DAY: string[] = [

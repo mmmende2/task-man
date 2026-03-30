@@ -144,4 +144,29 @@ export class TaskStore {
     const tasks = this.load();
     return tasks.filter(t => t.status === 'in_progress' && t.updated_at.startsWith(date));
   }
+
+  async remove(id: string): Promise<{ task: Task; index: number }> {
+    const resolvedId = this.resolveId(id);
+    const result = await withLock(this.filePath, async () => {
+      const tasks = this.load();
+      const index = tasks.findIndex(t => t.id === resolvedId);
+      if (index === -1) throw new Error(`Task ${resolvedId} not found`);
+      const [task] = tasks.splice(index, 1);
+      await this.save(tasks);
+      return { task, index };
+    });
+    return result;
+  }
+
+  async insertAt(task: Task, index: number): Promise<Task> {
+    const inserted = await withLock(this.filePath, async () => {
+      const tasks = this.load();
+      const clampedIndex = Math.max(0, Math.min(index, tasks.length));
+      const updated = { ...task, updated_at: new Date().toISOString() };
+      tasks.splice(clampedIndex, 0, updated);
+      await this.save(tasks);
+      return updated;
+    });
+    return inserted;
+  }
 }

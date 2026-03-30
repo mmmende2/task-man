@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TaskStore } from '../store.js';
 import type { Task } from '../types.js';
+import type { VimMode } from '../ui/hooks/useVimKeys.js';
 import { PlanMode } from '../ui/modes/PlanMode.js';
 import { renderWithDimensions } from './helpers/renderWithDimensions.js';
 
@@ -14,6 +15,7 @@ import { renderWithDimensions } from './helpers/renderWithDimensions.js';
 function PlanModeHarness({ store, initialTasks }: { store: TaskStore; initialTasks: Task[] }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [vimMode, setVimMode] = useState<VimMode>('normal');
   const reload = () => setTasks(store.load());
 
   const active = tasks.filter(t => t.status !== 'done');
@@ -27,6 +29,9 @@ function PlanModeHarness({ store, initialTasks }: { store: TaskStore; initialTas
     onSelectedIndexChange: setSelectedIndex,
     store,
     reload,
+    vimMode,
+    setVimMode,
+    scopeFilter: 'all' as const,
   });
 }
 

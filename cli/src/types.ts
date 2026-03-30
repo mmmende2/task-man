@@ -43,6 +43,9 @@ export interface TaskManConfig {
     to: string | null;
     autoPromptAfter: string | null;
   };
+  focus: {
+    maxFocused: number | null;
+  };
 }
 
 export interface DayStats {
@@ -59,6 +62,7 @@ export interface DayReport {
   completedTasks: Task[];
   inProgressTasks: Task[];
   startedTasks: Task[];
+  tomorrowFocus: Task[];
   stats: DayStats;
   insight: string | null;
   encouragingMessage: string;
@@ -71,5 +75,4 @@ export type InsightType =
   | 'focus_ratio'
   | 'scope_balance'
   | 'ai_collab'
-  | 'velocity_trend'
-  | 'productivity_tip';
+  | 'velocity_trend';

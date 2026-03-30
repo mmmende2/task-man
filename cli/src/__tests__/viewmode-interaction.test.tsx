@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TaskStore } from '../store.js';
 import type { Task } from '../types.js';
+import type { VimMode } from '../ui/hooks/useVimKeys.js';
 import { FocusMode } from '../ui/modes/FocusMode.js';
 import { renderWithDimensions } from './helpers/renderWithDimensions.js';
 
@@ -15,6 +16,7 @@ import { renderWithDimensions } from './helpers/renderWithDimensions.js';
 function FocusModeHarness({ store, initialTasks }: { store: TaskStore; initialTasks: Task[] }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [vimMode, setVimMode] = useState<VimMode>('normal');
   const reload = () => setTasks(store.load());
 
   // Build subtask map from tasks
@@ -38,6 +40,9 @@ function FocusModeHarness({ store, initialTasks }: { store: TaskStore; initialTa
     onSelectedIndexChange: setSelectedIndex,
     store,
     reload,
+    vimMode,
+    setVimMode,
+    scopeFilter: 'all' as const,
   });
 }
 
@@ -150,13 +155,13 @@ describe('FocusMode interaction', () => {
     });
   });
 
-  it('D marks selected task done', async () => {
+  it('x marks selected task done', async () => {
     const result = renderWithDimensions(
       createElement(FocusModeHarness, { store, initialTasks: tasks }),
     );
     cleanup = result.cleanup;
 
-    result.stdin.write('D');
+    result.stdin.write('x');
 
     await vi.waitFor(() => {
       const text = result.text();
@@ -247,7 +252,7 @@ describe('FocusMode interaction', () => {
     });
 
     // Mark first subtask done
-    result.stdin.write('D');
+    result.stdin.write('x');
     await vi.waitFor(() => {
       // The subtask should now show as done (◉ instead of ○)
       const text = result.text();

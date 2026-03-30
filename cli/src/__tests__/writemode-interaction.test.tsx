@@ -63,35 +63,31 @@ describe('WriteMode interaction', () => {
     });
   });
 
-  it('enter transitions to priority phase', async () => {
+  it('enter saves task immediately with default medium priority', async () => {
     const result = renderWrite();
     cleanup = result.cleanup;
 
     typeChars(result.stdin, 'My Task');
-    await vi.waitFor(() => {
-      expect(result.text()).toContain('My Task');
-    });
+    await vi.waitFor(() => expect(result.text()).toContain('My Task'));
 
     result.stdin.write('\r');
 
     await vi.waitFor(() => {
-      const text = result.text();
-      expect(text).toContain('My Task');
-      expect(text).toContain('Priority');
+      const tasks = store.load();
+      expect(tasks.length).toBe(1);
+      expect(tasks[0].title).toBe('My Task');
+      expect(tasks[0].priority).toBe('medium');
     });
   });
 
-  it('h selects high priority and creates task', async () => {
+  it('flag -p sets priority inline', async () => {
     const result = renderWrite();
     cleanup = result.cleanup;
 
-    typeChars(result.stdin, 'Test Task');
+    typeChars(result.stdin, 'Test Task -p high');
     await vi.waitFor(() => expect(result.text()).toContain('Test Task'));
 
     result.stdin.write('\r');
-    await vi.waitFor(() => expect(result.text()).toContain('Priority'));
-
-    result.stdin.write('h');
 
     await vi.waitFor(() => {
       const tasks = store.load();
@@ -101,17 +97,14 @@ describe('WriteMode interaction', () => {
     });
   });
 
-  it('l selects low priority', async () => {
+  it('flag -p l sets low priority', async () => {
     const result = renderWrite();
     cleanup = result.cleanup;
 
-    typeChars(result.stdin, 'Low Task');
+    typeChars(result.stdin, 'Low Task -p l');
     await vi.waitFor(() => expect(result.text()).toContain('Low Task'));
 
     result.stdin.write('\r');
-    await vi.waitFor(() => expect(result.text()).toContain('Priority'));
-
-    result.stdin.write('l');
 
     await vi.waitFor(() => {
       const tasks = store.load();
@@ -120,22 +113,19 @@ describe('WriteMode interaction', () => {
     });
   });
 
-  it('enter in priority phase selects high', async () => {
+  it('no flag defaults to medium priority', async () => {
     const result = renderWrite();
     cleanup = result.cleanup;
 
-    typeChars(result.stdin, 'Enter Task');
-    await vi.waitFor(() => expect(result.text()).toContain('Enter Task'));
-
-    result.stdin.write('\r');
-    await vi.waitFor(() => expect(result.text()).toContain('Priority'));
+    typeChars(result.stdin, 'Plain Task');
+    await vi.waitFor(() => expect(result.text()).toContain('Plain Task'));
 
     result.stdin.write('\r');
 
     await vi.waitFor(() => {
       const tasks = store.load();
       expect(tasks.length).toBe(1);
-      expect(tasks[0].priority).toBe('high');
+      expect(tasks[0].priority).toBe('medium');
     });
   });
 
@@ -158,19 +148,29 @@ describe('WriteMode interaction', () => {
     await vi.waitFor(() => expect(result.text()).toContain('Buy groceries'));
 
     result.stdin.write('\r');
-    // Wait for priority phase (not just 'errands' — that matches the title input too)
-    await vi.waitFor(() => expect(result.text()).toContain('Priority'));
-
-    // Verify category was parsed and shown
-    expect(result.text()).toContain('errands');
-
-    result.stdin.write('h');
 
     await vi.waitFor(() => {
       const tasks = store.load();
       expect(tasks.length).toBe(1);
       expect(tasks[0].title).toBe('Buy groceries');
       expect(tasks[0].categories).toContain('errands');
+    });
+  });
+
+  it('flag -c sets category', async () => {
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    typeChars(result.stdin, 'Do laundry -c housework');
+    await vi.waitFor(() => expect(result.text()).toContain('Do laundry'));
+
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const tasks = store.load();
+      expect(tasks.length).toBe(1);
+      expect(tasks[0].title).toBe('Do laundry');
+      expect(tasks[0].categories).toContain('housework');
     });
   });
 
@@ -183,9 +183,6 @@ describe('WriteMode interaction', () => {
     await vi.waitFor(() => expect(result.text()).toContain('Parent'));
 
     result.stdin.write('\r');
-    await vi.waitFor(() => expect(result.text()).toContain('Priority'));
-
-    result.stdin.write('h');
     await vi.waitFor(() => expect(store.load().length).toBe(1));
 
     // Now create a subtask with : prefix
@@ -193,14 +190,6 @@ describe('WriteMode interaction', () => {
     await vi.waitFor(() => expect(result.text()).toContain(':Child'));
 
     result.stdin.write('\r');
-    // Wait for priority phase with (subtask) indicator
-    await vi.waitFor(() => {
-      const text = result.text();
-      expect(text).toContain('Priority');
-      expect(text).toContain('subtask');
-    });
-
-    result.stdin.write('m');
 
     await vi.waitFor(() => {
       const tasks = store.load();

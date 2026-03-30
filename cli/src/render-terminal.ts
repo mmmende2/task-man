@@ -82,6 +82,22 @@ export function renderDayReportTerminal(report: DayReport): string {
   lines.push(`    In progress: ${chalk.yellow(String(s.inProgress))}  (carrying over to tomorrow)`);
   lines.push(`    Completion:  ${chalk.magenta(String(s.completionRate) + '%')}`);
 
+  // Tomorrow's Focus
+  lines.push('');
+  if (report.tomorrowFocus.length > 0) {
+    lines.push(chalk.white.bold('  --- Tomorrow\'s Focus'));
+    const showTasks = report.tomorrowFocus.slice(0, 5);
+    for (const task of showTasks) {
+      lines.push(`    ${priorityDot(task)} ${task.title}  ${statusLabel(task)}`);
+    }
+    if (report.tomorrowFocus.length > 5) {
+      lines.push(chalk.dim(`    + ${report.tomorrowFocus.length - 5} more focused`));
+    }
+  } else {
+    lines.push(chalk.white.bold('  --- Tomorrow\'s Focus'));
+    lines.push(chalk.dim('    No tasks focused for tomorrow. Nice clean slate.'));
+  }
+
   // Insight
   if (report.insight) {
     lines.push('');

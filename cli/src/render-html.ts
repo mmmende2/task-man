@@ -57,8 +57,16 @@ export function renderDayReportHtml(report: DayReport): string {
       <tr><td style="padding:2px 12px;color:${FG}">Completion:</td><td style="color:${MAGENTA}">${report.stats.completionRate}%</td></tr>
     </table>
 
+    <h2 style="color:${FG};font-size:15px;margin:16px 0 8px;">Tomorrow's Focus</h2>
+    ${report.tomorrowFocus.length > 0
+      ? `<table style="width:100%;">
+      ${report.tomorrowFocus.slice(0, 5).map(t => `<tr><td style="padding:4px 12px;color:${FG}">● ${escapeHtml(t.title)}</td><td style="padding:4px 12px;color:${t.status === 'in_progress' ? YELLOW : DIM}">${t.status}</td></tr>`).join('\n      ')}
+    </table>${report.tomorrowFocus.length > 5 ? `<p style="color:${DIM};padding:0 12px;">+ ${report.tomorrowFocus.length - 5} more focused</p>` : ''}`
+      : `<p style="color:${DIM};padding:0 12px;">No tasks focused for tomorrow. Nice clean slate.</p>`
+    }
+
     ${report.insight ? `
-    <h2 style="color:${CYAN};font-size:15px;margin:16px 0 8px;">💡 Insight</h2>
+    <h2 style="color:${CYAN};font-size:15px;margin:16px 0 8px;">Insight</h2>
     <p style="color:${FG};padding:0 12px;">${escapeHtml(report.insight)}</p>
     ` : ''}
 

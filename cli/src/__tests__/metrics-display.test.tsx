@@ -28,25 +28,25 @@ describe('MetricsMode display', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('renders focus progress bar', () => {
+  it('renders done today count as hero metric', () => {
     const result = renderWithDimensions(
       createElement(MetricsMode, { store }),
     );
     cleanup = result.cleanup;
 
-    expect(result.text()).toContain('Focus progress');
+    expect(result.text()).toContain('Done today: 1');
   });
 
-  it('renders completion stats', () => {
+  it('renders progress bar without percentage label', () => {
     const result = renderWithDimensions(
       createElement(MetricsMode, { store }),
     );
     cleanup = result.cleanup;
 
     const text = result.text();
-    expect(text).toContain('Completed:');
-    expect(text).toContain('In Progress:');
-    expect(text).toContain('Todo:');
+    // Progress bar present (block chars) but no "Focus progress" label
+    expect(text).toContain('▰');
+    expect(text).not.toContain('Focus progress');
   });
 
   it('renders creator attribution', () => {
@@ -60,14 +60,14 @@ describe('MetricsMode display', () => {
     expect(text).toContain('Claude:');
   });
 
-  it('renders focused tasks section', () => {
+  it('renders today\'s progress section', () => {
     const result = renderWithDimensions(
       createElement(MetricsMode, { store }),
     );
     cleanup = result.cleanup;
 
     const text = result.text();
-    expect(text).toContain('Focused Tasks');
+    expect(text).toContain("Today's Progress");
   });
 
   it('uses text art status icons, not emojis', () => {
