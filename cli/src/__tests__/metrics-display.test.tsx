@@ -70,46 +70,32 @@ describe('MetricsMode display', () => {
     expect(text).toContain("Today's Progress");
   });
 
-  it('uses text art status icons, not emojis', () => {
+  it('uses priority dots instead of status icons', () => {
     const result = renderWithDimensions(
       createElement(MetricsMode, { store }),
     );
     cleanup = result.cleanup;
 
     const text = result.text();
-    // Should use text art icons
-    expect(text).toMatch(/\[x\]|\[~\]|\[ \]/);
+    // Should use priority dots (filled/unfilled), not status brackets
+    expect(text).toMatch(/●|○/);
+    expect(text).not.toMatch(/\[x\]|\[~\]|\[ \]/);
     // Should not contain emoji
     expect(text).not.toContain('✅');
     expect(text).not.toContain('🔄');
   });
 
-  it('uses >>> for insight prefix, not emoji', () => {
+  it('only shows tasks completed today in focused list', () => {
     const result = renderWithDimensions(
       createElement(MetricsMode, { store }),
     );
     cleanup = result.cleanup;
 
     const text = result.text();
-    // If an insight is shown, it should use >>>
-    expect(text).not.toContain('💡');
-    if (text.includes('>>>')) {
-      // Insight present and properly formatted
-      expect(text).toContain('>>>');
-    }
-  });
-
-  it('displays a mid-day message', () => {
-    const result = renderWithDimensions(
-      createElement(MetricsMode, { store }),
-    );
-    cleanup = result.cleanup;
-
-    const text = result.text();
-    // Should show some motivational text (varies by day, but always present)
-    // The message appears after the focused tasks section
-    const lines = result.lines();
-    // At least one non-empty line should exist below the focused tasks section
-    expect(lines.length).toBeGreaterThan(5);
+    // Done Task was completed today, should appear
+    expect(text).toContain('Done Task');
+    // Active and Todo were not completed today and have no subtasks done today
+    expect(text).not.toContain('Active Task');
+    expect(text).not.toContain('Todo Task');
   });
 });

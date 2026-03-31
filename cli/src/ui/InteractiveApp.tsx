@@ -108,7 +108,7 @@ function InteractiveAppInner() {
       switchMode('write');
     } else if (input === 'm' && mode !== 'metrics') {
       switchMode('metrics');
-    } else if (input === 'S') {
+    } else if (input === '~') {
       cycleScope();
     }
   }, { isActive: mode !== 'write' });

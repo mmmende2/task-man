@@ -55,6 +55,8 @@ export interface DayStats {
   started: number;
   inProgress: number;
   completionRate: number;
+  subtasksCompleted: number;
+  subtasksTotal: number;
 }
 
 export interface DayReport {

@@ -28,7 +28,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
   const bottomDash = Math.max(0, cardInner - 18);
 
   const descriptionRow = task.description
-    ? <Box key="desc"><Text color={borderColor}>{' │  '}</Text><Text dimColor>{task.description}</Text></Box>
+    ? <Box key="desc"><Text color={borderColor}>{' │ '}</Text><Text dimColor>{task.description}</Text></Box>
     : null;
 
   const spacerRow = (task.description || subtasks.length > 0)
@@ -42,7 +42,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
     if (editingSubtaskId === sub.id && editText !== undefined && cursorPos !== undefined) {
       return (
         <Box key={sub.id}>
-          <Text color={borderColor}>{' │   '}</Text>
+          <Text color={borderColor}>{' │ '}</Text>
           <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
         </Box>
       );
@@ -50,7 +50,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
 
     return (
       <Box key={sub.id}>
-        <Text color={borderColor}>{' │   '}</Text>
+        <Text color={borderColor}>{' │ '}</Text>
         <Text color={isSelected ? 'cyan' : undefined}>{indicator}</Text>
         <SubtaskCheckbox subtask={sub} highlighted={isSelected} />
       </Box>

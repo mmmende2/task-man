@@ -16,6 +16,12 @@ export function buildDayReport(store: TaskStore, date: string): DayReport {
     ? Math.round((completedTasks.length / totalRelevant) * 100)
     : 0;
 
+  // Subtask stats: count all subtasks and how many are done
+  const allTasks = store.load();
+  const allSubtasks = allTasks.filter(t => t.parent_id !== null);
+  const subtasksCompleted = allSubtasks.filter(t => t.completed_at && t.completed_at.startsWith(date)).length;
+  const subtasksTotal = allSubtasks.length;
+
   const insight = generateInsight(store, date);
   const encouragingMessage = getEndOfDayMessage();
 
@@ -44,6 +50,8 @@ export function buildDayReport(store: TaskStore, date: string): DayReport {
       started: startedTasks.length,
       inProgress: inProgressTasks.length,
       completionRate,
+      subtasksCompleted,
+      subtasksTotal,
     },
     insight,
     encouragingMessage,

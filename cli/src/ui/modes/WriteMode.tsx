@@ -143,7 +143,7 @@ export function WriteMode({ store, reload, scopeFilter, onModeChange, onCycleSco
       return;
     }
 
-    if (input === 'S') {
+    if (input === '~') {
       onCycleScope();
       return;
     }

@@ -78,6 +78,7 @@ export function renderDayReportTerminal(report: DayReport): string {
   lines.push(chalk.white.bold('  --- Stats'));
   const s = report.stats;
   lines.push(`    Completed:   ${chalk.green(String(s.completed))}  (${s.completedByHuman} you · ${s.completedByClaude} claude)`);
+  lines.push(`    Subtasks:    ${chalk.green(String(s.subtasksCompleted))} completed today  (${s.subtasksTotal} total)`);
   lines.push(`    Started:     ${chalk.cyan(String(s.started))}`);
   lines.push(`    In progress: ${chalk.yellow(String(s.inProgress))}  (carrying over to tomorrow)`);
   lines.push(`    Completion:  ${chalk.magenta(String(s.completionRate) + '%')}`);

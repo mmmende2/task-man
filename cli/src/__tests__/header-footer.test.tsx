@@ -147,7 +147,7 @@ describe('Footer', () => {
     expect(line).toContain('t:triage');
     expect(line).toContain('x:done');
     expect(line).toContain('tab:sub');
-    expect(line).toContain('S:scope');
+    expect(line).toContain('~:scope');
   });
 
   it('shows plan mode keybindings', () => {

@@ -7,11 +7,12 @@ import type { InsightType } from './types.js';
 interface InsightsLog {
   lastType: InsightType | null;
   lastDate: string | null;
+  lastMessage: string | null;
 }
 
 function loadInsightsLog(): InsightsLog {
   if (!existsSync(INSIGHTS_LOG_FILE)) {
-    return { lastType: null, lastDate: null };
+    return { lastType: null, lastDate: null, lastMessage: null };
   }
   return JSON.parse(readFileSync(INSIGHTS_LOG_FILE, 'utf-8'));
 }
@@ -33,6 +34,11 @@ function dateStr(daysAgo: number, fromDate: string): string {
 export function generateInsight(store: TaskStore, date: string): string | null {
   const log = loadInsightsLog();
   const lastType = log.lastType;
+
+  // Return cached insight if one was already generated today
+  if (log.lastDate === date && log.lastMessage) {
+    return log.lastMessage;
+  }
 
   const completedToday = store.getCompletedOn(date);
   const todayCount = completedToday.length;
@@ -160,7 +166,7 @@ export function generateInsight(store: TaskStore, date: string): string | null {
   const pick = filtered.length > 0 ? filtered[0] : (candidates.length > 0 ? candidates[0] : null);
 
   if (pick) {
-    saveInsightsLog({ lastType: pick.type, lastDate: date });
+    saveInsightsLog({ lastType: pick.type, lastDate: date, lastMessage: pick.message });
     return pick.message;
   }
 

@@ -1,12 +1,11 @@
-import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
+import type { Task } from '../../types.js';
 import type { TaskStore } from '../../store.js';
 import { buildDayReport } from '../../report.js';
 import { getMidDayMessage } from '../../messages.js';
-import { renderDayReportHtml } from '../../render-html.js';
-import { sendEndOfDayEmail } from '../../email.js';
-import { loadConfig } from '../../config.js';
+import { renderDayReportTerminal } from '../../render-terminal.js';
 import { ProgressBar } from '../shared/ProgressBar.js';
+import { PulsingProgressBar } from '../shared/PulsingProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
 
@@ -14,72 +13,111 @@ interface Props {
   store: TaskStore;
 }
 
-export function MetricsMode({ store }: Props) {
-  const [emailStatus, setEmailStatus] = useState<string | null>(null);
+interface SubtaskInfo {
+  subtasks: Task[];
+  doneToday: number;
+  donePrior: number;
+  total: number;
+}
 
+export function MetricsMode({ store }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const report = buildDayReport(store, today);
   const { stats } = report;
 
-  const focusedTasks = store.query({ focused: true });
+  const allTasks = store.load();
+  const focusedTasks = allTasks.filter(t => t.focused);
   const focusedDone = focusedTasks.filter(t => t.status === 'done').length;
   const focusedTotal = focusedTasks.length;
-  const progressPercent = focusedTotal > 0 ? Math.round((focusedDone / focusedTotal) * 100) : 0;
 
-  const focusedActive = focusedTasks.filter(t => t.parent_id === null);
+  const focusedParents = focusedTasks.filter(t => t.parent_id === null);
+
+  // Build subtask info per parent: split done-today vs done-prior
+  const subtaskInfoMap = new Map<string, SubtaskInfo>();
+  for (const t of allTasks) {
+    if (!t.parent_id) continue;
+    const info = subtaskInfoMap.get(t.parent_id) ?? { subtasks: [], doneToday: 0, donePrior: 0, total: 0 };
+    info.subtasks.push(t);
+    info.total++;
+    if (t.status === 'done') {
+      if (t.completed_at && t.completed_at.startsWith(today)) {
+        info.doneToday++;
+      } else {
+        info.donePrior++;
+      }
+    }
+    subtaskInfoMap.set(t.parent_id, info);
+  }
+
+  // Only show tasks that had activity today:
+  // parent completed today, OR has subtasks completed today
+  const todayTasks = focusedParents.filter(task => {
+    const completedToday = task.status === 'done' && task.completed_at?.startsWith(today);
+    const info = subtaskInfoMap.get(task.id);
+    const hasSubtasksDoneToday = info ? info.doneToday > 0 : false;
+    return completedToday || hasSubtasksDoneToday;
+  });
 
   // Sort: done first, then in_progress, then todo
-  const sortedFocused = [...focusedActive].sort((a, b) => {
+  const sortedFocused = [...todayTasks].sort((a, b) => {
     const order: Record<string, number> = { done: 0, in_progress: 1, todo: 2 };
     return (order[a.status] ?? 2) - (order[b.status] ?? 2);
   });
 
+  const progressPercent = focusedTotal > 0 ? Math.round((focusedDone / focusedTotal) * 100) : 0;
+
   useInput((input) => {
     if (input === 'e') {
-      setEmailStatus('Sending...');
-      try {
-        const config = loadConfig();
-        const html = renderDayReportHtml(report);
-        sendEndOfDayEmail(config, html, today)
-          .then(() => {
-            setEmailStatus('Email sent!');
-            setTimeout(() => setEmailStatus(null), 3000);
-          })
-          .catch((err) => {
-            setEmailStatus(`Error: ${(err as Error).message}`);
-            setTimeout(() => setEmailStatus(null), 5000);
-          });
-      } catch (err) {
-        setEmailStatus(`Error: ${(err as Error).message}`);
-        setTimeout(() => setEmailStatus(null), 5000);
-      }
+      const output = renderDayReportTerminal(report);
+      process.stdout.write('\x1B[2J\x1B[H');
+      process.stdout.write(output + '\n');
+      process.exit(0);
     }
   });
 
-  const statusIcon = (status: string) => {
-    if (status === 'done') return '[x]';
-    if (status === 'in_progress') return '[~]';
-    return '[ ]';
-  };
-
   const focusedRows = sortedFocused.length === 0
     ? [<Text key="no-focused" dimColor>    No focused tasks.</Text>]
-    : sortedFocused.map((task) => (
-        <Box key={task.id}>
-          <Text>  {statusIcon(task.status)} </Text>
-          <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
-          <Text> {task.title} </Text>
-          <Text dimColor>[{task.created_by === 'claude' ? 'claude' : 'you'}]</Text>
-        </Box>
-      ));
+    : sortedFocused.flatMap((task) => {
+        const info = subtaskInfoMap.get(task.id);
+        const rows: React.ReactNode[] = [];
 
-  const insightRow = report.insight
-    ? <Box key="insight"><Text>  {'>>>'} </Text><Text color="cyan">{report.insight}</Text></Box>
-    : null;
+        // Parent task row: dot + title + progress bar
+        rows.push(
+          <Box key={task.id}>
+            <Text>  </Text>
+            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
+            <Text color={task.status === 'done' ? 'white' : undefined}> {task.title} </Text>
+            {info && info.total > 0 ? (
+              <PulsingProgressBar
+                total={info.total}
+                doneToday={info.doneToday}
+                donePrior={info.donePrior}
+              />
+            ) : null}
+          </Box>
+        );
 
-  const emailRow = emailStatus
-    ? <Box key="email"><Text>  </Text><Text color={emailStatus.startsWith('Error') ? 'red' : 'green'}>{emailStatus}</Text></Box>
-    : null;
+        // Subtask tree rows
+        if (info && info.subtasks.length > 0) {
+          info.subtasks.forEach((sub, i) => {
+            const isLast = i === info.subtasks.length - 1;
+            const connector = isLast ? '└─' : '├─';
+            const isDone = sub.status === 'done';
+            const isDoneToday = isDone && sub.completed_at?.startsWith(today);
+            const marker = isDone ? '◉' : '○';
+
+            rows.push(
+              <Box key={sub.id}>
+                <Text>  </Text>
+                <Text dimColor>{connector} </Text>
+                <Text color={isDoneToday ? '#ff79c6' : isDone ? 'white' : undefined}>{marker} {sub.title}</Text>
+              </Box>
+            );
+          });
+        }
+
+        return rows;
+      });
 
   return (
     <Box flexDirection="column">
@@ -95,6 +133,7 @@ export function MetricsMode({ store }: Props) {
       <Box>
         <Text>  </Text>
         <Text dimColor>You: {stats.completedByHuman}  Claude: {stats.completedByClaude}</Text>
+        {stats.subtasksCompleted > 0 ? <Text dimColor>  ·  Subtasks: {stats.subtasksCompleted}</Text> : null}
       </Box>
 
       <Text> </Text>
@@ -105,14 +144,14 @@ export function MetricsMode({ store }: Props) {
 
       <Text> </Text>
 
-      {insightRow}
+      {report.insight ? (
+        <Box><Text>  {'>>>'} </Text><Text color="cyan">{report.insight}</Text></Box>
+      ) : null}
 
       <Box>
         <Text>  </Text>
         <Text color="yellow">{getMidDayMessage(progressPercent)}</Text>
       </Box>
-
-      {emailRow}
 
       <Text> </Text>
     </Box>
