@@ -52,10 +52,11 @@ function InteractiveAppInner() {
     return parentTasks.filter(t => t.scope === scopeFilter);
   }, [parentTasks, scopeFilter]);
 
-  // Derive per-mode lists — done tasks excluded from focus/plan
+  // Derive per-mode lists — done tasks excluded from focus/plan unless completed today
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const activeTasks = useMemo(() =>
-    filteredTasks.filter(t => t.status !== 'done'),
-  [filteredTasks]);
+    filteredTasks.filter(t => t.status !== 'done' || t.completed_at?.startsWith(today)),
+  [filteredTasks, today]);
 
   const focusedTasks = useMemo(() =>
     activeTasks.filter(t => t.focused),

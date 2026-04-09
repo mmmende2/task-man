@@ -14,11 +14,12 @@ interface Props {
   inSubtaskNav?: boolean;
   selectedSubtaskIndex?: number;
   editingSubtaskId?: string | null;
+  editingDateId?: string | null;
   editText?: string;
   cursorPos?: number;
 }
 
-export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editText, cursorPos }: Props) {
+export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editingDateId, editText, cursorPos }: Props) {
   const width = useTerminalWidth();
   const cardInner = width - 2;
 
@@ -27,11 +28,17 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
 
   const bottomDash = Math.max(0, cardInner - 18);
 
+  const isEditingTaskDate = editingDateId === task.id && editText !== undefined && cursorPos !== undefined;
+
   const descriptionRow = task.description
     ? <Box key="desc"><Text color={borderColor}>{' │ '}</Text><Text dimColor>{task.description}</Text></Box>
     : null;
 
-  const spacerRow = (task.description || subtasks.length > 0)
+  const dateEditRow = isEditingTaskDate
+    ? <Box key="date-edit"><Text color={borderColor}>{' │ '}</Text><InlineEdit text={editText} cursorPos={cursorPos} prefix="" /></Box>
+    : null;
+
+  const spacerRow = (task.description || subtasks.length > 0 || isEditingTaskDate)
     ? <Box key="spacer-mid"><Text color={borderColor}>{' │'}</Text></Box>
     : null;
 
@@ -39,7 +46,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
     const isSelected = inSubtaskNav && selectedSubtaskIndex === i;
     const indicator = isSelected ? '▸ ' : '  ';
 
-    if (editingSubtaskId === sub.id && editText !== undefined && cursorPos !== undefined) {
+    if ((editingSubtaskId === sub.id || editingDateId === sub.id) && editText !== undefined && cursorPos !== undefined) {
       return (
         <Box key={sub.id}>
           <Text color={borderColor}>{' │ '}</Text>
@@ -88,6 +95,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
       </Box>
       <Box><Text color={borderColor}>{' │'}</Text></Box>
       {descriptionRow}
+      {dateEditRow}
       {spacerRow}
       {subtaskRows}
       {postSubtaskSpacer}

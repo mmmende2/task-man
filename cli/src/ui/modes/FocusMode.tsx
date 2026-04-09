@@ -53,6 +53,7 @@ export function FocusMode({
   // Vim feature state
   const [clipboard, setClipboard] = useState<Clipboard | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingDateId, setEditingDateId] = useState<string | null>(null);
   const [editState, setEditState] = useState({ text: '', cursor: 0 });
   const [creatingAt, setCreatingAt] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -143,6 +144,17 @@ export function FocusMode({
           // Both 'start' (i) and 'end' (A) place cursor at end in focus mode
           setEditState({ text: task.title, cursor: task.title.length });
         }
+        setVimMode('insert');
+        break;
+      }
+
+      case 'edit-date': {
+        const task = navTarget === 'subtasks' ? currentSubtasks[subtaskIndex] : filteredTasks[selectedIndex];
+        if (!task || task.status !== 'done' || !task.completed_at) return;
+        const dateStr = task.completed_at.slice(0, 10);
+        setEditingDateId(task.id);
+        // Place cursor at end (day portion) — vim A behavior
+        setEditState({ text: dateStr, cursor: dateStr.length });
         setVimMode('insert');
         break;
       }
@@ -279,6 +291,28 @@ export function FocusMode({
       return;
     }
 
+    if (editingDateId) {
+      const allTasks = [...focusedTasks, ...focusedTasks.flatMap(t => subtaskMap.get(t.id) ?? [])];
+      const task = allTasks.find(t => t.id === editingDateId);
+      const prevCompletedAt = task?.completed_at ?? null;
+      const newDate = editText.trim();
+      // Validate YYYY-MM-DD format
+      if (/^\d{4}-\d{2}-\d{2}$/.test(newDate) && !isNaN(new Date(newDate).getTime())) {
+        const newCompletedAt = newDate + (prevCompletedAt ? prevCompletedAt.slice(10) : 'T00:00:00.000Z');
+        const id = editingDateId;
+        store.update(id, { completed_at: newCompletedAt }).then(() => {
+          undoStack.push({
+            undo: async () => { await store.update(id, { completed_at: prevCompletedAt }); },
+          });
+          reload();
+        });
+      }
+      setEditingDateId(null);
+      setEditState({ text: '', cursor: 0 });
+      setVimMode('normal');
+      return;
+    }
+
     if (editingId) {
       const allTasks = [...focusedTasks, ...focusedTasks.flatMap(t => subtaskMap.get(t.id) ?? [])];
       const task = allTasks.find(t => t.id === editingId);
@@ -382,6 +416,7 @@ export function FocusMode({
             inSubtaskNav={navTarget === 'subtasks'}
             selectedSubtaskIndex={subtaskIndex}
             editingSubtaskId={editingId}
+            editingDateId={editingDateId}
             editText={editText}
             cursorPos={cursorPos}
           />

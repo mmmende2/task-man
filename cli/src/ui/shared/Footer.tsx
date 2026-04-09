@@ -25,7 +25,7 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle }: Props
     pageContent = `-- cut: ${holdingTitle} -- p:put P:put esc:delete`;
   } else if (mode === 'focus') {
     navContent = 't:triage w:write m:metrics ~:scope';
-    pageContent = 'jk:nav tab:sub x:done dd:cut i:edit o:new /:find u:undo';
+    pageContent = 'jk:nav tab:sub x:done D:date dd:cut i:edit o:new /:find';
   } else if (mode === 'plan') {
     navContent = 'f:focus w:write m:metrics ~:scope';
     pageContent = 'jk:nav spc:focus dd:cut x:done i:edit o:new /:find u:undo';
@@ -34,7 +34,7 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle }: Props
     pageContent = 'enter:add  :subtask  -p -c -s flags';
   } else if (mode === 'metrics') {
     navContent = 'f:focus  t:triage  w:write';
-    pageContent = 'e:print report';
+    pageContent = 'D:date  e:print report';
   } else {
     navContent = '';
     pageContent = '';
