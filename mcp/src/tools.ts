@@ -176,10 +176,21 @@ export function registerTools(server: McpServer): void {
         '',
         '## Stats',
         `- Completed: ${report.stats.completed} (${report.stats.completedByHuman} you, ${report.stats.completedByClaude} claude)`,
+        `- Subtasks completed: ${report.stats.subtasksCompleted} (${report.stats.subtasksTotal} total)`,
         `- Started: ${report.stats.started}`,
         `- In progress: ${report.stats.inProgress}`,
         `- Completion rate: ${report.stats.completionRate}%`,
       ];
+
+      if (report.tomorrowFocus.length > 0) {
+        lines.push('', '## Tomorrow\'s Focus');
+        for (const t of report.tomorrowFocus.slice(0, 5)) {
+          lines.push(`- ${t.title} [${t.status}]`);
+        }
+        if (report.tomorrowFocus.length > 5) {
+          lines.push(`- + ${report.tomorrowFocus.length - 5} more`);
+        }
+      }
 
       if (report.insight) {
         lines.push('', `## Insight`, report.insight);
