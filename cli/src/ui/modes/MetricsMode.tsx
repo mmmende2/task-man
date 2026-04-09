@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { Task } from '../../types.js';
 import type { TaskStore } from '../../store.js';
@@ -8,6 +9,7 @@ import { ProgressBar } from '../shared/ProgressBar.js';
 import { PulsingProgressBar } from '../shared/PulsingProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
+import { InlineEdit } from '../shared/InlineEdit.js';
 
 interface Props {
   store: TaskStore;
@@ -21,7 +23,13 @@ interface SubtaskInfo {
 }
 
 export function MetricsMode({ store }: Props) {
-  const today = new Date().toISOString().slice(0, 10);
+  const realToday = new Date().toISOString().slice(0, 10);
+  const [viewDate, setViewDate] = useState(realToday);
+  const [editingDate, setEditingDate] = useState(false);
+  const [dateText, setDateText] = useState('');
+  const [dateCursor, setDateCursor] = useState(0);
+
+  const today = viewDate;
   const report = buildDayReport(store, today);
   const { stats } = report;
 
@@ -66,8 +74,34 @@ export function MetricsMode({ store }: Props) {
 
   const progressPercent = focusedTotal > 0 ? Math.round((focusedDone / focusedTotal) * 100) : 0;
 
-  useInput((input) => {
-    if (input === 'e') {
+  useInput((input, key) => {
+    if (editingDate) {
+      if (key.return) {
+        const d = dateText.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(new Date(d).getTime())) {
+          setViewDate(d);
+        }
+        setEditingDate(false);
+      } else if (key.escape) {
+        setViewDate(realToday);
+        setEditingDate(false);
+      } else if (key.backspace || key.delete) {
+        if (dateCursor > 0) {
+          setDateText(prev => prev.slice(0, dateCursor - 1) + prev.slice(dateCursor));
+          setDateCursor(c => c - 1);
+        }
+      } else if (input && !key.ctrl && !key.meta) {
+        setDateText(prev => prev.slice(0, dateCursor) + input + prev.slice(dateCursor));
+        setDateCursor(c => c + 1);
+      }
+      return;
+    }
+
+    if (input === 'D') {
+      setDateText(viewDate);
+      setDateCursor(viewDate.length);
+      setEditingDate(true);
+    } else if (input === 'e') {
       const output = renderDayReportTerminal(report);
       process.stdout.write('\x1B[2J\x1B[H');
       process.stdout.write(output + '\n');
@@ -119,16 +153,28 @@ export function MetricsMode({ store }: Props) {
         return rows;
       });
 
+  const isViewingPast = viewDate !== realToday;
+  const dateLabel = isViewingPast ? `Done on ${viewDate}` : 'Done today';
+  const sectionLabel = isViewingPast ? `Progress — ${viewDate}` : "Today's Progress";
+
   return (
     <Box flexDirection="column">
       <Text> </Text>
 
-      <Box>
-        <Text>  </Text>
-        <Text color="green" bold>Done today: {stats.completed}</Text>
-        <Text>                        </Text>
-        <ProgressBar current={focusedDone} total={focusedTotal} width={10} color="magenta" />
-      </Box>
+      {editingDate ? (
+        <Box>
+          <Text>  </Text>
+          <Text color="cyan" bold>Go to date: </Text>
+          <InlineEdit text={dateText} cursorPos={dateCursor} prefix="" />
+        </Box>
+      ) : (
+        <Box>
+          <Text>  </Text>
+          <Text color="green" bold>{dateLabel}: {stats.completed}</Text>
+          <Text>                        </Text>
+          <ProgressBar current={focusedDone} total={focusedTotal} width={10} color="magenta" />
+        </Box>
+      )}
 
       <Box>
         <Text>  </Text>
@@ -138,7 +184,7 @@ export function MetricsMode({ store }: Props) {
 
       <Text> </Text>
 
-      <SectionDivider label="Today's Progress" />
+      <SectionDivider label={sectionLabel} />
 
       {focusedRows}
 

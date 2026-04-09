@@ -10,11 +10,13 @@ interface Props {
 }
 
 export function TaskRow({ task, isSelected, subtaskProgress }: Props) {
+  const isDone = task.status === 'done';
+
   return (
     <Box>
       <Text>{isSelected ? '  ▸ ' : '    '}</Text>
       <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
-      <Text> {task.title}  </Text>
+      <Text dimColor={isDone}> {task.title}  </Text>
       {subtaskProgress && subtaskProgress.total > 0 && (
         <ProgressBar
           current={subtaskProgress.done}
@@ -22,6 +24,7 @@ export function TaskRow({ task, isSelected, subtaskProgress }: Props) {
           width={subtaskProgress.total}
         />
       )}
+      {isDone && <Text dimColor> ✓</Text>}
     </Box>
   );
 }

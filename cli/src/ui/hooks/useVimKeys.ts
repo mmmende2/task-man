@@ -8,6 +8,7 @@ export type VimAction =
   | { type: 'cut' }
   | { type: 'paste'; above: boolean }
   | { type: 'edit'; variant: 'start' | 'end' | 'clear' }
+  | { type: 'edit-date' }
   | { type: 'create'; above: boolean }
   | { type: 'mark-done' }
   | { type: 'undo' }
@@ -127,6 +128,8 @@ export function useVimKeys(
       options.onAction({ type: 'create', above: false });
     } else if (input === 'O') {
       options.onAction({ type: 'create', above: true });
+    } else if (input === 'D') {
+      options.onAction({ type: 'edit-date' });
     } else if (input === 'x') {
       options.onAction({ type: 'mark-done' });
     } else if (input === 'u') {

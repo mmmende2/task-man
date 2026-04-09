@@ -85,7 +85,7 @@ export class TaskStore {
     return matches[0].id;
   }
 
-  async update(id: string, changes: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'scope' | 'categories' | 'focused'>>): Promise<Task> {
+  async update(id: string, changes: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'scope' | 'categories' | 'focused' | 'completed_at'>>): Promise<Task> {
     const resolvedId = this.resolveId(id);
     const updated = await withLock(this.filePath, async () => {
       const tasks = this.load();
@@ -97,10 +97,12 @@ export class TaskStore {
 
       Object.assign(task, changes, { updated_at: now });
 
-      if (changes.status === 'done' && !task.completed_at) {
+      // If completed_at was explicitly provided, use it as-is
+      if ('completed_at' in changes) {
+        task.completed_at = changes.completed_at ?? null;
+      } else if (changes.status === 'done' && !task.completed_at) {
         task.completed_at = now;
-      }
-      if (changes.status && changes.status !== 'done') {
+      } else if (changes.status && changes.status !== 'done') {
         task.completed_at = null;
       }
 

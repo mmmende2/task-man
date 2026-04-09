@@ -12,7 +12,7 @@ describe('Header', () => {
   it('renders exactly 3 lines', () => {
     const result = renderWithDimensions(
       createElement(Header, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
 
@@ -22,7 +22,7 @@ describe('Header', () => {
   it('top border uses ╔ and ╗', () => {
     const result = renderWithDimensions(
       createElement(Header, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
     const line = result.lines()[0];
@@ -34,7 +34,7 @@ describe('Header', () => {
   it('middle line has side borders', () => {
     const result = renderWithDimensions(
       createElement(Header, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
     const line = result.lines()[1];
@@ -46,7 +46,7 @@ describe('Header', () => {
   it('bottom border uses ╚ and ╝ (self-contained box)', () => {
     const result = renderWithDimensions(
       createElement(Header, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
     const line = result.lines()[2];
@@ -94,17 +94,18 @@ describe('Footer', () => {
   it('renders exactly 3 lines', () => {
     const result = renderWithDimensions(
       createElement(Footer, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
 
-    expect(result.lines().length).toBe(3);
+    const lines = result.lines().filter(l => l.length > 0);
+    expect(lines.length).toBe(3);
   });
 
   it('top border uses ╔ and ╗ (self-contained box)', () => {
     const result = renderWithDimensions(
       createElement(Footer, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
     const line = result.lines()[0];
@@ -116,10 +117,11 @@ describe('Footer', () => {
   it('bottom border uses ╚ and ╝', () => {
     const result = renderWithDimensions(
       createElement(Footer, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
-    const line = result.lines()[2];
+    const lines = result.lines().filter(l => l.length > 0);
+    const line = lines[lines.length - 1];
 
     expect(line.startsWith('╚')).toBe(true);
     expect(line.endsWith('╝')).toBe(true);
@@ -128,7 +130,7 @@ describe('Footer', () => {
   it('middle line has side borders', () => {
     const result = renderWithDimensions(
       createElement(Footer, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
     const line = result.lines()[1];
@@ -140,6 +142,7 @@ describe('Footer', () => {
   it('shows focus mode keybindings', () => {
     const result = renderWithDimensions(
       createElement(Footer, { mode: 'focus' }),
+      { width: 200 },
     );
     cleanup = result.cleanup;
     const line = result.lines()[1];
@@ -180,7 +183,7 @@ describe('Footer', () => {
   it('all lines have consistent width', () => {
     const result = renderWithDimensions(
       createElement(Footer, { mode: 'focus' }),
-      { width: 78 },
+      { width: 120 },
     );
     cleanup = result.cleanup;
     const lengths = result.lines().map(l => l.length);

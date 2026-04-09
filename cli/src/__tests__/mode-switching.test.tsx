@@ -81,10 +81,10 @@ describe('Mode switching', () => {
     });
   });
 
-  it('S cycles scope filter', async () => {
+  it('~ cycles scope filter', async () => {
     instance = render(createElement(InteractiveApp));
 
-    instance.stdin.write('S');
+    instance.stdin.write('~');
 
     await vi.waitFor(() => {
       // Scope should cycle from 'all' to 'personal' (label: 'per')
