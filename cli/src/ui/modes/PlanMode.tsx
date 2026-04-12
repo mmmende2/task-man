@@ -6,8 +6,7 @@ import type { VimMode, VimAction } from '../hooks/useVimKeys.js';
 import { useVimKeys } from '../hooks/useVimKeys.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
 import { loadConfig } from '../../config.js';
-import { TaskRow } from '../shared/TaskRow.js';
-import { SectionDivider } from '../shared/SectionDivider.js';
+import { PriorityDot } from '../shared/PriorityDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
 
@@ -30,6 +29,11 @@ interface Clipboard {
   wasFocused: boolean;
 }
 
+interface CategoryGroup {
+  category: string;
+  tasks: Task[];
+}
+
 export function PlanMode({
   focusedTasks, backlogTasks, selectedIndex, onSelectedIndexChange,
   store, reload, vimMode, setVimMode, scopeFilter, onHoldingChange,
@@ -42,7 +46,7 @@ export function PlanMode({
   const [clipboard, setClipboard] = useState<Clipboard | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState({ text: '', cursor: 0 });
-  const [creatingAt, setCreatingAt] = useState<{ index: number; section: 'focused' | 'backlog' } | null>(null);
+  const [creatingAt, setCreatingAt] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
@@ -66,20 +70,34 @@ export function PlanMode({
     return backlogTasks.filter(t => t.title.toLowerCase().includes(q));
   }, [backlogTasks, searchQuery]);
 
-  const totalCount = filteredFocused.length + filteredBacklog.length;
+  // Group all tasks by category for tree view
+  const { orderedTasks, groups } = useMemo(() => {
+    const all = [...filteredFocused, ...filteredBacklog];
+    const groupMap = new Map<string, Task[]>();
+    for (const task of all) {
+      const cat = task.categories?.[0] ?? '';
+      if (!groupMap.has(cat)) groupMap.set(cat, []);
+      groupMap.get(cat)!.push(task);
+    }
+    // Named categories alphabetically, uncategorized last
+    const sortedKeys = [...groupMap.keys()].sort((a, b) => {
+      if (a === '' && b !== '') return 1;
+      if (a !== '' && b === '') return -1;
+      return a.localeCompare(b);
+    });
+    const grps: CategoryGroup[] = [];
+    const flat: Task[] = [];
+    for (const key of sortedKeys) {
+      const tasks = groupMap.get(key)!;
+      grps.push({ category: key, tasks });
+      flat.push(...tasks);
+    }
+    return { orderedTasks: flat, groups: grps };
+  }, [filteredFocused, filteredBacklog]);
 
-  const getSelectedTask = (): Task | null => {
-    if (selectedIndex < filteredFocused.length) return filteredFocused[selectedIndex];
-    const backlogIdx = selectedIndex - filteredFocused.length;
-    return filteredBacklog[backlogIdx] ?? null;
-  };
+  const totalCount = orderedTasks.length;
 
-  const isInFocusedSection = () => selectedIndex < filteredFocused.length;
-
-  // Find array index of a task in the full (unfiltered) store task list
-  const findStoreIndex = (taskId: string, tasks: Task[]): number => {
-    return tasks.findIndex(t => t.id === taskId);
-  };
+  const getSelectedTask = (): Task | null => orderedTasks[selectedIndex] ?? null;
 
   const handleAction = (action: VimAction) => {
     // If guardrail warning is showing, handle confirm/cancel
@@ -108,9 +126,8 @@ export function PlanMode({
       case 'cut': {
         const task = getSelectedTask();
         if (!task) return;
-        const wasFocused = task.focused;
         store.remove(task.id).then(({ index }) => {
-          setClipboard({ task, index, wasFocused });
+          setClipboard({ task, index, wasFocused: task.focused });
           setVimMode('holding');
           onHoldingChange?.(task.title);
           undoStack.push({
@@ -126,27 +143,19 @@ export function PlanMode({
       case 'paste': {
         if (!clipboard) return;
         const allTasks = store.load();
-        const inFocused = isInFocusedSection();
 
-        // Determine target position in the store array
         let targetIndex: number;
         const anchorTask = getSelectedTask();
         if (anchorTask) {
-          targetIndex = findStoreIndex(anchorTask.id, allTasks);
+          targetIndex = allTasks.findIndex(t => t.id === anchorTask.id);
           if (!action.above) targetIndex += 1;
         } else {
           targetIndex = allTasks.length;
         }
 
-        // Update focused status if crossing boundary
-        const taskToInsert = { ...clipboard.task };
-        if (inFocused && !taskToInsert.focused) {
-          taskToInsert.focused = true;
-        } else if (!inFocused && taskToInsert.focused) {
-          taskToInsert.focused = false;
-        }
-
         const origClipboard = clipboard;
+        const taskToInsert = { ...clipboard.task };
+
         store.insertAt(taskToInsert, targetIndex).then(() => {
           undoStack.push({
             undo: async () => {
@@ -188,9 +197,8 @@ export function PlanMode({
       }
 
       case 'create': {
-        const section = isInFocusedSection() || filteredBacklog.length === 0 ? 'focused' : 'backlog';
         const idx = action.above ? selectedIndex : selectedIndex + 1;
-        setCreatingAt({ index: idx, section });
+        setCreatingAt(idx);
         setEditState({ text: '', cursor: 0 });
         setVimMode('insert');
         break;
@@ -249,7 +257,7 @@ export function PlanMode({
     }
 
     if (editingId) {
-      const task = [...focusedTasks, ...backlogTasks].find(t => t.id === editingId);
+      const task = orderedTasks.find(t => t.id === editingId);
       const prevTitle = task?.title ?? '';
       if (editText.trim() && editText !== prevTitle) {
         const id = editingId;
@@ -268,14 +276,17 @@ export function PlanMode({
       return;
     }
 
-    if (creatingAt) {
+    if (creatingAt !== null) {
       if (editText.trim()) {
-        const isFocused = creatingAt.section === 'focused';
+        const nearbyTask = getSelectedTask();
+        const category = nearbyTask?.categories?.[0];
+        const isFocused = nearbyTask?.focused ?? false;
         const scope = scopeFilter === 'all' ? 'personal' : scopeFilter;
         store.add({
           title: editText.trim(),
           scope,
           focused: isFocused,
+          categories: category ? [category] : undefined,
           created_by: 'human',
         }).then((newTask) => {
           undoStack.push({
@@ -323,32 +334,72 @@ export function PlanMode({
     onInsertEscape: saveEdit,
   });
 
-  // Render task rows, substituting InlineEdit when editing
-  const renderRow = (task: Task, displayIndex: number) => {
-    if (editingId === task.id) {
-      return <InlineEdit key={task.id} text={editText} cursorPos={cursorPos} />;
+  // Build tree view rows
+  const taskRows: React.ReactNode[] = [];
+  const taskRowPositions: number[] = []; // maps flat task index → position in taskRows
+  let flatIdx = 0;
+
+  for (const group of groups) {
+    const label = group.category || 'uncategorized';
+    taskRows.push(
+      <Text key={`cat-${group.category}`} dimColor>{'  '}{label}</Text>
+    );
+
+    for (let i = 0; i < group.tasks.length; i++) {
+      const task = group.tasks[i];
+      const displayIdx = flatIdx;
+      const isLast = i === group.tasks.length - 1;
+      const connector = isLast ? '└─' : '├─';
+      const isSelected = selectedIndex === displayIdx;
+
+      taskRowPositions.push(taskRows.length);
+
+      if (editingId === task.id) {
+        taskRows.push(
+          <Box key={task.id}>
+            <Text dimColor>{'  '}{connector} </Text>
+            <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
+          </Box>
+        );
+      } else {
+        taskRows.push(
+          <Box key={task.id}>
+            <Text color={isSelected ? 'cyan' : undefined} dimColor={!isSelected}>{isSelected ? ' ▸' : '  '}{connector} </Text>
+            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
+            <Text dimColor={!task.focused && !isSelected} color={isSelected ? 'cyan' : undefined}>
+              {' '}{task.title}
+            </Text>
+            {task.focused && <Text color="yellow">{' ★'}</Text>}
+            {task.status === 'done' && <Text dimColor>{' ✓'}</Text>}
+          </Box>
+        );
+      }
+
+      flatIdx++;
     }
-    return <TaskRow key={task.id} task={task} isSelected={selectedIndex === displayIndex} />;
-  };
 
-  const focusedRows = filteredFocused.length === 0
-    ? [<Text key="focused-empty" dimColor>    No focused tasks. Press space to focus.</Text>]
-    : filteredFocused.map((task, i) => renderRow(task, i));
-
-  // Insert creation row if creating in focused section
-  if (creatingAt?.section === 'focused') {
-    const insertIdx = Math.min(creatingAt.index, focusedRows.length);
-    focusedRows.splice(insertIdx, 0, <InlineEdit key="__creating" text={editText} cursorPos={cursorPos} />);
+    taskRows.push(<Text key={`spacer-${group.category}`}>{' '}</Text>);
   }
 
-  const backlogRows = filteredBacklog.length === 0
-    ? [<Text key="backlog-empty" dimColor>    No backlog tasks.</Text>]
-    : filteredBacklog.map((task, i) => renderRow(task, filteredFocused.length + i));
+  // Insert creation row at the right position
+  if (creatingAt !== null) {
+    let insertPos: number;
+    if (creatingAt < taskRowPositions.length) {
+      insertPos = taskRowPositions[creatingAt];
+    } else {
+      // After last task — insert before the trailing spacer
+      insertPos = taskRows.length > 0 ? taskRows.length - 1 : 0;
+    }
+    taskRows.splice(insertPos, 0,
+      <Box key="__creating">
+        <Text dimColor>{'  │  '}</Text>
+        <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
+      </Box>
+    );
+  }
 
-  // Insert creation row if creating in backlog section
-  if (creatingAt?.section === 'backlog') {
-    const insertIdx = Math.min(creatingAt.index - filteredFocused.length, backlogRows.length);
-    backlogRows.splice(insertIdx, 0, <InlineEdit key="__creating" text={editText} cursorPos={cursorPos} />);
+  if (totalCount === 0) {
+    taskRows.push(<Text key="empty" dimColor>{'    '}No tasks.</Text>);
   }
 
   return (
@@ -358,8 +409,6 @@ export function PlanMode({
       {searchQuery && !isSearching && (
         <Text dimColor>  filter: {searchQuery}</Text>
       )}
-      <SectionDivider label={`FOCUSED (${filteredFocused.length})`} />
-      {focusedRows}
       {pendingFocusTask && (
         <Box>
           <Text color="yellow">  You have {focusedTasks.length} focused tasks. Add another? </Text>
@@ -373,10 +422,7 @@ export function PlanMode({
           <Text dimColor> --</Text>
         </Box>
       )}
-      <Text> </Text>
-      <SectionDivider label={`BACKLOG (${filteredBacklog.length})`} />
-      {backlogRows}
-      <Text> </Text>
+      {taskRows}
     </Box>
   );
 }

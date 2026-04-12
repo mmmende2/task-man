@@ -58,27 +58,33 @@ describe('PlanMode interaction', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('renders focused and backlog sections', () => {
+  it('renders tree view with category grouping', () => {
     const result = renderWithDimensions(
       createElement(PlanModeHarness, { store, initialTasks: tasks }),
     );
     cleanup = result.cleanup;
     const text = result.text();
 
-    expect(text).toContain('FOCUSED (2)');
-    expect(text).toContain('BACKLOG (2)');
+    // All tasks under 'uncategorized' with tree connectors
+    expect(text).toContain('uncategorized');
+    expect(text).toContain('Focused-A');
+    expect(text).toContain('Backlog-B');
+    expect(text).toContain('├─');
+    expect(text).toContain('└─');
   });
 
-  it('selection marker on first item', () => {
+  it('shows focused indicator on focused tasks', () => {
     const result = renderWithDimensions(
       createElement(PlanModeHarness, { store, initialTasks: tasks }),
     );
     cleanup = result.cleanup;
     const text = result.text();
 
-    // ▸ should appear next to Focused-A
-    expect(text).toContain('▸');
-    expect(text).toContain('Focused-A');
+    // Focused tasks have ★ indicator
+    const focusedALine = result.lines().find(l => l.includes('Focused-A'));
+    expect(focusedALine).toContain('★');
+    const backlogALine = result.lines().find(l => l.includes('Backlog-A'));
+    expect(backlogALine).not.toContain('★');
   });
 
   it('j moves selection down', () => {
@@ -132,8 +138,9 @@ describe('PlanMode interaction', () => {
 
     await vi.waitFor(() => {
       const text = result.text();
-      expect(text).toContain('FOCUSED (1)');
-      expect(text).toContain('BACKLOG (3)');
+      // Focused-A should no longer have ★
+      const focusedALine = result.lines().find(l => l.includes('Focused-A'));
+      expect(focusedALine).not.toContain('★');
     });
   });
 
@@ -143,7 +150,7 @@ describe('PlanMode interaction', () => {
     );
     cleanup = result.cleanup;
 
-    // Navigate to Backlog-A (index 2) — verify selection marker moves
+    // Navigate to Backlog-A (index 2) — wait between presses for selection to move
     result.stdin.write('j');
     await vi.waitFor(() => {
       const selectedLine = result.lines().find(l => l.includes('▸'));
@@ -159,9 +166,9 @@ describe('PlanMode interaction', () => {
     result.stdin.write(' ');
 
     await vi.waitFor(() => {
-      const text = result.text();
-      expect(text).toContain('FOCUSED (3)');
-      expect(text).toContain('BACKLOG (1)');
+      // Backlog-A should now have ★
+      const backlogALine = result.lines().find(l => l.includes('Backlog-A'));
+      expect(backlogALine).toContain('★');
     });
   });
 });

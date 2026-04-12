@@ -99,6 +99,12 @@ export function FocusMode({
         if (navTarget === 'tasks') {
           setNavTarget('subtasks');
           setSubtaskIndex(0);
+          // If no subtasks, immediately start creating one
+          if (currentSubtasks.length === 0) {
+            setCreatingAt(0);
+            setEditState({ text: '', cursor: 0 });
+            setVimMode('insert');
+          }
         } else {
           setNavTarget('tasks');
         }

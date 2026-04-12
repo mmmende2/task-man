@@ -4,7 +4,8 @@ import { TaskStore } from './store.js';
 import type { DayReport } from './types.js';
 
 export function buildDayReport(store: TaskStore, date: string): DayReport {
-  const completedTasks = store.getCompletedOn(date);
+  const allCompletedOn = store.getCompletedOn(date);
+  const completedTasks = allCompletedOn.filter(t => t.parent_id === null);
   const inProgressTasks = store.getInProgressUpdatedOn(date);
   const startedTasks = store.getCreatedOn(date);
 
