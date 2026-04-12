@@ -136,22 +136,23 @@ describe('FocusMode interaction', () => {
     // 3 focused tasks, indices 0-2. Press j to move through.
     result.stdin.write('j');
     await vi.waitFor(() => {
-      const line = result.lines().find(l => l.includes('┌'));
-      expect(line).toContain('Beta');
+      // Beta has no subtasks — expanded as single line with ──
+      const line = result.lines().find(l => l.includes('──') && l.includes('Beta'));
+      expect(line).toBeDefined();
     });
 
     result.stdin.write('j');
     await vi.waitFor(() => {
-      const line = result.lines().find(l => l.includes('┌'));
-      expect(line).toContain('Gamma');
+      const line = result.lines().find(l => l.includes('──') && l.includes('Gamma'));
+      expect(line).toBeDefined();
     });
 
     result.stdin.write('j'); // should stay at Gamma
     result.stdin.write('j');
 
     await vi.waitFor(() => {
-      const line = result.lines().find(l => l.includes('┌'));
-      expect(line).toContain('Gamma');
+      const line = result.lines().find(l => l.includes('──') && l.includes('Gamma'));
+      expect(line).toBeDefined();
     });
   });
 

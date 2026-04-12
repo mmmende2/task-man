@@ -77,8 +77,8 @@ describe('MetricsMode display', () => {
     cleanup = result.cleanup;
 
     const text = result.text();
-    // Should use priority dots (filled/unfilled), not status brackets
-    expect(text).toMatch(/●|○/);
+    // Should use radio-style markers (filled/unfilled), not status brackets
+    expect(text).toMatch(/◉|○/);
     expect(text).not.toMatch(/\[x\]|\[~\]|\[ \]/);
     // Should not contain emoji
     expect(text).not.toContain('✅');

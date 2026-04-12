@@ -153,7 +153,9 @@ describe('PlanMode vim: dd/p reorder', () => {
       const text = result.text();
       expect(text).toContain('cut:');
       expect(text).toContain('Focused-A');
-      expect(text).toContain('FOCUSED (1)'); // one fewer
+      // Focused-A removed, only Focused-B has ★
+      const focusedBLine = result.lines().find(l => l.includes('Focused-B'));
+      expect(focusedBLine).toContain('★');
     });
   });
 
@@ -167,15 +169,15 @@ describe('PlanMode vim: dd/p reorder', () => {
     result.stdin.write('d');
 
     await vi.waitFor(() => {
-      expect(result.text()).toContain('FOCUSED (1)');
+      expect(result.text()).toContain('cut:');
     });
 
     result.stdin.write('\x1b'); // Escape confirms delete
 
     await vi.waitFor(() => {
       const text = result.text();
-      expect(text).toContain('FOCUSED (1)');
       expect(text).not.toContain('Focused-A');
+      expect(text).toContain('Focused-B');
     });
   });
 
@@ -190,7 +192,7 @@ describe('PlanMode vim: dd/p reorder', () => {
     result.stdin.write('d');
 
     await vi.waitFor(() => {
-      expect(result.text()).toContain('FOCUSED (1)');
+      expect(result.text()).toContain('cut:');
     });
 
     // Cursor is now on Focused-B. Paste below.
@@ -198,7 +200,8 @@ describe('PlanMode vim: dd/p reorder', () => {
 
     await vi.waitFor(() => {
       const text = result.text();
-      expect(text).toContain('FOCUSED (2)');
+      expect(text).toContain('Focused-A');
+      expect(text).toContain('Focused-B');
       // Focused-B should appear before Focused-A in the store
       const lines = result.lines();
       const bLine = lines.findIndex(l => l.includes('Focused-B'));

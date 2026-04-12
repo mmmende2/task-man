@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { Task } from '../../types.js';
 import type { TaskStore } from '../../store.js';
@@ -74,6 +74,22 @@ export function MetricsMode({ store }: Props) {
 
   const progressPercent = focusedTotal > 0 ? Math.round((focusedDone / focusedTotal) * 100) : 0;
 
+  // Cyan pulse for fully-done parent tasks — same cadence as PulsingProgressBar
+  const CYAN_PULSE = ['#00ffff', '#00cccc', '#009999', '#00cccc'];
+  const hasFullyDone = sortedFocused.some(task => {
+    if (task.status !== 'done') return false;
+    const info = subtaskInfoMap.get(task.id);
+    return !info || info.total === info.doneToday + info.donePrior;
+  });
+  const [pulseIndex, setPulseIndex] = useState(0);
+  useEffect(() => {
+    if (!hasFullyDone) return;
+    const timer = setInterval(() => {
+      setPulseIndex(i => (i + 1) % CYAN_PULSE.length);
+    }, 400);
+    return () => clearInterval(timer);
+  }, [hasFullyDone]);
+
   useInput((input, key) => {
     if (editingDate) {
       if (key.return) {
@@ -115,12 +131,17 @@ export function MetricsMode({ store }: Props) {
         const info = subtaskInfoMap.get(task.id);
         const rows: React.ReactNode[] = [];
 
+        // Check if task and all subtasks are done
+        const isFullyDone = task.status === 'done' && (!info || info.total === info.doneToday + info.donePrior);
+
         // Parent task row: dot + title + progress bar
         rows.push(
           <Box key={task.id}>
             <Text>  </Text>
-            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
-            <Text color={task.status === 'done' ? 'white' : undefined}> {task.title} </Text>
+            {isFullyDone
+              ? <Text color={CYAN_PULSE[pulseIndex]}>{'◉'}</Text>
+              : <Text color={task.status === 'done' ? 'white' : undefined}>{task.status !== 'todo' ? '◉' : '○'}</Text>}
+            <Text color={isFullyDone ? 'cyan' : task.status === 'done' ? 'white' : undefined}> {task.title} </Text>
             {info && info.total > 0 ? (
               <PulsingProgressBar
                 total={info.total}

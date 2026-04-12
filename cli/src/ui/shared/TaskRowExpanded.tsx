@@ -1,7 +1,6 @@
 import { Box, Text } from 'ink';
 import type { Task } from '../../types.js';
 import { PriorityDot } from './PriorityDot.js';
-import { StatusBadge } from './StatusBadge.js';
 import { SubtaskCheckbox } from './SubtaskCheckbox.js';
 import { ProgressBar } from './ProgressBar.js';
 import { InlineEdit } from './InlineEdit.js';
@@ -26,9 +25,39 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
   // Border color: cyan when navigating tasks, white when navigating subtasks
   const borderColor = inSubtaskNav ? 'white' : 'cyan';
 
-  const bottomDash = Math.max(0, cardInner - 18);
+  const bottomLabel = task.categories?.length ? task.categories[0] : task.status;
 
   const isEditingTaskDate = editingDateId === task.id && editText !== undefined && cursorPos !== undefined;
+
+  // Single-line view for tasks with no subtasks
+  if (subtasks.length === 0) {
+    // ── ●  Title ────── category ──
+    const midDashes = Math.max(4, cardInner - 10 - task.title.length - bottomLabel.length);
+
+    return (
+      <Box flexDirection="column">
+        <Box>
+          <Text>{' '}</Text>
+          <Text color={borderColor}>{'── '}</Text>
+          <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
+          <Text color={borderColor}>{' '}</Text>
+          <Text color={borderColor}>{task.title}</Text>
+          <Text color={borderColor}>{' ' + '─'.repeat(midDashes) + ' '}</Text>
+          <Text dimColor>{bottomLabel}</Text>
+          <Text color={borderColor}>{' ──'}</Text>
+        </Box>
+        {isEditingTaskDate && (
+          <Box>
+            <Text>{'     '}</Text>
+            <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
+          </Box>
+        )}
+      </Box>
+    );
+  }
+
+  // Full box view for tasks with subtasks
+  const bottomDash = Math.max(0, cardInner - 14 - bottomLabel.length);
 
   const descriptionRow = task.description
     ? <Box key="desc"><Text color={borderColor}>{' │ '}</Text><Text dimColor>{task.description}</Text></Box>
@@ -102,7 +131,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
       <Box>
         <Text>{' '}</Text>
         <Text color={borderColor}>{'└' + '─'.repeat(bottomDash) + ' '}</Text>
-        <StatusBadge status={task.status} />
+        <Text dimColor>{bottomLabel}</Text>
         <Text color={borderColor}>{' ─────┘'}</Text>
       </Box>
     </Box>
