@@ -2,13 +2,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { TaskStore } from 'task-man/store';
 import { buildDayReport } from 'task-man/report';
-import { loadConfig } from 'task-man/config';
+import { loadConfig, saveConfig } from 'task-man/config';
 import { renderDayReportHtml } from 'task-man/render-html';
 import { sendEndOfDayEmail } from 'task-man/email';
-import type { TaskFilter } from 'task-man/types';
+import { getCurrentSessionId } from 'task-man/sessions';
+import type { SessionColor, TaskFilter } from 'task-man/types';
 
 export function registerTools(server: McpServer): void {
   const store = new TaskStore();
+  const currentSessionId = getCurrentSessionId();
 
   // ── task_add ──────────────────────────────────────────────
   server.tool(
@@ -32,6 +34,7 @@ export function registerTools(server: McpServer): void {
         parent_id: parentId,
         description,
         created_by: 'claude',
+        session_id: currentSessionId,
       });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
@@ -58,7 +61,12 @@ export function registerTools(server: McpServer): void {
       let tasks = store.query(filters);
       if (limit && limit > 0) tasks = tasks.slice(0, limit);
 
-      return { content: [{ type: 'text', text: JSON.stringify(tasks, null, 2) }] };
+      const annotated = tasks.map(t => ({
+        ...t,
+        is_current_session: currentSessionId ? t.session_id === currentSessionId : false,
+      }));
+
+      return { content: [{ type: 'text', text: JSON.stringify(annotated, null, 2) }] };
     },
   );
 
@@ -106,7 +114,7 @@ export function registerTools(server: McpServer): void {
     'Mark a task as in_progress',
     { id: z.string().describe('Task ID (prefix OK)') },
     async ({ id }) => {
-      const task = await store.update(id, { status: 'in_progress' });
+      const task = await store.update(id, { status: 'in_progress', session_id: currentSessionId });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -117,7 +125,7 @@ export function registerTools(server: McpServer): void {
     'Pull a task into focus (today\'s working set)',
     { id: z.string().describe('Task ID (prefix OK)') },
     async ({ id }) => {
-      const task = await store.update(id, { focused: true });
+      const task = await store.update(id, { focused: true, session_id: currentSessionId });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -228,6 +236,25 @@ export function registerTools(server: McpServer): void {
             : `No tasks found matching "${query}"`,
         }],
       };
+    },
+  );
+
+  // ── task_session_color ───────────────────────────────────
+  server.tool(
+    'task_session_color',
+    'Set the terminal color for the current Claude Code session. Valid colors: cyan, magenta, purple, yellow',
+    {
+      color: z.enum(['cyan', 'magenta', 'purple', 'yellow']).describe('Session color'),
+    },
+    async ({ color }) => {
+      if (!currentSessionId) {
+        return { content: [{ type: 'text', text: 'No active Claude Code session detected' }] };
+      }
+      const config = loadConfig();
+      if (!config.sessions) config.sessions = {};
+      config.sessions[currentSessionId] = color as SessionColor;
+      saveConfig(config);
+      return { content: [{ type: 'text', text: `Session color set to ${color} (session ${currentSessionId.slice(0, 8)}...)` }] };
     },
   );
 }

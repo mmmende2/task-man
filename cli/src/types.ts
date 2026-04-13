@@ -17,6 +17,7 @@ export interface Task {
   completed_at: string | null;
   focused: boolean;
   created_by: CreatedBy;
+  session_id: string | null;
 }
 
 export interface CreateTaskInput {
@@ -28,6 +29,7 @@ export interface CreateTaskInput {
   parent_id?: string;
   focused?: boolean;
   created_by?: CreatedBy;
+  session_id?: string | null;
 }
 
 export interface TaskFilter {
@@ -36,6 +38,8 @@ export interface TaskFilter {
   focused?: boolean;
   category?: string;
 }
+
+export type SessionColor = 'cyan' | 'magenta' | 'purple' | 'yellow';
 
 export interface TaskManConfig {
   email: {
@@ -46,6 +50,7 @@ export interface TaskManConfig {
   focus: {
     maxFocused: number | null;
   };
+  sessions: Record<string, SessionColor>;
 }
 
 export interface DayStats {

@@ -9,6 +9,8 @@ import { TaskRow } from '../shared/TaskRow.js';
 import { TaskRowExpanded } from '../shared/TaskRowExpanded.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
+import { loadConfig } from '../../config.js';
+import { getSessionHexColor, isSessionActive } from '../../sessions.js';
 
 interface Props {
   focusedTasks: Task[];
@@ -63,6 +65,9 @@ export function FocusMode({
   const cursorPos = editState.cursor;
 
   const undoStack = useUndoStack();
+
+  // Load session config for color resolution
+  const sessionConfig = useMemo(() => loadConfig(), [focusedTasks]);
 
   const filteredTasks = useMemo(() => {
     if (!searchQuery) return focusedTasks;
@@ -409,6 +414,9 @@ export function FocusMode({
   }
 
   const taskRows = filteredTasks.map((task, i) => {
+    const terminalColor = getSessionHexColor(task.session_id, sessionConfig);
+    const active = task.session_id ? isSessionActive(task.session_id) : false;
+
     if (editingId === task.id) {
       return <InlineEdit key={task.id} text={editText} cursorPos={cursorPos} />;
     }
@@ -425,6 +433,7 @@ export function FocusMode({
             editingDateId={editingDateId}
             editText={editText}
             cursorPos={cursorPos}
+            terminalColor={terminalColor}
           />
           {/* Insert creation row for subtask */}
           {creatingAt !== null && navTarget === 'subtasks' && (
@@ -440,6 +449,8 @@ export function FocusMode({
         task={task}
         isSelected={false}
         subtaskProgress={getSubtaskProgress(task.id, subtaskMap)}
+        terminalColor={terminalColor}
+        sessionActive={active}
       />
     );
   });

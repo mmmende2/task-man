@@ -1,6 +1,7 @@
 import chalk from 'chalk';
-import { PRIORITY_COLORS, STATUS_COLORS } from './constants.js';
-import type { DayReport, Task } from './types.js';
+import { PRIORITY_COLORS, SESSION_COLORS, STATUS_COLORS } from './constants.js';
+import { loadConfig } from './config.js';
+import type { DayReport, SessionColor, Task } from './types.js';
 
 function priorityDot(task: Task): string {
   const color = PRIORITY_COLORS[task.priority];
@@ -12,8 +13,16 @@ function statusLabel(task: Task): string {
   return (chalk as unknown as Record<string, (s: string) => string>)[color](task.status);
 }
 
-function attribution(task: Task): string {
-  return chalk.dim(`[${task.created_by === 'claude' ? 'claude' : 'you'}]`);
+function attribution(task: Task, sessionColors?: Record<string, SessionColor>): string {
+  const label = task.created_by === 'claude' ? 'claude' : 'you';
+  if (task.created_by === 'claude' && task.session_id && sessionColors) {
+    const colorName = sessionColors[task.session_id];
+    if (colorName) {
+      const hex = SESSION_COLORS[colorName];
+      return chalk.dim('[') + chalk.dim(label) + ' ' + chalk.hex(hex)('●') + chalk.dim(']');
+    }
+  }
+  return chalk.dim(`[${label}]`);
 }
 
 export function renderTaskList(tasks: Task[]): string {
@@ -36,6 +45,8 @@ export function renderTaskList(tasks: Task[]): string {
 export function renderDayReportTerminal(report: DayReport): string {
   const lines: string[] = [];
   const hr = chalk.magenta('─'.repeat(50));
+  const config = loadConfig();
+  const sessionColors = config.sessions;
 
   lines.push('');
   lines.push(chalk.magenta.bold(`  ╔${'═'.repeat(48)}╗`));
@@ -46,7 +57,7 @@ export function renderDayReportTerminal(report: DayReport): string {
   lines.push('');
   lines.push(chalk.green.bold(`  [x] Completed today (${report.completedTasks.length})`));
   for (const task of report.completedTasks) {
-    lines.push(`    ${priorityDot(task)} ${task.title}  ${attribution(task)}`);
+    lines.push(`    ${priorityDot(task)} ${task.title}  ${attribution(task, sessionColors)}`);
   }
   if (report.completedTasks.length === 0) {
     lines.push(chalk.dim('    No tasks completed.'));
