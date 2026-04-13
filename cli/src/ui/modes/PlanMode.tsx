@@ -6,6 +6,7 @@ import type { VimMode, VimAction } from '../hooks/useVimKeys.js';
 import { useVimKeys } from '../hooks/useVimKeys.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
 import { loadConfig } from '../../config.js';
+import { getSessionHexColor } from '../../sessions.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
@@ -362,10 +363,11 @@ export function PlanMode({
           </Box>
         );
       } else {
+        const terminalColor = getSessionHexColor(task.session_id, config);
         taskRows.push(
           <Box key={task.id}>
             <Text color={isSelected ? 'cyan' : undefined} dimColor={!isSelected}>{isSelected ? ' ▸' : '  '}{connector} </Text>
-            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
+            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
             <Text dimColor={!task.focused && !isSelected} color={isSelected ? 'cyan' : undefined}>
               {' '}{task.title}
             </Text>

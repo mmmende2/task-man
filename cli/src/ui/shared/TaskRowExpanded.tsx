@@ -16,14 +16,15 @@ interface Props {
   editingDateId?: string | null;
   editText?: string;
   cursorPos?: number;
+  terminalColor?: string | null;
 }
 
-export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editingDateId, editText, cursorPos }: Props) {
+export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editingDateId, editText, cursorPos, terminalColor }: Props) {
   const width = useTerminalWidth();
   const cardInner = width - 2;
 
-  // Border color: cyan when navigating tasks, white when navigating subtasks
-  const borderColor = inSubtaskNav ? 'white' : 'cyan';
+  // Session color overrides default; otherwise cyan for task nav, white for subtask nav
+  const borderColor = terminalColor ?? (inSubtaskNav ? 'white' : 'cyan');
 
   const bottomLabel = task.categories?.length ? task.categories[0] : task.status;
 
@@ -39,7 +40,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
         <Box>
           <Text>{' '}</Text>
           <Text color={borderColor}>{'── '}</Text>
-          <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
+          <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
           <Text color={borderColor}>{' '}</Text>
           <Text color={borderColor}>{task.title}</Text>
           <Text color={borderColor}>{' ' + '─'.repeat(midDashes) + ' '}</Text>
@@ -114,7 +115,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
       <Box>
         <Text>{' '}</Text>
         <Text color={borderColor}>{'┌─ '}</Text>
-        <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
+        <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
         <Text color={borderColor}>{' '}</Text>
         <Text color={borderColor}>{task.title}</Text>
         {subtaskProgress && subtaskProgress.total > 0 ? (

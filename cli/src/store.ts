@@ -61,6 +61,7 @@ export class TaskStore {
         completed_at: null,
         focused: input.focused ?? false,
         created_by: input.created_by ?? 'human',
+        session_id: input.session_id ?? null,
       };
 
       tasks.push(newTask);
@@ -85,7 +86,7 @@ export class TaskStore {
     return matches[0].id;
   }
 
-  async update(id: string, changes: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'scope' | 'categories' | 'focused' | 'completed_at'>>): Promise<Task> {
+  async update(id: string, changes: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'scope' | 'categories' | 'focused' | 'completed_at' | 'session_id'>>): Promise<Task> {
     const resolvedId = this.resolveId(id);
     const updated = await withLock(this.filePath, async () => {
       const tasks = this.load();

@@ -13,7 +13,9 @@
     "./config": "./dist/config.js",
     "./report": "./dist/report.js",
     "./render-html": "./dist/render-html.js",
-    "./email": "./dist/email.js"
+    "./email": "./dist/email.js",
+    "./sessions": "./dist/sessions.js",
+    "./constants": "./dist/constants.js"
   },
   "scripts": {
     "build": "tsc",

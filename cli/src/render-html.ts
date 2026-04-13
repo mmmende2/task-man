@@ -1,4 +1,6 @@
-import type { DayReport, Task } from './types.js';
+import type { DayReport, SessionColor, Task } from './types.js';
+import { SESSION_COLORS } from './constants.js';
+import { loadConfig } from './config.js';
 
 const BG = '#1a1a2e';
 const FG = '#e0e0e0';
@@ -8,8 +10,15 @@ const GREEN = '#50fa7b';
 const YELLOW = '#f1fa8c';
 const DIM = '#6272a4';
 
-function taskRow(task: Task): string {
-  const attr = task.created_by === 'claude' ? '[claude]' : '[you]';
+function taskRow(task: Task, sessionColors?: Record<string, SessionColor>): string {
+  let attr = task.created_by === 'claude' ? '[claude]' : '[you]';
+  if (task.created_by === 'claude' && task.session_id && sessionColors) {
+    const colorName = sessionColors[task.session_id];
+    if (colorName) {
+      const hex = SESSION_COLORS[colorName];
+      attr = `[claude <span style="color:${hex}">●</span>]`;
+    }
+  }
   return `<tr><td style="padding:4px 12px;color:${FG}">● ${escapeHtml(task.title)}</td><td style="padding:4px 12px;color:${DIM}">${attr}</td></tr>`;
 }
 
@@ -18,6 +27,10 @@ function escapeHtml(s: string): string {
 }
 
 export function renderDayReportHtml(report: DayReport): string {
+  const config = loadConfig();
+  const sessionColors = config.sessions;
+  const row = (t: Task) => taskRow(t, sessionColors);
+
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -31,7 +44,7 @@ export function renderDayReportHtml(report: DayReport): string {
   <div style="padding:16px;">
     <h2 style="color:${GREEN};font-size:15px;margin:16px 0 8px;">✅ Completed today (${report.completedTasks.length})</h2>
     <table style="width:100%;">
-      ${report.completedTasks.map(taskRow).join('\n      ')}
+      ${report.completedTasks.map(row).join('\n      ')}
     </table>
     ${report.completedTasks.length === 0 ? `<p style="color:${DIM}">No tasks completed.</p>` : ''}
 

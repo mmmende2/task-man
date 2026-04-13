@@ -1,4 +1,4 @@
-import { type TaskManConfig, type TaskPriority, type TaskScope, type TaskStatus } from './types.js';
+import { type SessionColor, type TaskManConfig, type TaskPriority, type TaskScope, type TaskStatus } from './types.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,6 +16,14 @@ export const DEFAULT_CONFIG: TaskManConfig = {
   focus: {
     maxFocused: 3,
   },
+  sessions: {},
+};
+
+export const SESSION_COLORS: Record<SessionColor, string> = {
+  cyan:    '#00a5a5',
+  magenta: '#ff79c6',
+  purple:  '#bd93f9',
+  yellow:  '#f1fa8c',
 };
 
 export const PRIORITY_COLORS: Record<TaskPriority, string> = {

@@ -12,9 +12,10 @@ const INK_COLORS: Record<string, string> = {
 interface Props {
   priority: TaskPriority;
   filled?: boolean;
+  terminalColor?: string | null;
 }
 
-export function PriorityDot({ priority, filled = true }: Props) {
-  const color = INK_COLORS[PRIORITY_COLORS[priority]] ?? 'white';
+export function PriorityDot({ priority, filled = true, terminalColor }: Props) {
+  const color = terminalColor ?? INK_COLORS[PRIORITY_COLORS[priority]] ?? 'white';
   return <Text color={color}>{filled ? '●' : '○'}</Text>;
 }
