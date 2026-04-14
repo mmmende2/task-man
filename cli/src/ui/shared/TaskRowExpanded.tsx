@@ -14,12 +14,13 @@ interface Props {
   selectedSubtaskIndex?: number;
   editingSubtaskId?: string | null;
   editingDateId?: string | null;
+  editingDescriptionId?: string | null;
   editText?: string;
   cursorPos?: number;
   terminalColor?: string | null;
 }
 
-export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editingDateId, editText, cursorPos, terminalColor }: Props) {
+export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editingDateId, editingDescriptionId, editText, cursorPos, terminalColor }: Props) {
   const width = useTerminalWidth();
   const cardInner = width - 2;
 
@@ -29,6 +30,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
   const bottomLabel = task.categories?.length ? task.categories[0] : task.status;
 
   const isEditingTaskDate = editingDateId === task.id && editText !== undefined && cursorPos !== undefined;
+  const isEditingDescription = editingDescriptionId === task.id && editText !== undefined && cursorPos !== undefined;
 
   // Single-line view for tasks with no subtasks
   if (subtasks.length === 0) {
@@ -47,6 +49,17 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
           <Text dimColor>{bottomLabel}</Text>
           <Text color={borderColor}>{' ──'}</Text>
         </Box>
+        {isEditingDescription ? (
+          <Box>
+            <Text>{'     '}</Text>
+            <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
+          </Box>
+        ) : task.description ? (
+          <Box>
+            <Text>{'     '}</Text>
+            <Text dimColor>{task.description}</Text>
+          </Box>
+        ) : null}
         {isEditingTaskDate && (
           <Box>
             <Text>{'     '}</Text>
@@ -60,15 +73,17 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
   // Full box view for tasks with subtasks
   const bottomDash = Math.max(0, cardInner - 14 - bottomLabel.length);
 
-  const descriptionRow = task.description
-    ? <Box key="desc"><Text color={borderColor}>{' │ '}</Text><Text dimColor>{task.description}</Text></Box>
-    : null;
+  const descriptionRow = isEditingDescription
+    ? <Box key="desc"><Text color={borderColor}>{' │ '}</Text><InlineEdit text={editText} cursorPos={cursorPos} prefix="" /></Box>
+    : task.description
+      ? <Box key="desc"><Text color={borderColor}>{' │ '}</Text><Text dimColor>{task.description}</Text></Box>
+      : null;
 
   const dateEditRow = isEditingTaskDate
     ? <Box key="date-edit"><Text color={borderColor}>{' │ '}</Text><InlineEdit text={editText} cursorPos={cursorPos} prefix="" /></Box>
     : null;
 
-  const spacerRow = (task.description || subtasks.length > 0 || isEditingTaskDate)
+  const spacerRow = (task.description || subtasks.length > 0 || isEditingTaskDate || isEditingDescription)
     ? <Box key="spacer-mid"><Text color={borderColor}>{' │'}</Text></Box>
     : null;
 

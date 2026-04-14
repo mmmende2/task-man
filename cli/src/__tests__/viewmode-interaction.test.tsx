@@ -281,3 +281,181 @@ describe('FocusMode interaction', () => {
     });
   });
 });
+
+describe('FocusMode description editing', () => {
+  let tmpDir: string;
+  let store: TaskStore;
+  let tasks: Task[];
+  let cleanup: () => void;
+
+  beforeEach(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'task-man-focus-desc-'));
+    store = new TaskStore(join(tmpDir, 'tasks.json'));
+
+    // Alpha has subtasks (full-box variant) and a prior description
+    const alpha = await store.add({
+      title: 'Alpha',
+      focused: true,
+      description: 'original description',
+    });
+    await store.add({ title: 'Sub One', parent_id: alpha.id });
+
+    // Beta has no subtasks (single-line variant), no description
+    await store.add({ title: 'Beta', focused: true });
+
+    tasks = store.load();
+  });
+
+  afterEach(() => {
+    cleanup?.();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("pressing 'e' shows the current description in an edit field", async () => {
+    const result = renderWithDimensions(
+      createElement(FocusModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    // Alpha is selected by default and already shows its description.
+    expect(result.text()).toContain('original description');
+
+    result.stdin.write('e');
+    await vi.waitFor(() => {
+      // Edit mode renders the magenta '>' prefix before the seeded text.
+      const line = result.lines().find(l => l.includes('> original description'));
+      expect(line).toBeDefined();
+    });
+
+    result.stdin.write('!');
+    await vi.waitFor(() => {
+      expect(result.text()).toContain('original description!');
+    });
+  });
+
+  it("pressing 'e', typing, and Enter persists the new description", async () => {
+    const result = renderWithDimensions(
+      createElement(FocusModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    result.stdin.write('e');
+    await vi.waitFor(() => {
+      expect(result.text()).toContain('> original description');
+    });
+
+    // Clear seeded text, then type new text.
+    for (let i = 0; i < 'original description'.length; i++) {
+      result.stdin.write('\u007f');
+    }
+    await vi.waitFor(() => {
+      expect(result.text()).not.toContain('original description');
+    });
+
+    for (const ch of 'updated notes') {
+      result.stdin.write(ch);
+    }
+    await vi.waitFor(() => {
+      expect(result.text()).toContain('updated notes');
+    });
+
+    result.stdin.write('\r'); // enter saves
+    await vi.waitFor(() => {
+      const saved = store.load().find(t => t.title === 'Alpha');
+      expect(saved?.description).toBe('updated notes');
+    });
+  });
+
+  it('clearing the description saves it as null', async () => {
+    const result = renderWithDimensions(
+      createElement(FocusModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    result.stdin.write('e');
+    await vi.waitFor(() => {
+      expect(result.text()).toContain('> original description');
+    });
+
+    for (let i = 0; i < 'original description'.length; i++) {
+      result.stdin.write('\u007f');
+    }
+    await vi.waitFor(() => {
+      expect(result.text()).not.toContain('original description');
+    });
+
+    result.stdin.write('\r');
+    await vi.waitFor(() => {
+      const saved = store.load().find(t => t.title === 'Alpha');
+      expect(saved?.description).toBeNull();
+    });
+  });
+
+  it('undo restores the previous description after an edit', async () => {
+    const result = renderWithDimensions(
+      createElement(FocusModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    result.stdin.write('e');
+    await vi.waitFor(() => {
+      expect(result.text()).toContain('> original description');
+    });
+
+    for (let i = 0; i < 'original description'.length; i++) {
+      result.stdin.write('\u007f');
+    }
+    await vi.waitFor(() => {
+      expect(result.text()).not.toContain('original description');
+    });
+
+    for (const ch of 'new') {
+      result.stdin.write(ch);
+    }
+    await vi.waitFor(() => {
+      expect(result.text()).toContain('> new');
+    });
+
+    result.stdin.write('\r');
+    await vi.waitFor(() => {
+      expect(store.load().find(t => t.title === 'Alpha')?.description).toBe('new');
+    });
+
+    result.stdin.write('u');
+    await vi.waitFor(() => {
+      expect(store.load().find(t => t.title === 'Alpha')?.description).toBe('original description');
+    });
+  });
+
+  it("'e' on a task with no subtasks edits description in the single-line card", async () => {
+    const result = renderWithDimensions(
+      createElement(FocusModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    // Move selection to Beta (no subtasks, no description).
+    result.stdin.write('j');
+    await vi.waitFor(() => {
+      const line = result.lines().find(l => l.includes('──') && l.includes('Beta'));
+      expect(line).toBeDefined();
+    });
+
+    result.stdin.write('e');
+    await vi.waitFor(() => {
+      // Empty edit field shows just '>' in magenta.
+      expect(result.text()).toMatch(/>\s*$/m);
+    });
+
+    for (const ch of 'for beta') {
+      result.stdin.write(ch);
+    }
+    await vi.waitFor(() => {
+      expect(result.text()).toContain('for beta');
+    });
+
+    result.stdin.write('\r');
+    await vi.waitFor(() => {
+      expect(store.load().find(t => t.title === 'Beta')?.description).toBe('for beta');
+    });
+  });
+});

@@ -34,11 +34,7 @@ export function MetricsMode({ store }: Props) {
   const { stats } = report;
 
   const allTasks = store.load();
-  const focusedTasks = allTasks.filter(t => t.focused);
-  const focusedDone = focusedTasks.filter(t => t.status === 'done').length;
-  const focusedTotal = focusedTasks.length;
-
-  const focusedParents = focusedTasks.filter(t => t.parent_id === null);
+  const allParents = allTasks.filter(t => t.parent_id === null);
 
   // Build subtask info per parent: split done-today vs done-prior
   const subtaskInfoMap = new Map<string, SubtaskInfo>();
@@ -58,8 +54,10 @@ export function MetricsMode({ store }: Props) {
   }
 
   // Only show tasks that had activity today:
-  // parent completed today, OR has subtasks completed today
-  const todayTasks = focusedParents.filter(task => {
+  // parent completed today, OR has subtasks completed today.
+  // Focus state is intentionally ignored — metrics reflect actual activity,
+  // not current focus membership.
+  const todayTasks = allParents.filter(task => {
     const completedToday = task.status === 'done' && task.completed_at?.startsWith(today);
     const info = subtaskInfoMap.get(task.id);
     const hasSubtasksDoneToday = info ? info.doneToday > 0 : false;
@@ -72,7 +70,11 @@ export function MetricsMode({ store }: Props) {
     return (order[a.status] ?? 2) - (order[b.status] ?? 2);
   });
 
-  const progressPercent = focusedTotal > 0 ? Math.round((focusedDone / focusedTotal) * 100) : 0;
+  // Progress bar: today's completion rate (done today vs. active today),
+  // derived from report stats so it stays independent of focus state.
+  const progressDone = stats.completed;
+  const progressTotal = stats.completed + stats.inProgress;
+  const progressPercent = progressTotal > 0 ? Math.round((progressDone / progressTotal) * 100) : 0;
 
   // Cyan pulse for fully-done parent tasks — same cadence as PulsingProgressBar
   const CYAN_PULSE = ['#00ffff', '#00cccc', '#009999', '#00cccc'];
@@ -193,7 +195,7 @@ export function MetricsMode({ store }: Props) {
           <Text>  </Text>
           <Text color="green" bold>{dateLabel}: {stats.completed}</Text>
           <Text>                        </Text>
-          <ProgressBar current={focusedDone} total={focusedTotal} width={10} color="magenta" />
+          <ProgressBar current={progressDone} total={progressTotal} width={10} color="magenta" />
         </Box>
       )}
 

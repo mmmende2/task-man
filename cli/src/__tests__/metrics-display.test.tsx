@@ -98,4 +98,20 @@ describe('MetricsMode display', () => {
     expect(text).not.toContain('Active Task');
     expect(text).not.toContain('Todo Task');
   });
+
+  it('still includes tasks completed today even if they are unfocused', async () => {
+    // Unfocus the completed task — it should still appear on the metrics page.
+    const tasks = store.load();
+    const doneTask = tasks.find(t => t.title === 'Done Task')!;
+    await store.update(doneTask.id, { focused: false });
+
+    const result = renderWithDimensions(
+      createElement(MetricsMode, { store }),
+    );
+    cleanup = result.cleanup;
+
+    const text = result.text();
+    expect(text).toContain('Done Task');
+    expect(text).toContain('Done today: 1');
+  });
 });

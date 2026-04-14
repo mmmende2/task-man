@@ -56,6 +56,7 @@ export function FocusMode({
   const [clipboard, setClipboard] = useState<Clipboard | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingDateId, setEditingDateId] = useState<string | null>(null);
+  const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
   const [editState, setEditState] = useState({ text: '', cursor: 0 });
   const [creatingAt, setCreatingAt] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -166,6 +167,18 @@ export function FocusMode({
         setEditingDateId(task.id);
         // Place cursor at end (day portion) — vim A behavior
         setEditState({ text: dateStr, cursor: dateStr.length });
+        setVimMode('insert');
+        break;
+      }
+
+      case 'edit-description': {
+        // Description edit is parent-task only for now.
+        if (navTarget !== 'tasks') return;
+        const task = filteredTasks[selectedIndex];
+        if (!task) return;
+        const desc = task.description ?? '';
+        setEditingDescriptionId(task.id);
+        setEditState({ text: desc, cursor: desc.length });
         setVimMode('insert');
         break;
       }
@@ -324,6 +337,25 @@ export function FocusMode({
       return;
     }
 
+    if (editingDescriptionId) {
+      const task = focusedTasks.find(t => t.id === editingDescriptionId);
+      const prevDescription = task?.description ?? null;
+      const newDescription = editText.trim() === '' ? null : editText;
+      if (newDescription !== prevDescription) {
+        const id = editingDescriptionId;
+        store.update(id, { description: newDescription }).then(() => {
+          undoStack.push({
+            undo: async () => { await store.update(id, { description: prevDescription }); },
+          });
+          reload();
+        });
+      }
+      setEditingDescriptionId(null);
+      setEditState({ text: '', cursor: 0 });
+      setVimMode('normal');
+      return;
+    }
+
     if (editingId) {
       const allTasks = [...focusedTasks, ...focusedTasks.flatMap(t => subtaskMap.get(t.id) ?? [])];
       const task = allTasks.find(t => t.id === editingId);
@@ -431,6 +463,7 @@ export function FocusMode({
             selectedSubtaskIndex={subtaskIndex}
             editingSubtaskId={editingId}
             editingDateId={editingDateId}
+            editingDescriptionId={editingDescriptionId}
             editText={editText}
             cursorPos={cursorPos}
             terminalColor={terminalColor}
