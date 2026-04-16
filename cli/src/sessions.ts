@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { SESSION_COLORS } from './constants.js';
@@ -16,6 +17,20 @@ interface SessionFile {
 }
 
 /**
+ * Read the parent PID of a given PID from the OS.
+ * Returns null if the process doesn't exist or can't be read.
+ */
+function getParentPid(pid: number): number | null {
+  try {
+    const output = execSync(`ps -o ppid= -p ${pid}`, { encoding: 'utf-8' });
+    const ppid = parseInt(output.trim(), 10);
+    return Number.isNaN(ppid) || ppid <= 1 ? null : ppid;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Detect the current Claude Code session ID.
  * Used by the MCP server at tool-call time.
  */
@@ -23,16 +38,22 @@ export function getCurrentSessionId(): string | null {
   // 1. Check env var (future-proofing — Claude Code may add this)
   if (process.env.CLAUDE_SESSION_ID) return process.env.CLAUDE_SESSION_ID;
 
-  // 2. MCP servers are direct children of Claude Code (stdio transport),
-  //    so process.ppid is the Claude Code PID → matches session filename
-  const sessionFile = join(SESSIONS_DIR, `${process.ppid}.json`);
-  if (existsSync(sessionFile)) {
-    try {
-      const data: SessionFile = JSON.parse(readFileSync(sessionFile, 'utf-8'));
-      return data.sessionId ?? null;
-    } catch {
-      return null;
+  // 2. Walk up the process tree looking for a PID that has a session file.
+  //    MCP servers may be wrapped in intermediate shells (e.g. nvm/bash),
+  //    so process.ppid isn't always the Claude Code PID directly.
+  let pid: number | null = process.ppid;
+  const maxDepth = 5;
+  for (let i = 0; i < maxDepth && pid !== null; i++) {
+    const sessionFile = join(SESSIONS_DIR, `${pid}.json`);
+    if (existsSync(sessionFile)) {
+      try {
+        const data: SessionFile = JSON.parse(readFileSync(sessionFile, 'utf-8'));
+        return data.sessionId ?? null;
+      } catch {
+        return null;
+      }
     }
+    pid = getParentPid(pid);
   }
   return null;
 }

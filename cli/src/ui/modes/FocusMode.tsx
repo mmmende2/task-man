@@ -10,7 +10,7 @@ import { TaskRowExpanded } from '../shared/TaskRowExpanded.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
 import { loadConfig } from '../../config.js';
-import { getSessionHexColor, isSessionActive } from '../../sessions.js';
+import { getSessionHexColor, getCurrentSessionId, isSessionActive } from '../../sessions.js';
 
 interface Props {
   focusedTasks: Task[];
@@ -69,6 +69,11 @@ export function FocusMode({
 
   // Load session config for color resolution
   const sessionConfig = useMemo(() => loadConfig(), [focusedTasks]);
+  // Current session's color — used for the highlighted/expanded task
+  const currentSessionColor = useMemo(() => {
+    const sid = getCurrentSessionId();
+    return getSessionHexColor(sid, sessionConfig);
+  }, [sessionConfig]);
 
   const filteredTasks = useMemo(() => {
     if (!searchQuery) return focusedTasks;
@@ -466,7 +471,7 @@ export function FocusMode({
             editingDescriptionId={editingDescriptionId}
             editText={editText}
             cursorPos={cursorPos}
-            terminalColor={terminalColor}
+            terminalColor={currentSessionColor ?? terminalColor}
           />
           {/* Insert creation row for subtask */}
           {creatingAt !== null && navTarget === 'subtasks' && (
