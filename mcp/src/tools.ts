@@ -82,8 +82,9 @@ export function registerTools(server: McpServer): void {
       scope: z.enum(['personal', 'professional']).optional().describe('New scope'),
       categories: z.array(z.string()).optional().describe('New categories'),
       description: z.string().optional().describe('New description'),
+      session_id: z.string().nullable().optional().describe('Associate task with a session'),
     },
-    async ({ id, title, status, priority, scope, categories, description }) => {
+    async ({ id, title, status, priority, scope, categories, description, session_id }) => {
       const changes: Record<string, unknown> = {};
       if (title !== undefined) changes.title = title;
       if (status !== undefined) changes.status = status;
@@ -91,6 +92,7 @@ export function registerTools(server: McpServer): void {
       if (scope !== undefined) changes.scope = scope;
       if (categories !== undefined) changes.categories = categories;
       if (description !== undefined) changes.description = description;
+      if (session_id !== undefined) changes.session_id = session_id;
 
       const task = await store.update(id, changes);
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
@@ -254,7 +256,7 @@ export function registerTools(server: McpServer): void {
       if (!config.sessions) config.sessions = {};
       config.sessions[currentSessionId] = color as SessionColor;
       saveConfig(config);
-      return { content: [{ type: 'text', text: `Session color set to ${color} (session ${currentSessionId.slice(0, 8)}...)` }] };
+      return { content: [{ type: 'text', text: `Session color set to ${color} (session ${currentSessionId.slice(0, 8)}...). Run /color ${color} to match your Claude Code prompt bar.` }] };
     },
   );
 }
