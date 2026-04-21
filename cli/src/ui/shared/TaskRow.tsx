@@ -2,6 +2,7 @@ import { Box, Text } from 'ink';
 import type { Task } from '../../types.js';
 import { PriorityDot } from './PriorityDot.js';
 import { ProgressBar } from './ProgressBar.js';
+import { CURSOR_GLYPH } from './selection.js';
 
 interface Props {
   task: Task;
@@ -16,7 +17,7 @@ export function TaskRow({ task, isSelected, subtaskProgress, terminalColor, sess
 
   return (
     <Box>
-      <Text>{isSelected ? '  ▸ ' : '    '}</Text>
+      <Text>{isSelected ? `  ${CURSOR_GLYPH} ` : '    '}</Text>
       <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
       <Text dimColor={isDone}> {task.title}  </Text>
       {subtaskProgress && subtaskProgress.total > 0 && (

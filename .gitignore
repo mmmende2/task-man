@@ -6,3 +6,4 @@ build/
 .claude/
 *.swp
 todo.md
+.DS_Store

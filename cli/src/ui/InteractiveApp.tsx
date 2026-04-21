@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, createElement } from 'react';
 import { Box, useInput } from 'ink';
 import type { Task, TaskScope } from '../types.js';
-import type { AppMode } from './types.js';
+import type { AppMode, WriteSubMode } from './types.js';
 import type { VimMode } from './hooks/useVimKeys.js';
 import { useTaskStore } from './hooks/useTaskStore.js';
 import { useTerminalDimensionsSetup, TerminalDimensionsProvider, useTerminalHeight } from './hooks/useTerminalWidth.js';
@@ -11,6 +11,7 @@ import { FocusMode } from './modes/FocusMode.js';
 import { PlanMode } from './modes/PlanMode.js';
 import { WriteMode } from './modes/WriteMode.js';
 import { MetricsMode } from './modes/MetricsMode.js';
+import { RefineMode } from './modes/RefineMode.js';
 
 const SCOPE_CYCLE: (TaskScope | 'all')[] = ['all', 'personal', 'professional'];
 
@@ -21,10 +22,13 @@ export function InteractiveApp() {
 
 function InteractiveAppInner() {
   const [mode, setMode] = useState<AppMode>('focus');
+  const [prevMode, setPrevMode] = useState<AppMode>('focus');
   const [scopeFilter, setScopeFilter] = useState<TaskScope | 'all'>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [vimMode, setVimMode] = useState<VimMode>('normal');
   const [holdingTitle, setHoldingTitle] = useState<string | undefined>(undefined);
+  const [writeSubMode, setWriteSubMode] = useState<WriteSubMode>('capture');
+  const [planFocus, setPlanFocus] = useState<'tasks' | 'categories'>('tasks');
 
   const { tasks, reload, store } = useTaskStore(undefined, 2000);
 
@@ -83,10 +87,15 @@ function InteractiveAppInner() {
   }, [navigableList.length, selectedIndex]);
 
   const switchMode = (newMode: AppMode) => {
-    setMode(newMode);
+    setMode(prev => {
+      if (prev !== 'refine') setPrevMode(prev);
+      return newMode;
+    });
     setSelectedIndex(0);
     setVimMode('normal');
     setHoldingTitle(undefined);
+    if (newMode === 'write') setWriteSubMode('capture');
+    if (newMode === 'plan') setPlanFocus('tasks');
   };
 
   const cycleScope = () => {
@@ -109,10 +118,12 @@ function InteractiveAppInner() {
       switchMode('write');
     } else if (input === 'm' && mode !== 'metrics') {
       switchMode('metrics');
+    } else if (input === 'r' && mode !== 'refine') {
+      switchMode('refine');
     } else if (input === '~') {
       cycleScope();
     }
-  }, { isActive: mode !== 'write' });
+  }, { isActive: mode !== 'write' && mode !== 'refine' });
 
   const termHeight = useTerminalHeight();
 
@@ -151,14 +162,27 @@ function InteractiveAppInner() {
           setVimMode={setVimMode}
           scopeFilter={scopeFilter}
           onHoldingChange={setHoldingTitle}
+          onPanelFocusChange={setPlanFocus}
         />
       ) : mode === 'write' ? (
         <WriteMode
           store={store}
+          tasks={tasks}
           reload={reload}
           scopeFilter={scopeFilter}
           onModeChange={switchMode}
           onCycleScope={cycleScope}
+          vimMode={vimMode}
+          setVimMode={setVimMode}
+          subMode={writeSubMode}
+          onSubModeChange={setWriteSubMode}
+        />
+      ) : mode === 'refine' ? (
+        <RefineMode
+          store={store}
+          reload={reload}
+          onExit={switchMode}
+          previousMode={prevMode}
         />
       ) : (
         <MetricsMode store={store} />
@@ -166,7 +190,7 @@ function InteractiveAppInner() {
       <Box flexGrow={1} />
       </Box>
 
-      <Footer mode={mode} vimMode={vimMode} holdingTitle={holdingTitle} />
+      <Footer mode={mode} vimMode={vimMode} holdingTitle={holdingTitle} writeSubMode={mode === 'write' ? writeSubMode : undefined} planFocus={mode === 'plan' ? planFocus : undefined} />
     </Box>
   );
 }

@@ -155,12 +155,8 @@ export function FocusMode({
         const task = navTarget === 'subtasks' ? currentSubtasks[subtaskIndex] : filteredTasks[selectedIndex];
         if (!task) return;
         setEditingId(task.id);
-        if (action.variant === 'clear') {
-          setEditState({ text: '', cursor: 0 });
-        } else {
-          // Both 'start' (i) and 'end' (A) place cursor at end in focus mode
-          setEditState({ text: task.title, cursor: task.title.length });
-        }
+        // Both 'start' (i) and 'end' (A) place cursor at end in focus mode
+        setEditState({ text: task.title, cursor: task.title.length });
         setVimMode('insert');
         break;
       }

@@ -15,7 +15,8 @@
     "./render-html": "./dist/render-html.js",
     "./email": "./dist/email.js",
     "./sessions": "./dist/sessions.js",
-    "./constants": "./dist/constants.js"
+    "./constants": "./dist/constants.js",
+    "./refine-queue": "./dist/refine-queue.js"
   },
   "scripts": {
     "build": "tsc",

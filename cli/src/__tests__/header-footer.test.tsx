@@ -91,7 +91,7 @@ describe('Footer', () => {
 
   afterEach(() => cleanup?.());
 
-  it('renders exactly 3 lines', () => {
+  it('renders exactly 4 lines', () => {
     const result = renderWithDimensions(
       createElement(Footer, { mode: 'focus' }),
       { width: 120 },
@@ -99,7 +99,7 @@ describe('Footer', () => {
     cleanup = result.cleanup;
 
     const lines = result.lines().filter(l => l.length > 0);
-    expect(lines.length).toBe(3);
+    expect(lines.length).toBe(4);
   });
 
   it('top border uses ╔ and ╗ (self-contained box)', () => {
@@ -145,12 +145,13 @@ describe('Footer', () => {
       { width: 200 },
     );
     cleanup = result.cleanup;
-    const line = result.lines()[1];
+    const navLine = result.lines()[1];
+    const pageLine = result.lines()[2];
 
-    expect(line).toContain('t:triage');
-    expect(line).toContain('x:done');
-    expect(line).toContain('tab:sub');
-    expect(line).toContain('~:scope');
+    expect(navLine).toContain('t:triage');
+    expect(navLine).toContain('~:scope');
+    expect(pageLine).toContain('x:done');
+    expect(pageLine).toContain('tab:sub');
   });
 
   it('shows plan mode keybindings', () => {
@@ -159,16 +160,29 @@ describe('Footer', () => {
     );
     cleanup = result.cleanup;
 
-    expect(result.lines()[1]).toContain('spc:focus');
+    expect(result.lines()[2]).toContain('spc:focus');
   });
 
-  it('shows write mode keybindings', () => {
+  it('shows write mode keybindings (capture)', () => {
     const result = renderWithDimensions(
-      createElement(Footer, { mode: 'write' }),
+      createElement(Footer, { mode: 'write', writeSubMode: 'capture' }),
     );
     cleanup = result.cleanup;
 
-    expect(result.lines()[1]).toContain('esc:back');
+    expect(result.lines()[1]).toContain('esc:review');
+    expect(result.lines()[2]).toContain('tab:accept');
+  });
+
+  it('shows write mode keybindings (review)', () => {
+    const result = renderWithDimensions(
+      createElement(Footer, { mode: 'write', writeSubMode: 'review' }),
+    );
+    cleanup = result.cleanup;
+
+    expect(result.lines()[1]).toContain('w:capture');
+    expect(result.lines()[2]).toContain('jk:nav');
+    expect(result.lines()[2]).toContain('tab:sub');
+    expect(result.lines()[2]).not.toContain('x:done');
   });
 
   it('shows refresh interval in watch mode', () => {

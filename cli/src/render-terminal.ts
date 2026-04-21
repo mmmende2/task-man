@@ -3,6 +3,60 @@ import { PRIORITY_COLORS, SESSION_COLORS, STATUS_COLORS } from './constants.js';
 import { loadConfig } from './config.js';
 import type { DayReport, SessionColor, Task } from './types.js';
 
+function buildSubtaskMap(tasks: Task[]): Map<string, Task[]> {
+  const map = new Map<string, Task[]>();
+  for (const t of tasks) {
+    if (t.parent_id) {
+      const arr = map.get(t.parent_id) ?? [];
+      arr.push(t);
+      map.set(t.parent_id, arr);
+    }
+  }
+  return map;
+}
+
+function mdSubtask(sub: Task): string {
+  const mark = sub.status === 'done' ? 'x' : ' ';
+  const date = sub.status === 'done' ? sub.completed_at?.slice(0, 10) : null;
+  return `  - [${mark}] ${sub.title}${date ? ` _(${date})_` : ''}`;
+}
+
+export function renderDayReportMarkdown(report: DayReport, allTasks: Task[]): string {
+  const subtaskMap = buildSubtaskMap(allTasks);
+  const lines: string[] = [];
+
+  lines.push(`# End of Day — ${report.date}`);
+  lines.push('');
+
+  lines.push(`## Completed (${report.completedTasks.length})`);
+  if (report.completedTasks.length === 0) {
+    lines.push('_No tasks completed._');
+  } else {
+    for (const task of report.completedTasks) {
+      const date = task.completed_at?.slice(0, 10);
+      lines.push(`- [x] ${task.title}${date ? ` _(${date})_` : ''}`);
+      for (const sub of subtaskMap.get(task.id) ?? []) {
+        lines.push(mdSubtask(sub));
+      }
+    }
+  }
+
+  lines.push('');
+  lines.push(`## Remaining (${report.tomorrowFocus.length})`);
+  if (report.tomorrowFocus.length === 0) {
+    lines.push('_No remaining focused tasks._');
+  } else {
+    for (const task of report.tomorrowFocus) {
+      lines.push(`- [ ] ${task.title}`);
+      for (const sub of subtaskMap.get(task.id) ?? []) {
+        lines.push(mdSubtask(sub));
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
 function priorityDot(task: Task): string {
   const color = PRIORITY_COLORS[task.priority];
   return (chalk as unknown as Record<string, (s: string) => string>)[color]('●');
