@@ -294,22 +294,27 @@ If installed via `npm link`, make sure the linked binary is on the PATH that Cla
 
 ### MCP Tool Reference
 
+All mutations are attributed as `created_by: 'claude'` and tagged with the current Claude Code session ID when detectable.
+
 #### `task_add`
 
-Create a new task. Automatically sets `created_by: 'claude'`.
+Create a new task.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `title` | string | yes | Task title |
-| `priority` | `low` / `medium` / `high` | no | Task priority |
+| `priority` | `low` / `medium` / `high` | no | Task priority (default: `medium`) |
 | `scope` | `personal` / `professional` | no | Task scope |
 | `categories` | string[] | no | Category tags |
-| `parent_id` | string | no | Parent task ID (prefix OK) |
+| `parent_id` | string | no | Parent task ID (prefix OK) — creates a subtask |
 | `description` | string | no | Task description |
+| `focused` | boolean | no | Add directly to focus list (default: backlog) |
+| `time_estimate` | `<5m` / `20m` / `45m` / `>1h` / `>3h` | no | Time estimate |
+| `vibe` | `love` / `ok` / `dread` | no | Subjective vibe |
 
 #### `task_list`
 
-List tasks with optional filters.
+List tasks with optional filters. Returns a summary line (`Found N tasks (...)`) followed by JSON.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -317,11 +322,30 @@ List tasks with optional filters.
 | `status` | `todo` / `in_progress` / `done` | no | Filter by status |
 | `focused` | boolean | no | Filter by focused state |
 | `category` | string | no | Filter by category |
+| `parent_id` | string | no | Filter by parent (prefix OK). Use `"null"` for top-level only. |
+| `include_done` | boolean | no | Include done tasks (default: true, unless `status` is set) |
+| `sort` | `priority` / `created_at` / `created_at_desc` / `updated_at` | no | Sort order |
 | `limit` | number | no | Max tasks to return |
+
+#### `task_get`
+
+Fetch a single task by ID, with its subtasks inlined under `subtasks`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Task ID (prefix OK) |
+
+#### `task_subtasks`
+
+List subtasks of a parent task.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `parent_id` | string | yes | Parent task ID (prefix OK) |
 
 #### `task_update`
 
-Update one or more fields on a task.
+Update one or more fields on a task. Returns `{ diff, task }` so the AI can narrate what changed.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -330,8 +354,23 @@ Update one or more fields on a task.
 | `status` | `todo` / `in_progress` / `done` | no | New status |
 | `priority` | `low` / `medium` / `high` | no | New priority |
 | `scope` | `personal` / `professional` | no | New scope |
-| `categories` | string[] | no | New categories |
+| `categories` | string[] | no | New categories (replaces existing) |
 | `description` | string | no | New description |
+| `focused` | boolean | no | Focus state (true=focus, false=backlog) |
+| `time_estimate` | `<5m` / `20m` / `45m` / `>1h` / `>3h` / null | no | Time estimate (null to clear) |
+| `vibe` | `love` / `ok` / `dread` / null | no | Vibe (null to clear) |
+| `parent_id` | string / null | no | Parent task ID (null to promote to top-level) |
+| `completed_at` | string / null | no | ISO timestamp (null to clear) |
+| `session_id` | string / null | no | Associate task with a session |
+
+#### `task_delete`
+
+Delete a task permanently. Irreversible — subtasks are not auto-deleted; their `parent_id` becomes dangling and the response notes the count.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Task ID (prefix OK) |
+| `confirm` | boolean | yes | Must be `true` to perform the delete |
 
 #### `task_complete`
 
@@ -343,7 +382,7 @@ Mark a task as done.
 
 #### `task_start`
 
-Mark a task as in_progress.
+Mark a task as in_progress. Also tags the task with the current Claude Code session.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -351,7 +390,7 @@ Mark a task as in_progress.
 
 #### `task_focus`
 
-Pull a task into the focused working set.
+Pull a task into the focused working set. Also tags with the current session.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -365,6 +404,27 @@ Send a task back to the backlog.
 |-----------|------|----------|-------------|
 | `id` | string | yes | Task ID (prefix OK) |
 
+#### `task_stats`
+
+Quick snapshot of the current plate: `total`, `focused`, `in_progress`, `todo_focused`, `backlog`, `completed_today`, `subtasks_total`, `subtasks_done_today`. Takes no parameters.
+
+#### `task_categories`
+
+List all known categories with usage counts, sorted by count descending. Useful for auto-categorization decisions. Takes no parameters.
+
+#### `task_refine_queue`
+
+List tasks that need refinement — missing scope, time estimate, or vibe; created by Claude; or stuck in `todo` more than 7 days. Each entry includes a `reasons` array. Mirrors the TUI Refine mode queue. Takes no parameters.
+
+#### `task_prioritize`
+
+Return the active task list with prioritization context for the AI to reason over. Returns `{ instruction, user_context, scope, task_count, tasks }`. The AI proposes priority changes with reasons; it must call `task_update` to apply accepted changes (never auto-applied).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `scope` | `personal` / `professional` / `all` | no | Filter scope (default: all) |
+| `context` | string | no | User context (e.g. "demo on Friday") |
+
 #### `task_end_day`
 
 Generate an end-of-day report.
@@ -373,11 +433,23 @@ Generate an end-of-day report.
 |-----------|------|----------|-------------|
 | `date` | string | no | `YYYY-MM-DD` or `yesterday` |
 | `email` | boolean | no | Send report via email |
+| `format` | `text` / `json` | no | Output format (default: `text`) |
 
 #### `task_search`
 
-Full-text search across task titles and descriptions.
+Full-text search across task titles and descriptions, with optional filters. Returns a summary line followed by JSON.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | yes | Search query (case-insensitive substring) |
+| `scope` | `personal` / `professional` | no | Filter by scope |
+| `status` | `todo` / `in_progress` / `done` | no | Filter by status |
+| `include_done` | boolean | no | Include done tasks (default: true, unless `status` is set) |
+
+#### `task_session_color`
+
+Set the terminal color for the current Claude Code session. Matches the session tint used across the TUI for tasks authored in this conversation.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `color` | `cyan` / `magenta` / `purple` / `yellow` | yes | Session color |

@@ -5,6 +5,7 @@ import { SubtaskCheckbox } from './SubtaskCheckbox.js';
 import { ProgressBar } from './ProgressBar.js';
 import { InlineEdit } from './InlineEdit.js';
 import { useTerminalWidth } from '../hooks/useTerminalWidth.js';
+import { CURSOR_GLYPH } from './selection.js';
 
 interface Props {
   task: Task;
@@ -89,7 +90,7 @@ export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav,
 
   const subtaskRows = subtasks.map((sub, i) => {
     const isSelected = inSubtaskNav && selectedSubtaskIndex === i;
-    const indicator = isSelected ? '▸ ' : '  ';
+    const indicator = isSelected ? `${CURSOR_GLYPH} ` : '  ';
 
     if ((editingSubtaskId === sub.id || editingDateId === sub.id) && editText !== undefined && cursorPos !== undefined) {
       return (

@@ -16,6 +16,9 @@ export const DEFAULT_CONFIG: TaskManConfig = {
   focus: {
     maxFocused: 3,
   },
+  plan: {
+    hiddenCategories: [],
+  },
   sessions: {},
 };
 

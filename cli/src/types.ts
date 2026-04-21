@@ -2,6 +2,8 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskScope = 'personal' | 'professional';
 export type CreatedBy = 'human' | 'claude';
+export type TimeEstimate = '<5m' | '20m' | '45m' | '>1h' | '>3h';
+export type Vibe = 'love' | 'ok' | 'dread';
 
 export interface Task {
   id: string;
@@ -18,6 +20,8 @@ export interface Task {
   focused: boolean;
   created_by: CreatedBy;
   session_id: string | null;
+  time_estimate: TimeEstimate | null;
+  vibe: Vibe | null;
 }
 
 export interface CreateTaskInput {
@@ -30,6 +34,8 @@ export interface CreateTaskInput {
   focused?: boolean;
   created_by?: CreatedBy;
   session_id?: string | null;
+  time_estimate?: TimeEstimate | null;
+  vibe?: Vibe | null;
 }
 
 export interface TaskFilter {
@@ -37,6 +43,7 @@ export interface TaskFilter {
   status?: TaskStatus;
   focused?: boolean;
   category?: string;
+  parent_id?: string | null;
 }
 
 export type SessionColor = 'cyan' | 'magenta' | 'purple' | 'yellow';
@@ -49,6 +56,9 @@ export interface TaskManConfig {
   };
   focus: {
     maxFocused: number | null;
+  };
+  plan: {
+    hiddenCategories: string[];
   };
   sessions: Record<string, SessionColor>;
 }

@@ -4,10 +4,10 @@ import { useInput } from 'ink';
 export type VimMode = 'normal' | 'insert' | 'holding';
 
 export type VimAction =
-  | { type: 'move'; direction: 'up' | 'down' }
+  | { type: 'move'; direction: 'up' | 'down' | 'left' | 'right' }
   | { type: 'cut' }
   | { type: 'paste'; above: boolean }
-  | { type: 'edit'; variant: 'start' | 'end' | 'clear' }
+  | { type: 'edit'; variant: 'start' | 'end' }
   | { type: 'edit-date' }
   | { type: 'edit-description' }
   | { type: 'create'; above: boolean }
@@ -95,11 +95,6 @@ export function useVimKeys(
       options.onAction({ type: 'cut' });
       return;
     }
-    if (buffer === 'c' && input === 'c') {
-      clearBuffer();
-      options.onAction({ type: 'edit', variant: 'clear' });
-      return;
-    }
 
     // If buffer has a pending key but this isn't the expected follow-up, clear it
     if (buffer) {
@@ -107,7 +102,7 @@ export function useVimKeys(
     }
 
     // Start a sequence
-    if (input === 'd' || input === 'c') {
+    if (input === 'd') {
       keyBufferRef.current = input;
       timeoutRef.current = setTimeout(() => {
         keyBufferRef.current = '';
@@ -121,6 +116,10 @@ export function useVimKeys(
       options.onAction({ type: 'move', direction: 'down' });
     } else if (key.upArrow || input === 'k') {
       options.onAction({ type: 'move', direction: 'up' });
+    } else if (key.leftArrow || input === 'h') {
+      options.onAction({ type: 'move', direction: 'left' });
+    } else if (key.rightArrow || input === 'l') {
+      options.onAction({ type: 'move', direction: 'right' });
     } else if (input === 'i') {
       options.onAction({ type: 'edit', variant: 'start' });
     } else if (input === 'A') {

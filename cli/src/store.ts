@@ -21,7 +21,12 @@ export class TaskStore {
       return [];
     }
     const raw = readFileSync(this.filePath, 'utf-8');
-    return JSON.parse(raw) as Task[];
+    const tasks = JSON.parse(raw) as Task[];
+    for (const t of tasks) {
+      if (t.time_estimate === undefined) t.time_estimate = null;
+      if (t.vibe === undefined) t.vibe = null;
+    }
+    return tasks;
   }
 
   private async save(tasks: Task[]): Promise<void> {
@@ -62,6 +67,8 @@ export class TaskStore {
         focused: input.focused ?? false,
         created_by: input.created_by ?? 'human',
         session_id: input.session_id ?? null,
+        time_estimate: input.time_estimate ?? null,
+        vibe: input.vibe ?? null,
       };
 
       tasks.push(newTask);
@@ -86,7 +93,7 @@ export class TaskStore {
     return matches[0].id;
   }
 
-  async update(id: string, changes: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'scope' | 'categories' | 'focused' | 'completed_at' | 'session_id'>>): Promise<Task> {
+  async update(id: string, changes: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'scope' | 'categories' | 'focused' | 'completed_at' | 'session_id' | 'time_estimate' | 'vibe' | 'parent_id'>>): Promise<Task> {
     const resolvedId = this.resolveId(id);
     const updated = await withLock(this.filePath, async () => {
       const tasks = this.load();
@@ -128,6 +135,9 @@ export class TaskStore {
     }
     if (filters.category) {
       tasks = tasks.filter(t => t.categories.includes(filters.category!));
+    }
+    if (filters.parent_id !== undefined) {
+      tasks = tasks.filter(t => t.parent_id === filters.parent_id);
     }
 
     return tasks;

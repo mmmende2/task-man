@@ -278,50 +278,6 @@ describe('PlanMode vim: inline edit', () => {
       // Should show the edit indicator
       expect(result.text()).toContain('>');
     });
-
-    // Type new text at start — but first we need to clear. Use cc instead.
-  });
-
-  it('cc clears title and allows new input', async () => {
-    const result = renderWithDimensions(
-      createElement(PlanModeHarness, { store, initialTasks: tasks }),
-    );
-    cleanup = result.cleanup;
-
-    result.stdin.write('c');
-    result.stdin.write('c');
-
-    // Wait for insert mode to activate (InlineEdit rendered)
-    await vi.waitFor(() => {
-      expect(result.text()).toContain('>');
-    });
-
-    // Small delay for useInput handler to re-register with new vimMode
-    await new Promise(r => setTimeout(r, 50));
-
-    // Type new title
-    result.stdin.write('N');
-    result.stdin.write('e');
-    result.stdin.write('w');
-
-    await vi.waitFor(() => {
-      expect(result.text()).toContain('New');
-    });
-
-    // Save with Escape
-    result.stdin.write('\x1b');
-
-    await vi.waitFor(() => {
-      const text = result.text();
-      expect(text).toContain('New');
-      expect(text).not.toContain('Original Title');
-    });
-
-    // Verify persisted (wait for async store operation)
-    await vi.waitFor(() => {
-      const stored = store.load();
-      expect(stored[0].title).toBe('New');
-    });
   });
 });
 

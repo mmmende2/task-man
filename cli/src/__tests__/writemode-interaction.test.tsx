@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TaskStore } from '../store.js';
 import { WriteMode } from '../ui/modes/WriteMode.js';
+import { getCurrentSessionId } from '../sessions.js';
 import { renderWithDimensions } from './helpers/renderWithDimensions.js';
 
 /** Write a string to stdin one character at a time (ink useInput expects single chars). */
@@ -185,9 +186,9 @@ describe('WriteMode interaction', () => {
     result.stdin.write('\r');
     await vi.waitFor(() => expect(store.load().length).toBe(1));
 
-    // Now create a subtask with : prefix
+    // Now create a subtask with : prefix — text is rendered inline under the parent
     typeChars(result.stdin, ':Child');
-    await vi.waitFor(() => expect(result.text()).toContain(':Child'));
+    await vi.waitFor(() => expect(result.text()).toContain('└─ Child'));
 
     result.stdin.write('\r');
 
@@ -198,5 +199,196 @@ describe('WriteMode interaction', () => {
       expect(child).toBeDefined();
       expect(child!.parent_id).not.toBeNull();
     });
+  });
+
+  it('esc enters review sub-mode when tasks are present', async () => {
+    await store.add({
+      title: 'Existing task',
+      categories: ['House Work'],
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('Existing task'));
+
+    // Esc from capture with tasks present should enter review, not focus mode
+    result.stdin.write('\x1B');
+
+    // Give it a tick — if it went to focus, modeChanges would contain 'focus'
+    await new Promise(r => setTimeout(r, 50));
+    expect(modeChanges).not.toContain('focus');
+
+    // i should switch back to capture (no mode change)
+    result.stdin.write('i');
+    await new Promise(r => setTimeout(r, 50));
+    expect(modeChanges).not.toContain('focus');
+
+    // Another esc (now in capture) still with tasks → review again; then a second esc from review → focus
+    result.stdin.write('\x1B');
+    await new Promise(r => setTimeout(r, 20));
+    result.stdin.write('\x1B');
+
+    await vi.waitFor(() => {
+      expect(modeChanges).toContain('focus');
+    });
+  });
+
+  it('tab from review creates subtask inline for cursored parent', async () => {
+    const parent = await store.add({
+      title: 'Parent Task',
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('Parent Task'));
+
+    // Enter review (esc from empty capture with tasks present)
+    result.stdin.write('\x1B');
+    await vi.waitFor(() => expect(result.text()).toContain('REVIEW'));
+
+    // Tab opens an inline subtask-create row since parent has no subs yet
+    result.stdin.write('\t');
+    await vi.waitFor(() => {
+      // subtask-create row renders `▸ └─ ` with an InlineEdit `> ` inside it
+      expect(result.text()).toMatch(/▸\s+└─\s+>/);
+    });
+
+    typeChars(result.stdin, 'Child Task');
+    await vi.waitFor(() => expect(result.text()).toContain('Child Task'));
+
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const tasks = store.load();
+      const child = tasks.find(t => t.title === 'Child Task');
+      expect(child).toBeDefined();
+      expect(child!.parent_id).toBe(parent.id);
+    });
+  });
+
+  it('cc in review edits subtask title inline when tab-navigated to subtask', async () => {
+    const parent = await store.add({
+      title: 'Parent Task',
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+    await store.add({
+      title: 'Original Sub',
+      parent_id: parent.id,
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('Original Sub'));
+
+    // Enter review
+    result.stdin.write('\x1B');
+    await vi.waitFor(() => expect(result.text()).toContain('REVIEW'));
+
+    // Tab moves into subtask nav
+    result.stdin.write('\t');
+    await new Promise(r => setTimeout(r, 20));
+
+    // cc starts editing the cursored subtask title
+    result.stdin.write('c');
+    result.stdin.write('c');
+    await new Promise(r => setTimeout(r, 20));
+
+    // Wipe old title and type new one
+    for (let i = 0; i < 'Original Sub'.length; i++) {
+      result.stdin.write('\x7f');
+    }
+    typeChars(result.stdin, 'Renamed Sub');
+    await vi.waitFor(() => expect(result.text()).toContain('Renamed Sub'));
+
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const tasks = store.load();
+      const sub = tasks.find(t => t.parent_id === parent.id);
+      expect(sub).toBeDefined();
+      expect(sub!.title).toBe('Renamed Sub');
+    });
+  });
+
+  it('tab accepts category ghost and rewrites input', async () => {
+    // Pre-populate a category so autocomplete has something to match
+    await store.add({
+      title: 'existing',
+      categories: ['House Work'],
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    typeChars(result.stdin, 'clean dishes -c hou');
+    await vi.waitFor(() => expect(result.text()).toContain('-c hou'));
+
+    // Tab should accept the ghost
+    result.stdin.write('\t');
+
+    await vi.waitFor(() => {
+      // After tab, the input is rewritten as `-c "House Work" ` — the quoted
+      // form only appears in the input line, not the category header above.
+      expect(result.text()).toContain('"House Work"');
+    });
+
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const task = store.load().find(t => t.title === 'clean dishes');
+      expect(task).toBeDefined();
+      expect(task!.categories).toEqual(['House Work']);
+    });
+  });
+
+  it('shows scroll hint when tasks overflow the visible window', async () => {
+    for (let i = 0; i < 12; i++) {
+      await store.add({
+        title: `task-${i}`,
+        categories: ['work'],
+        scope: 'personal',
+        created_by: 'human',
+        session_id: getCurrentSessionId(),
+      });
+    }
+
+    const result = renderWithDimensions(
+      createElement(WriteMode, {
+        store,
+        reload: () => {},
+        scopeFilter: 'all',
+        onModeChange: (mode: string) => modeChanges.push(mode),
+        onCycleScope: () => {},
+      }),
+      { height: 20 },
+    );
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => {
+      expect(result.text()).toContain('task-0');
+    });
+
+    const text = result.text();
+    // With 12 tasks, 1 category header, and a trailing spacer — 14 rows.
+    // At termHeight=20 with capture pane visible, the list window is ~7 rows.
+    // So we expect the "↓ N more below" hint to appear.
+    expect(text).toMatch(/more below/);
   });
 });

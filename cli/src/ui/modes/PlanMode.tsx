@@ -1,15 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import type { Task, TaskScope } from '../../types.js';
 import type { TaskStore } from '../../store.js';
 import type { VimMode, VimAction } from '../hooks/useVimKeys.js';
 import { useVimKeys } from '../hooks/useVimKeys.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
-import { loadConfig } from '../../config.js';
+import { useTerminalHeight } from '../hooks/useTerminalWidth.js';
+import { loadConfig, saveConfig } from '../../config.js';
 import { getSessionHexColor } from '../../sessions.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
+import { CURSOR_GLYPH } from '../shared/selection.js';
 
 interface Props {
   focusedTasks: Task[];
@@ -22,6 +24,7 @@ interface Props {
   setVimMode: (mode: VimMode) => void;
   scopeFilter: TaskScope | 'all';
   onHoldingChange?: (title: string | undefined) => void;
+  onPanelFocusChange?: (focus: 'tasks' | 'categories') => void;
 }
 
 interface Clipboard {
@@ -38,6 +41,7 @@ interface CategoryGroup {
 export function PlanMode({
   focusedTasks, backlogTasks, selectedIndex, onSelectedIndexChange,
   store, reload, vimMode, setVimMode, scopeFilter, onHoldingChange,
+  onPanelFocusChange,
 }: Props) {
   // Guardrail state
   const [guardrailOverridden, setGuardrailOverridden] = useState(false);
@@ -50,6 +54,27 @@ export function PlanMode({
   const [creatingAt, setCreatingAt] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [scrollOffset, setScrollOffset] = useState(0);
+
+  // Category panel state
+  const [panelFocus, setPanelFocusState] = useState<'tasks' | 'categories'>('tasks');
+  const setPanelFocus = (next: 'tasks' | 'categories') => {
+    setPanelFocusState(next);
+    onPanelFocusChange?.(next);
+  };
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(
+    () => new Set(loadConfig().plan?.hiddenCategories ?? []),
+  );
+  const [categoryIndex, setCategoryIndex] = useState(0);
+
+  const persistHiddenCategories = (next: Set<string>) => {
+    setHiddenCategories(next);
+    const cfg = loadConfig();
+    cfg.plan = { ...cfg.plan, hiddenCategories: [...next].sort() };
+    saveConfig(cfg);
+  };
+
+  const termHeight = useTerminalHeight();
 
   const editText = editState.text;
   const cursorPos = editState.cursor;
@@ -71,12 +96,13 @@ export function PlanMode({
     return backlogTasks.filter(t => t.title.toLowerCase().includes(q));
   }, [backlogTasks, searchQuery]);
 
-  // Group all tasks by category for tree view
+  // Group all tasks by category for tree view (excludes hidden categories)
   const { orderedTasks, groups } = useMemo(() => {
     const all = [...filteredFocused, ...filteredBacklog];
     const groupMap = new Map<string, Task[]>();
     for (const task of all) {
       const cat = task.categories?.[0] ?? '';
+      if (hiddenCategories.has(cat)) continue;
       if (!groupMap.has(cat)) groupMap.set(cat, []);
       groupMap.get(cat)!.push(task);
     }
@@ -94,13 +120,77 @@ export function PlanMode({
       flat.push(...tasks);
     }
     return { orderedTasks: flat, groups: grps };
-  }, [filteredFocused, filteredBacklog]);
+  }, [filteredFocused, filteredBacklog, hiddenCategories]);
+
+  // All categories present in the current scope (for the panel — ignores search/hidden)
+  const allCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of focusedTasks) set.add(t.categories?.[0] ?? '');
+    for (const t of backlogTasks) set.add(t.categories?.[0] ?? '');
+    return [...set].sort((a, b) => {
+      if (a === '' && b !== '') return 1;
+      if (a !== '' && b === '') return -1;
+      return a.localeCompare(b);
+    });
+  }, [focusedTasks, backlogTasks]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of focusedTasks) {
+      const c = t.categories?.[0] ?? '';
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    for (const t of backlogTasks) {
+      const c = t.categories?.[0] ?? '';
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return counts;
+  }, [focusedTasks, backlogTasks]);
 
   const totalCount = orderedTasks.length;
+
+  useEffect(() => {
+    if (totalCount > 0 && selectedIndex >= totalCount) {
+      onSelectedIndexChange(totalCount - 1);
+    }
+  }, [totalCount, selectedIndex, onSelectedIndexChange]);
 
   const getSelectedTask = (): Task | null => orderedTasks[selectedIndex] ?? null;
 
   const handleAction = (action: VimAction) => {
+    // Category panel intercepts navigation/toggle when focused
+    if (panelFocus === 'categories') {
+      if (action.type === 'move') {
+        if (action.direction === 'left') {
+          setPanelFocus('tasks');
+          return;
+        }
+        if (action.direction === 'right') return;
+        if (allCategories.length === 0) return;
+        if (action.direction === 'down') {
+          setCategoryIndex(i => Math.min(i + 1, allCategories.length - 1));
+        } else {
+          setCategoryIndex(i => Math.max(i - 1, 0));
+        }
+        return;
+      }
+      if (action.type === 'toggle-focus') {
+        const cat = allCategories[categoryIndex];
+        if (cat === undefined) return;
+        const next = new Set(hiddenCategories);
+        if (next.has(cat)) next.delete(cat);
+        else next.add(cat);
+        persistHiddenCategories(next);
+        return;
+      }
+      if (action.type === 'cancel') {
+        setPanelFocus('tasks');
+        return;
+      }
+      // All other actions are suppressed while categories has focus
+      return;
+    }
+
     // If guardrail warning is showing, handle confirm/cancel
     if (pendingFocusTask) {
       if (action.type === 'toggle-focus') {
@@ -115,6 +205,12 @@ export function PlanMode({
 
     switch (action.type) {
       case 'move': {
+        if (action.direction === 'right') {
+          setPanelFocus('categories');
+          setCategoryIndex(i => Math.min(i, Math.max(0, allCategories.length - 1)));
+          return;
+        }
+        if (action.direction === 'left') return;
         if (totalCount === 0) return;
         if (action.direction === 'down') {
           onSelectedIndexChange(Math.min(selectedIndex + 1, totalCount - 1));
@@ -186,9 +282,7 @@ export function PlanMode({
         const task = getSelectedTask();
         if (!task) return;
         setEditingId(task.id);
-        if (action.variant === 'clear') {
-          setEditState({ text: '', cursor: 0 });
-        } else if (action.variant === 'start') {
+        if (action.variant === 'start') {
           setEditState({ text: task.title, cursor: 0 });
         } else {
           setEditState({ text: task.title, cursor: task.title.length });
@@ -364,11 +458,12 @@ export function PlanMode({
         );
       } else {
         const terminalColor = getSessionHexColor(task.session_id, config);
+        const activeSel = isSelected && panelFocus === 'tasks';
         taskRows.push(
           <Box key={task.id}>
-            <Text color={isSelected ? 'cyan' : undefined} dimColor={!isSelected}>{isSelected ? ' ▸' : '  '}{connector} </Text>
+            <Text color={activeSel ? 'cyan' : undefined} dimColor={!activeSel}>{isSelected ? ` ${CURSOR_GLYPH}` : '  '}{connector} </Text>
             <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
-            <Text dimColor={!task.focused && !isSelected} color={isSelected ? 'cyan' : undefined}>
+            <Text dimColor={!task.focused && !activeSel} color={activeSel ? 'cyan' : undefined}>
               {' '}{task.title}
             </Text>
             {task.focused && <Text color="yellow">{' ★'}</Text>}
@@ -404,27 +499,93 @@ export function PlanMode({
     taskRows.push(<Text key="empty" dimColor>{'    '}No tasks.</Text>);
   }
 
+  // Windowed scrolling: clip taskRows to a visible window that follows the selection.
+  // Reserved: Header(3) + Footer(4) + leading blank(1) + 2 rows for optional scroll hints
+  // + any visible banner rows.
+  const bannerRows =
+    (isSearching ? 1 : 0) +
+    (!isSearching && searchQuery ? 1 : 0) +
+    (pendingFocusTask ? 1 : 0) +
+    (vimMode === 'holding' && clipboard ? 1 : 0);
+  const availableRows = Math.max(1, termHeight - 10 - bannerRows);
+
+  const selRow = taskRowPositions[selectedIndex] ?? 0;
+  const maxScroll = Math.max(0, taskRows.length - availableRows);
+  let target = Math.min(Math.max(scrollOffset, 0), maxScroll);
+  if (selRow < target) target = selRow;
+  else if (selRow >= target + availableRows) target = selRow - availableRows + 1;
+
+  // Snap to top: when only the leading category header would be hidden (target === 1),
+  // use that slot for content instead of an "↑ 1 more above" hint.
+  if (target === 1 && selRow < availableRows) target = 0;
+
+  useEffect(() => {
+    if (target !== scrollOffset) setScrollOffset(target);
+  }, [target, scrollOffset]);
+
+  const hasAbove = target > 0;
+  const hasBelow = target + availableRows < taskRows.length;
+  const visibleRows = taskRows.slice(target, target + availableRows);
+
   return (
-    <Box flexDirection="column">
-      <Text> </Text>
-      {isSearching && <SearchBar query={searchQuery} />}
-      {searchQuery && !isSearching && (
-        <Text dimColor>  filter: {searchQuery}</Text>
-      )}
-      {pendingFocusTask && (
-        <Box>
-          <Text color="yellow">  You have {focusedTasks.length} focused tasks. Add another? </Text>
-          <Text dimColor>spc:confirm  any:cancel</Text>
-        </Box>
-      )}
-      {vimMode === 'holding' && clipboard && (
-        <Box>
-          <Text dimColor>  -- cut: </Text>
-          <Text color="yellow">{clipboard.task.title}</Text>
-          <Text dimColor> --</Text>
-        </Box>
-      )}
-      {taskRows}
+    <Box flexDirection="row" flexShrink={0}>
+      <Box flexDirection="column" flexGrow={1}>
+        <Text> </Text>
+        {isSearching && <SearchBar query={searchQuery} />}
+        {searchQuery && !isSearching && (
+          <Text dimColor>  filter: {searchQuery}</Text>
+        )}
+        {pendingFocusTask && (
+          <Box>
+            <Text color="yellow">  You have {focusedTasks.length} focused tasks. Add another? </Text>
+            <Text dimColor>spc:confirm  any:cancel</Text>
+          </Box>
+        )}
+        {vimMode === 'holding' && clipboard && (
+          <Box>
+            <Text dimColor>  -- cut: </Text>
+            <Text color="yellow">{clipboard.task.title}</Text>
+            <Text dimColor> --</Text>
+          </Box>
+        )}
+        {hasAbove && <Text dimColor>  ↑ {target} more above</Text>}
+        {visibleRows}
+        {hasBelow && <Text dimColor>  ↓ {taskRows.length - target - availableRows} more below</Text>}
+      </Box>
+      <Box
+        flexDirection="column"
+        flexShrink={0}
+        width={28}
+        marginLeft={2}
+        borderStyle="single"
+        borderColor={panelFocus === 'categories' ? 'cyan' : 'gray'}
+        paddingX={1}
+      >
+        <Text color={panelFocus === 'categories' ? 'cyan' : undefined} dimColor={panelFocus !== 'categories'}>
+          categories
+        </Text>
+        {allCategories.length === 0 && (
+          <Text dimColor>(none)</Text>
+        )}
+        {allCategories.map((cat, i) => {
+          const label = cat || 'uncategorized';
+          const hidden = hiddenCategories.has(cat);
+          const selected = panelFocus === 'categories' && categoryIndex === i;
+          const count = categoryCounts.get(cat) ?? 0;
+          const mark = hidden ? '○' : '●';
+          return (
+            <Box key={cat || '__empty'}>
+              <Text color={selected ? 'cyan' : undefined} dimColor={!selected}>
+                {selected ? CURSOR_GLYPH : ' '} {mark}
+              </Text>
+              <Text color={selected ? 'cyan' : undefined} dimColor={!selected || hidden}>
+                {' '}{label}
+              </Text>
+              <Text dimColor>{' '}({count})</Text>
+            </Box>
+          );
+        })}
+      </Box>
     </Box>
   );
 }

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useApp } from 'ink';
+import { setExitOutput } from '../exitOutput.js';
 import type { Task } from '../../types.js';
 import type { TaskStore } from '../../store.js';
 import { buildDayReport } from '../../report.js';
 import { getMidDayMessage } from '../../messages.js';
-import { renderDayReportTerminal } from '../../render-terminal.js';
+import { renderDayReportMarkdown } from '../../render-terminal.js';
 import { ProgressBar } from '../shared/ProgressBar.js';
 import { PulsingProgressBar } from '../shared/PulsingProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
@@ -23,6 +24,7 @@ interface SubtaskInfo {
 }
 
 export function MetricsMode({ store }: Props) {
+  const { exit } = useApp();
   const realToday = new Date().toISOString().slice(0, 10);
   const [viewDate, setViewDate] = useState(realToday);
   const [editingDate, setEditingDate] = useState(false);
@@ -120,10 +122,9 @@ export function MetricsMode({ store }: Props) {
       setDateCursor(viewDate.length);
       setEditingDate(true);
     } else if (input === 'e') {
-      const output = renderDayReportTerminal(report);
-      process.stdout.write('\x1B[2J\x1B[H');
-      process.stdout.write(output + '\n');
-      process.exit(0);
+      const md = renderDayReportMarkdown(report, allTasks);
+      setExitOutput(md + '\n');
+      exit();
     }
   });
 
