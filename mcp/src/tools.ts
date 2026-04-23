@@ -63,19 +63,21 @@ export function registerTools(server: McpServer): void {
   const store = new TaskStore();
 
   // ── task_add ──────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_add',
-    'Create a new task (attributed as created_by: claude)',
     {
-      title: z.string().describe('Task title (required)'),
-      priority: z.enum(['low', 'medium', 'high']).optional().describe('Task priority (default: medium)'),
-      scope: z.enum(['personal', 'professional']).optional().describe('Task scope'),
-      categories: z.array(z.string()).optional().describe('Category tags'),
-      parent_id: z.string().optional().describe('Parent task ID (prefix OK) — creates a subtask'),
-      description: z.string().optional().describe('Task description'),
-      focused: z.boolean().optional().describe('Add directly to focus list (default: backlog)'),
-      time_estimate: z.enum(TIME_ESTIMATES).optional().describe('Time estimate'),
-      vibe: z.enum(VIBES).optional().describe('Subjective vibe about the task'),
+      description: 'Create a new task (attributed as created_by: claude)',
+      inputSchema: {
+        title: z.string().describe('Task title (required)'),
+        priority: z.enum(['low', 'medium', 'high']).optional().describe('Task priority (default: medium)'),
+        scope: z.enum(['personal', 'professional']).optional().describe('Task scope'),
+        categories: z.array(z.string()).optional().describe('Category tags'),
+        parent_id: z.string().optional().describe('Parent task ID (prefix OK) — creates a subtask'),
+        description: z.string().optional().describe('Task description'),
+        focused: z.boolean().optional().describe('Add directly to focus list (default: backlog)'),
+        time_estimate: z.enum(TIME_ESTIMATES).optional().describe('Time estimate'),
+        vibe: z.enum(VIBES).optional().describe('Subjective vibe about the task'),
+      },
     },
     async ({ title, priority, scope, categories, parent_id, description, focused, time_estimate, vibe }) => {
       const currentSessionId = getCurrentSessionId();
@@ -98,18 +100,20 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_list ─────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_list',
-    'List tasks with optional filters. Returns a summary line followed by JSON.',
     {
-      scope: z.enum(['personal', 'professional']).optional().describe('Filter by scope'),
-      status: z.enum(['todo', 'in_progress', 'done']).optional().describe('Filter by status'),
-      focused: z.boolean().optional().describe('Filter by focused state'),
-      category: z.string().optional().describe('Filter by category'),
-      parent_id: z.string().optional().describe('Filter by parent ID (prefix OK). Use "null" to get top-level only.'),
-      include_done: z.boolean().optional().describe('Include done tasks (default: true unless status filter set)'),
-      sort: z.enum(['priority', 'created_at', 'created_at_desc', 'updated_at']).optional().describe('Sort order'),
-      limit: z.number().optional().describe('Max tasks to return'),
+      description: 'List tasks with optional filters. Returns a summary line followed by JSON.',
+      inputSchema: {
+        scope: z.enum(['personal', 'professional']).optional().describe('Filter by scope'),
+        status: z.enum(['todo', 'in_progress', 'done']).optional().describe('Filter by status'),
+        focused: z.boolean().optional().describe('Filter by focused state'),
+        category: z.string().optional().describe('Filter by category'),
+        parent_id: z.string().optional().describe('Filter by parent ID (prefix OK). Use "null" to get top-level only.'),
+        include_done: z.boolean().optional().describe('Include done tasks (default: true unless status filter set)'),
+        sort: z.enum(['priority', 'created_at', 'created_at_desc', 'updated_at']).optional().describe('Sort order'),
+        limit: z.number().optional().describe('Max tasks to return'),
+      },
     },
     async ({ scope, status, focused, category, parent_id, include_done, sort, limit }) => {
       const currentSessionId = getCurrentSessionId();
@@ -140,10 +144,12 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_get ──────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_get',
-    'Fetch a single task by ID (prefix OK), with its subtasks inlined',
-    { id: z.string().describe('Task ID (prefix OK)') },
+    {
+      description: 'Fetch a single task by ID (prefix OK), with its subtasks inlined',
+      inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
+    },
     async ({ id }) => {
       const resolvedId = store.resolveId(id);
       const all = store.load();
@@ -157,10 +163,12 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_subtasks ─────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_subtasks',
-    'List subtasks of a parent task',
-    { parent_id: z.string().describe('Parent task ID (prefix OK)') },
+    {
+      description: 'List subtasks of a parent task',
+      inputSchema: { parent_id: z.string().describe('Parent task ID (prefix OK)') },
+    },
     async ({ parent_id }) => {
       const resolvedId = store.resolveId(parent_id);
       const subtasks = store.query({ parent_id: resolvedId });
@@ -169,29 +177,35 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_update ───────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_update',
-    'Update one or more fields on a task. Returns pre/post diff and the updated task.',
     {
-      id: z.string().describe('Task ID (prefix OK)'),
-      title: z.string().optional().describe('New title'),
-      status: z.enum(['todo', 'in_progress', 'done']).optional().describe('New status'),
-      priority: z.enum(['low', 'medium', 'high']).optional().describe('New priority'),
-      scope: z.enum(['personal', 'professional']).optional().describe('New scope'),
-      categories: z.array(z.string()).optional().describe('New categories (replaces existing)'),
-      description: z.string().optional().describe('New description'),
-      focused: z.boolean().optional().describe('Focus state (true=focus, false=backlog)'),
-      time_estimate: z.enum(TIME_ESTIMATES).nullable().optional().describe('Time estimate (null to clear)'),
-      vibe: z.enum(VIBES).nullable().optional().describe('Vibe (null to clear)'),
-      parent_id: z.string().nullable().optional().describe('Parent task ID (null to promote to top-level)'),
-      completed_at: z.string().nullable().optional().describe('ISO timestamp (null to clear)'),
-      session_id: z.string().nullable().optional().describe('Associate task with a session'),
+      description: 'Update one or more fields on a task. Returns pre/post diff and the updated task.',
+      inputSchema: {
+        id: z.string().describe('Task ID (prefix OK)'),
+        title: z.string().optional().describe('New title'),
+        status: z.enum(['todo', 'in_progress', 'done']).optional().describe('New status'),
+        priority: z.enum(['low', 'medium', 'high']).optional().describe('New priority'),
+        scope: z.enum(['personal', 'professional']).optional().describe('New scope'),
+        categories: z.array(z.string()).optional().describe('New categories (replaces existing)'),
+        description: z.string().optional().describe('New description'),
+        focused: z.boolean().optional().describe('Focus state (true=focus, false=backlog)'),
+        time_estimate: z.enum(TIME_ESTIMATES).nullable().optional().describe('Time estimate (null to clear)'),
+        vibe: z.enum(VIBES).nullable().optional().describe('Vibe (null to clear)'),
+        parent_id: z.string().nullable().optional().describe('Parent task ID (null to promote to top-level)'),
+        completed_at: z.string().nullable().optional().describe('ISO timestamp (null to clear)'),
+        session_id: z.string().nullable().optional().describe('Associate task with a session'),
+      },
     },
     async ({ id, title, status, priority, scope, categories, description, focused, time_estimate, vibe, parent_id, completed_at, session_id }) => {
       const resolvedId = store.resolveId(id);
       const before = store.load().find(t => t.id === resolvedId);
       if (!before) {
         return { content: [{ type: 'text', text: `Task ${id} not found` }] };
+      }
+
+      if (status === 'done' && before.parent_id === null) {
+        return { content: [{ type: 'text', text: `Refused: "${before.title}" is a top-level task. Only the user completes parent tasks — feel free to prompt the user to mark it as done.` }] };
       }
 
       const changes: Record<string, unknown> = {};
@@ -230,12 +244,14 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_delete ───────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_delete',
-    'Delete a task. Requires confirm: true. Irreversible — subtasks are NOT auto-deleted (their parent_id goes dangling).',
     {
-      id: z.string().describe('Task ID (prefix OK)'),
-      confirm: z.boolean().describe('Must be true to perform the delete'),
+      description: 'Delete a task. Requires confirm: true. Irreversible — subtasks are NOT auto-deleted (their parent_id goes dangling).',
+      inputSchema: {
+        id: z.string().describe('Task ID (prefix OK)'),
+        confirm: z.boolean().describe('Must be true to perform the delete'),
+      },
     },
     async ({ id, confirm }) => {
       if (!confirm) {
@@ -254,21 +270,33 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_complete ─────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_complete',
-    'Mark a task as done',
-    { id: z.string().describe('Task ID (prefix OK)') },
+    {
+      description: 'Mark a subtask as done. Top-level tasks cannot be completed via MCP — only the user can mark those done.',
+      inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
+    },
     async ({ id }) => {
-      const task = await store.update(id, { status: 'done' });
+      const resolvedId = store.resolveId(id);
+      const existing = store.load().find(t => t.id === resolvedId);
+      if (!existing) {
+        return { content: [{ type: 'text', text: `Task ${id} not found` }] };
+      }
+      if (existing.parent_id === null) {
+        return { content: [{ type: 'text', text: `Refused: "${existing.title}" is a top-level task. Only the user completes parent tasks — feel free to prompt the user to mark it as done.` }] };
+      }
+      const task = await store.update(resolvedId, { status: 'done' });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
 
   // ── task_start ────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_start',
-    'Mark a task as in_progress',
-    { id: z.string().describe('Task ID (prefix OK)') },
+    {
+      description: 'Mark a task as in_progress',
+      inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
+    },
     async ({ id }) => {
       const currentSessionId = getCurrentSessionId();
       const task = await store.update(id, { status: 'in_progress', session_id: currentSessionId });
@@ -277,10 +305,12 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_focus ────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_focus',
-    'Pull a task into focus (today\'s working set)',
-    { id: z.string().describe('Task ID (prefix OK)') },
+    {
+      description: 'Pull a task into focus (today\'s working set)',
+      inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
+    },
     async ({ id }) => {
       const currentSessionId = getCurrentSessionId();
       const task = await store.update(id, { focused: true, session_id: currentSessionId });
@@ -289,10 +319,12 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_unfocus ──────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_unfocus',
-    'Send a task back to the backlog',
-    { id: z.string().describe('Task ID (prefix OK)') },
+    {
+      description: 'Send a task back to the backlog',
+      inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
+    },
     async ({ id }) => {
       const task = await store.update(id, { focused: false });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
@@ -300,10 +332,12 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_stats ────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_stats',
-    'Quick snapshot of what\'s on the plate: focused, in_progress, backlog, today\'s done counts',
-    {},
+    {
+      description: 'Quick snapshot of what\'s on the plate: focused, in_progress, backlog, today\'s done counts',
+      inputSchema: {},
+    },
     async () => {
       const today = new Date().toISOString().slice(0, 10);
       const all = store.load();
@@ -323,10 +357,12 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_categories ───────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_categories',
-    'List all known categories with usage counts. Useful for auto-categorization decisions.',
-    {},
+    {
+      description: 'List all known categories with usage counts. Useful for auto-categorization decisions.',
+      inputSchema: {},
+    },
     async () => {
       const all = store.load();
       const counts = new Map<string, number>();
@@ -343,10 +379,12 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_refine_queue ─────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_refine_queue',
-    'List tasks that need refinement: missing scope/time/vibe, created by Claude, or stuck in todo >7 days. Mirrors the TUI Refine mode queue.',
-    {},
+    {
+      description: 'List tasks that need refinement: missing scope/time/vibe, created by Claude, or stuck in todo >7 days. Mirrors the TUI Refine mode queue.',
+      inputSchema: {},
+    },
     async () => {
       const candidates = buildRefineQueueWithReasons(store.load());
       return { content: [{ type: 'text', text: JSON.stringify(candidates, null, 2) }] };
@@ -354,12 +392,14 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_prioritize ───────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_prioritize',
-    'Return the task list with prioritization context for you to reason over. You should compare tasks, propose priority changes with one-line reasons, then apply accepted changes via task_update. Only suggests — never applies automatically.',
     {
-      scope: z.enum(['personal', 'professional', 'all']).optional().describe('Filter scope (default: all)'),
-      context: z.string().optional().describe('User context (e.g. "demo on Friday, need auth working")'),
+      description: 'Return the task list with prioritization context for you to reason over. You should compare tasks, propose priority changes with one-line reasons, then apply accepted changes via task_update. Only suggests — never applies automatically.',
+      inputSchema: {
+        scope: z.enum(['personal', 'professional', 'all']).optional().describe('Filter scope (default: all)'),
+        context: z.string().optional().describe('User context (e.g. "demo on Friday, need auth working")'),
+      },
     },
     async ({ scope, context }) => {
       const all = store.load();
@@ -407,13 +447,15 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_end_day ──────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_end_day',
-    'Generate an end-of-day report. Returns text by default; use format: "json" for structured data.',
     {
-      date: z.string().optional().describe('Date in YYYY-MM-DD format, or "yesterday"'),
-      email: z.boolean().optional().describe('Send report via email'),
-      format: z.enum(['text', 'json']).optional().describe('Output format (default: text)'),
+      description: 'Generate an end-of-day report. Returns text by default; use format: "json" for structured data.',
+      inputSchema: {
+        date: z.string().optional().describe('Date in YYYY-MM-DD format, or "yesterday"'),
+        email: z.boolean().optional().describe('Send report via email'),
+        format: z.enum(['text', 'json']).optional().describe('Output format (default: text)'),
+      },
     },
     async ({ date, email, format }) => {
       let reportDate: string;
@@ -485,14 +527,16 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_search ───────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_search',
-    'Full-text search across task titles and descriptions, with optional filters',
     {
-      query: z.string().describe('Search query (case-insensitive substring match)'),
-      scope: z.enum(['personal', 'professional']).optional().describe('Filter by scope'),
-      status: z.enum(['todo', 'in_progress', 'done']).optional().describe('Filter by status'),
-      include_done: z.boolean().optional().describe('Include done tasks (default: true unless status filter set)'),
+      description: 'Full-text search across task titles and descriptions, with optional filters',
+      inputSchema: {
+        query: z.string().describe('Search query (case-insensitive substring match)'),
+        scope: z.enum(['personal', 'professional']).optional().describe('Filter by scope'),
+        status: z.enum(['todo', 'in_progress', 'done']).optional().describe('Filter by status'),
+        include_done: z.boolean().optional().describe('Include done tasks (default: true unless status filter set)'),
+      },
     },
     async ({ query, scope, status, include_done }) => {
       const q = query.toLowerCase();
@@ -517,11 +561,13 @@ export function registerTools(server: McpServer): void {
   );
 
   // ── task_session_color ───────────────────────────────────
-  server.tool(
+  server.registerTool(
     'task_session_color',
-    'Set the terminal color for the current Claude Code session. Valid colors: cyan, magenta, purple, yellow',
     {
-      color: z.enum(['cyan', 'magenta', 'purple', 'yellow']).describe('Session color'),
+      description: 'Set the terminal color for the current Claude Code session. Valid colors: cyan, magenta, purple, yellow',
+      inputSchema: {
+        color: z.enum(['cyan', 'magenta', 'purple', 'yellow']).describe('Session color'),
+      },
     },
     async ({ color }) => {
       const currentSessionId = getCurrentSessionId();

@@ -67,6 +67,7 @@ function daysSince(iso: string): number {
 
 function buildQuestions(
   task: Task,
+  allTasks: Task[],
   currentFocusedCount: number,
   maxFocused: number | null,
   knownCategories: string[],
@@ -148,8 +149,17 @@ function buildQuestions(
     });
   }
 
-  // 5. AI task review
-  if (task.created_by === 'claude' && !task.description) {
+  // 5. AI task review — skip if user has already set any metadata on this task,
+  // or if it has subtasks (a parent with children is clearly relevant).
+  const hasEngagement =
+    task.scope != null ||
+    task.time_estimate != null ||
+    task.vibe != null ||
+    task.categories.length > 0 ||
+    task.focused ||
+    allTasks.some(t => t.parent_id === task.id);
+
+  if (task.created_by === 'claude' && !task.description && !hasEngagement) {
     list.push({
       type: 'confirm',
       prompt: 'Claude added this — does it belong?',
@@ -206,14 +216,16 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
 
   const currentTask: Task | undefined = queue[taskIndex];
 
+  const allTasks = useMemo(() => store.load(), [store, reviewedCount]);
+
   const focusedCount = useMemo(() =>
-    store.load().filter(t => t.focused && t.status !== 'done').length,
-  [store, reviewedCount]); // recompute after each answer
+    allTasks.filter(t => t.focused && t.status !== 'done').length,
+  [allTasks]);
 
   const questions = useMemo<QuestionDef[]>(() => {
     if (!currentTask) return [];
-    return buildQuestions(currentTask, focusedCount, config.focus.maxFocused, knownCategories);
-  }, [currentTask, focusedCount, config.focus.maxFocused, knownCategories]);
+    return buildQuestions(currentTask, allTasks, focusedCount, config.focus.maxFocused, knownCategories);
+  }, [currentTask, allTasks, focusedCount, config.focus.maxFocused, knownCategories]);
 
   const currentQuestion = questions[questionIndex];
 
