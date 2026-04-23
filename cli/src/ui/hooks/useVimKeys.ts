@@ -34,9 +34,15 @@ export function useVimKeys(
   setVimMode: (mode: VimMode) => void,
   options: UseVimKeysOptions,
 ) {
-  // Refs only for state mutated inside the handler itself (between renders)
   const keyBufferRef = useRef('');
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Refs so the useInput handler always reads the latest values without
+  // depending on Ink re-registering the callback after every render.
+  const vimModeRef = useRef(vimMode);
+  vimModeRef.current = vimMode;
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   const clearBuffer = useCallback(() => {
     keyBufferRef.current = '';
@@ -54,34 +60,37 @@ export function useVimKeys(
   }, []);
 
   useInput((input, key) => {
-    if (!options.isActive) return;
+    const mode = vimModeRef.current;
+    const opts = optionsRef.current;
+
+    if (!opts.isActive) return;
 
     // --- Insert mode ---
-    if (vimMode === 'insert') {
+    if (mode === 'insert') {
       if (key.escape) {
-        options.onInsertEscape?.();
+        opts.onInsertEscape?.();
       } else if (key.return) {
-        options.onInsertEnter?.();
+        opts.onInsertEnter?.();
       } else if (key.backspace || key.delete) {
-        options.onInsertBackspace?.();
+        opts.onInsertBackspace?.();
       } else if (input && !key.ctrl && !key.meta) {
-        options.onInsertChar?.(input);
+        opts.onInsertChar?.(input);
       }
       return;
     }
 
     // --- Holding mode ---
-    if (vimMode === 'holding') {
+    if (mode === 'holding') {
       if (key.downArrow || input === 'j') {
-        options.onAction({ type: 'move', direction: 'down' });
+        opts.onAction({ type: 'move', direction: 'down' });
       } else if (key.upArrow || input === 'k') {
-        options.onAction({ type: 'move', direction: 'up' });
+        opts.onAction({ type: 'move', direction: 'up' });
       } else if (input === 'p') {
-        options.onAction({ type: 'paste', above: false });
+        opts.onAction({ type: 'paste', above: false });
       } else if (input === 'P') {
-        options.onAction({ type: 'paste', above: true });
+        opts.onAction({ type: 'paste', above: true });
       } else if (key.escape) {
-        options.onAction({ type: 'cancel' });
+        opts.onAction({ type: 'cancel' });
       }
       return;
     }
@@ -92,7 +101,7 @@ export function useVimKeys(
     // Check for second key in sequence
     if (buffer === 'd' && input === 'd') {
       clearBuffer();
-      options.onAction({ type: 'cut' });
+      opts.onAction({ type: 'cut' });
       return;
     }
 
@@ -113,37 +122,37 @@ export function useVimKeys(
 
     // Single-key actions
     if (key.downArrow || input === 'j') {
-      options.onAction({ type: 'move', direction: 'down' });
+      opts.onAction({ type: 'move', direction: 'down' });
     } else if (key.upArrow || input === 'k') {
-      options.onAction({ type: 'move', direction: 'up' });
+      opts.onAction({ type: 'move', direction: 'up' });
     } else if (key.leftArrow || input === 'h') {
-      options.onAction({ type: 'move', direction: 'left' });
+      opts.onAction({ type: 'move', direction: 'left' });
     } else if (key.rightArrow || input === 'l') {
-      options.onAction({ type: 'move', direction: 'right' });
+      opts.onAction({ type: 'move', direction: 'right' });
     } else if (input === 'i') {
-      options.onAction({ type: 'edit', variant: 'start' });
+      opts.onAction({ type: 'edit', variant: 'start' });
     } else if (input === 'A') {
-      options.onAction({ type: 'edit', variant: 'end' });
+      opts.onAction({ type: 'edit', variant: 'end' });
     } else if (input === 'o') {
-      options.onAction({ type: 'create', above: false });
+      opts.onAction({ type: 'create', above: false });
     } else if (input === 'O') {
-      options.onAction({ type: 'create', above: true });
+      opts.onAction({ type: 'create', above: true });
     } else if (input === 'D') {
-      options.onAction({ type: 'edit-date' });
+      opts.onAction({ type: 'edit-date' });
     } else if (input === 'e') {
-      options.onAction({ type: 'edit-description' });
+      opts.onAction({ type: 'edit-description' });
     } else if (input === 'x') {
-      options.onAction({ type: 'mark-done' });
+      opts.onAction({ type: 'mark-done' });
     } else if (input === 'u') {
-      options.onAction({ type: 'undo' });
+      opts.onAction({ type: 'undo' });
     } else if (input === '/') {
-      options.onAction({ type: 'search' });
+      opts.onAction({ type: 'search' });
     } else if (input === ' ') {
-      options.onAction({ type: 'toggle-focus' });
+      opts.onAction({ type: 'toggle-focus' });
     } else if (key.tab && !key.shift) {
-      options.onAction({ type: 'tab' });
+      opts.onAction({ type: 'tab' });
     } else if (key.escape) {
-      options.onAction({ type: 'cancel' });
+      opts.onAction({ type: 'cancel' });
     }
   });
 }

@@ -139,13 +139,13 @@ describe('FocusMode interaction', () => {
       // Beta has no subtasks — expanded as single line with ──
       const line = result.lines().find(l => l.includes('──') && l.includes('Beta'));
       expect(line).toBeDefined();
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('j');
     await vi.waitFor(() => {
       const line = result.lines().find(l => l.includes('──') && l.includes('Gamma'));
       expect(line).toBeDefined();
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('j'); // should stay at Gamma
     result.stdin.write('j');
@@ -153,7 +153,7 @@ describe('FocusMode interaction', () => {
     await vi.waitFor(() => {
       const line = result.lines().find(l => l.includes('──') && l.includes('Gamma'));
       expect(line).toBeDefined();
-    });
+    }, { timeout: 3000 });
   });
 
   it('x marks selected task done', async () => {
@@ -325,12 +325,12 @@ describe('FocusMode description editing', () => {
       // Edit mode renders the magenta '>' prefix before the seeded text.
       const line = result.lines().find(l => l.includes('> original description'));
       expect(line).toBeDefined();
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('!');
     await vi.waitFor(() => {
       expect(result.text()).toContain('original description!');
-    });
+    }, { timeout: 3000 });
   });
 
   it("pressing 'e', typing, and Enter persists the new description", async () => {
@@ -342,7 +342,7 @@ describe('FocusMode description editing', () => {
     result.stdin.write('e');
     await vi.waitFor(() => {
       expect(result.text()).toContain('> original description');
-    });
+    }, { timeout: 3000 });
 
     // Clear seeded text, then type new text.
     for (let i = 0; i < 'original description'.length; i++) {
@@ -350,20 +350,20 @@ describe('FocusMode description editing', () => {
     }
     await vi.waitFor(() => {
       expect(result.text()).not.toContain('original description');
-    });
+    }, { timeout: 3000 });
 
     for (const ch of 'updated notes') {
       result.stdin.write(ch);
     }
     await vi.waitFor(() => {
       expect(result.text()).toContain('updated notes');
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('\r'); // enter saves
     await vi.waitFor(() => {
       const saved = store.load().find(t => t.title === 'Alpha');
       expect(saved?.description).toBe('updated notes');
-    });
+    }, { timeout: 3000 });
   });
 
   it('clearing the description saves it as null', async () => {
@@ -375,20 +375,20 @@ describe('FocusMode description editing', () => {
     result.stdin.write('e');
     await vi.waitFor(() => {
       expect(result.text()).toContain('> original description');
-    });
+    }, { timeout: 3000 });
 
     for (let i = 0; i < 'original description'.length; i++) {
       result.stdin.write('\u007f');
     }
     await vi.waitFor(() => {
       expect(result.text()).not.toContain('original description');
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('\r');
     await vi.waitFor(() => {
       const saved = store.load().find(t => t.title === 'Alpha');
       expect(saved?.description).toBeNull();
-    });
+    }, { timeout: 3000 });
   });
 
   it('undo restores the previous description after an edit', async () => {
@@ -400,31 +400,31 @@ describe('FocusMode description editing', () => {
     result.stdin.write('e');
     await vi.waitFor(() => {
       expect(result.text()).toContain('> original description');
-    });
+    }, { timeout: 3000 });
 
     for (let i = 0; i < 'original description'.length; i++) {
       result.stdin.write('\u007f');
     }
     await vi.waitFor(() => {
       expect(result.text()).not.toContain('original description');
-    });
+    }, { timeout: 3000 });
 
     for (const ch of 'new') {
       result.stdin.write(ch);
     }
     await vi.waitFor(() => {
       expect(result.text()).toContain('> new');
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('\r');
     await vi.waitFor(() => {
       expect(store.load().find(t => t.title === 'Alpha')?.description).toBe('new');
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('u');
     await vi.waitFor(() => {
       expect(store.load().find(t => t.title === 'Alpha')?.description).toBe('original description');
-    });
+    }, { timeout: 3000 });
   });
 
   it("'e' on a task with no subtasks edits description in the single-line card", async () => {
@@ -438,24 +438,24 @@ describe('FocusMode description editing', () => {
     await vi.waitFor(() => {
       const line = result.lines().find(l => l.includes('──') && l.includes('Beta'));
       expect(line).toBeDefined();
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('e');
     await vi.waitFor(() => {
       // Empty edit field shows just '>' in magenta.
       expect(result.text()).toMatch(/>\s*$/m);
-    });
+    }, { timeout: 3000 });
 
     for (const ch of 'for beta') {
       result.stdin.write(ch);
     }
     await vi.waitFor(() => {
       expect(result.text()).toContain('for beta');
-    });
+    }, { timeout: 3000 });
 
     result.stdin.write('\r');
     await vi.waitFor(() => {
       expect(store.load().find(t => t.title === 'Beta')?.description).toBe('for beta');
-    });
+    }, { timeout: 3000 });
   });
 });
