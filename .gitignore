@@ -1,9 +1,11 @@
 node_modules/
 dist/
+dist-web/
 build/
+*.tsbuildinfo
 *.lock
 !package-lock.json
 .claude/
 *.swp
-todo.md
+todo*.md
 .DS_Store

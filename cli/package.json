@@ -16,17 +16,24 @@
     "./email": "./dist/email.js",
     "./sessions": "./dist/sessions.js",
     "./constants": "./dist/constants.js",
-    "./refine-queue": "./dist/refine-queue.js"
+    "./refine-queue": "./dist/refine-queue.js",
+    "./handlers": "./dist/handlers/index.js",
+    "./parse-entry": "./dist/parse-entry.js",
+    "./local-date": "./dist/local-date.js"
   },
   "scripts": {
     "build": "tsc",
+    "build:web": "cd ../web && npm run build && rm -rf ../cli/dist-web && cp -r dist ../cli/dist-web",
+    "build:all": "npm run build && npm run build:web",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.4",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
+    "hono": "^4.12.23",
     "ink": "^6.8.0",
     "proper-lockfile": "^4.1.2",
     "react": "^19.2.4",

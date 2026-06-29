@@ -1,0 +1,109 @@
+.nav-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+/* The trigger button mirrors the favicon: rounded square,
+   three pink bars with cyan/purple dots on the left edge. */
+.nav-menu-trigger {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-menu-trigger:active {
+  transform: scale(0.94);
+}
+
+.nav-menu-trigger.open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 121, 198, 0.18);
+}
+
+.nav-menu-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+/* Backdrop catches taps outside the panel so it closes. */
+.nav-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: transparent;
+}
+
+.nav-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 31;
+  min-width: 200px;
+  background: var(--bg-elev);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 121, 198, 0.15);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: nav-menu-in 140ms ease;
+}
+
+@keyframes nav-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.nav-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--fg);
+  font-size: 15px;
+  text-align: left;
+}
+
+.nav-menu-item:disabled {
+  color: var(--fg-muted);
+  cursor: not-allowed;
+}
+
+.nav-menu-item.current {
+  background: rgba(255, 121, 198, 0.1);
+  color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.nav-menu-item-soon {
+  margin-left: auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--fg-muted);
+}
+
+.nav-menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
+}
+
+.nav-menu-item.logout {
+  color: var(--fg-dim);
+}

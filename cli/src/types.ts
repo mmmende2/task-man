@@ -61,6 +61,12 @@ export interface TaskManConfig {
     hiddenCategories: string[];
   };
   sessions: Record<string, SessionColor>;
+  server?: {
+    port?: number;            // default 3030
+    bind?: string;            // default "0.0.0.0"; "127.0.0.1" forces local-only
+    pin?: string;             // 4-digit, stored as a string (preserves leading zeros)
+    session_secret?: string;  // auto-generated on first start
+  };
 }
 
 export interface DayStats {

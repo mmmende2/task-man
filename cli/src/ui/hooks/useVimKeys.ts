@@ -5,6 +5,7 @@ export type VimMode = 'normal' | 'insert' | 'holding';
 
 export type VimAction =
   | { type: 'move'; direction: 'up' | 'down' | 'left' | 'right' }
+  | { type: 'jump'; to: 'top' | 'bottom' }
   | { type: 'cut' }
   | { type: 'paste'; above: boolean }
   | { type: 'edit'; variant: 'start' | 'end' }
@@ -104,6 +105,11 @@ export function useVimKeys(
       opts.onAction({ type: 'cut' });
       return;
     }
+    if (buffer === 'g' && input === 'g') {
+      clearBuffer();
+      opts.onAction({ type: 'jump', to: 'top' });
+      return;
+    }
 
     // If buffer has a pending key but this isn't the expected follow-up, clear it
     if (buffer) {
@@ -111,7 +117,7 @@ export function useVimKeys(
     }
 
     // Start a sequence
-    if (input === 'd') {
+    if (input === 'd' || input === 'g') {
       keyBufferRef.current = input;
       timeoutRef.current = setTimeout(() => {
         keyBufferRef.current = '';
@@ -143,6 +149,8 @@ export function useVimKeys(
       opts.onAction({ type: 'edit-description' });
     } else if (input === 'x') {
       opts.onAction({ type: 'mark-done' });
+    } else if (input === 'G') {
+      opts.onAction({ type: 'jump', to: 'bottom' });
     } else if (input === 'u') {
       opts.onAction({ type: 'undo' });
     } else if (input === '/') {

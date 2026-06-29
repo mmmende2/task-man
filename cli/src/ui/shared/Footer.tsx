@@ -1,6 +1,7 @@
 import { Box, Text } from 'ink';
 import type { AppMode, WriteSubMode } from '../types.js';
 import type { VimMode } from '../hooks/useVimKeys.js';
+import { useServerStatus } from '../hooks/useServerStatus.js';
 
 interface Props {
   mode?: AppMode;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSubMode, planFocus }: Props) {
+  const server = useServerStatus();
   let navContent: string;
   let pageContent: string;
 
@@ -27,16 +29,16 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
     pageContent = `-- cut: ${holdingTitle} -- p:put P:put esc:delete`;
   } else if (mode === 'focus') {
     navContent = 't:triage w:write m:metrics ~:scope';
-    pageContent = 'jk:nav tab:sub x:done D:date e:desc dd:cut i:edit /:find';
+    pageContent = 'jk:nav gg/G:top/bot tab:sub x:done D:date e:desc dd:cut i:edit /:find';
   } else if (mode === 'plan' && planFocus === 'categories') {
     navContent = 'f:focus w:write m:metrics ~:scope';
-    pageContent = 'jk:nav hl:pane spc:toggle esc:tasks';
+    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:toggle esc:tasks';
   } else if (mode === 'plan') {
     navContent = 'f:focus w:write m:metrics ~:scope';
-    pageContent = 'jk:nav hl:pane spc:focus dd:cut x:done i:edit o:new /:find u:undo';
+    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:focus dd:cut x:done i:edit o:new /:find u:undo';
   } else if (mode === 'write' && writeSubMode === 'review') {
     navContent = 'esc:focus  w:capture  T:time';
-    pageContent = 'jk:nav tab:sub cc:title c:cat p:pri s:scope f:focus dd:del u:undo';
+    pageContent = 'jk:nav gg/G:top/bot tab:sub cc:title c:cat p:pri s:scope f:focus dd:del u:undo';
   } else if (mode === 'write') {
     navContent = 'esc:review  ~:scope';
     pageContent = 'enter:add  tab:accept  :subtask  -p -c -s flags';
@@ -53,7 +55,12 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
 
   return (
     <Box borderStyle="double" borderColor="magenta" flexShrink={0} flexDirection="column">
-      <Text dimColor>  {navContent || ' '}</Text>
+      <Box justifyContent="space-between">
+        <Text dimColor>  {navContent || ' '}</Text>
+        {server.running && (
+          <Text color="#ff79c6" dimColor>● web :{server.port}  </Text>
+        )}
+      </Box>
       <Text color="#00a5a5">  {pageContent || ' '}</Text>
     </Box>
   );

@@ -12,6 +12,7 @@ import { PlanMode } from './modes/PlanMode.js';
 import { WriteMode } from './modes/WriteMode.js';
 import { MetricsMode } from './modes/MetricsMode.js';
 import { RefineMode } from './modes/RefineMode.js';
+import { isLocalToday } from '../local-date.js';
 
 const SCOPE_CYCLE: (TaskScope | 'all')[] = ['all', 'personal', 'professional'];
 
@@ -56,11 +57,15 @@ function InteractiveAppInner() {
     return parentTasks.filter(t => t.scope === scopeFilter);
   }, [parentTasks, scopeFilter]);
 
-  // Derive per-mode lists — done tasks excluded from focus/plan unless completed today
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Derive per-mode lists — done tasks excluded from focus/plan unless
+  // completed on the user's local "today". Computed inside the memo
+  // (not captured at mount) so the boundary follows local-midnight even
+  // for long-running TUIs. isLocalToday compares both sides in local
+  // time; using UTC here used to make today's wins vanish mid-afternoon
+  // in non-UTC timezones.
   const activeTasks = useMemo(() =>
-    filteredTasks.filter(t => t.status !== 'done' || t.completed_at?.startsWith(today)),
-  [filteredTasks, today]);
+    filteredTasks.filter(t => t.status !== 'done' || isLocalToday(t.completed_at)),
+  [filteredTasks]);
 
   const focusedTasks = useMemo(() =>
     activeTasks.filter(t => t.focused),
@@ -85,6 +90,21 @@ function InteractiveAppInner() {
       setSelectedIndex(navigableList.length - 1);
     }
   }, [navigableList.length, selectedIndex]);
+
+  // Startup cleanup: unfocus tasks that are done and untouched for 3+ days
+  useEffect(() => {
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const stale = store.load().filter(t =>
+      t.focused &&
+      t.status === 'done' &&
+      now - new Date(t.updated_at).getTime() >= THREE_DAYS_MS
+    );
+    if (stale.length === 0) return;
+    Promise.all(stale.map(t => store.update(t.id, { focused: false })))
+      .then(() => reload())
+      .catch(() => {});
+  }, []);
 
   const switchMode = (newMode: AppMode) => {
     setMode(prev => {

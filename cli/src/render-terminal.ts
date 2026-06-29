@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { PRIORITY_COLORS, SESSION_COLORS, STATUS_COLORS } from './constants.js';
 import { loadConfig } from './config.js';
+import { isLocalToday } from './local-date.js';
 import type { DayReport, SessionColor, Task } from './types.js';
 
 function buildSubtaskMap(tasks: Task[]): Map<string, Task[]> {
@@ -21,6 +22,15 @@ function mdSubtask(sub: Task): string {
   return `  - [${mark}] ${sub.title}${date ? ` _(${date})_` : ''}`;
 }
 
+const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function formatShortDate(iso: string | undefined): string | undefined {
+  if (!iso) return undefined;
+  const d = new Date(`${iso}T12:00:00`);
+  if (isNaN(d.getTime())) return iso;
+  return `${DAY_ABBR[d.getDay()]} ${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 export function renderDayReportMarkdown(report: DayReport, allTasks: Task[]): string {
   const subtaskMap = buildSubtaskMap(allTasks);
   const lines: string[] = [];
@@ -33,8 +43,10 @@ export function renderDayReportMarkdown(report: DayReport, allTasks: Task[]): st
     lines.push('_No tasks completed._');
   } else {
     for (const task of report.completedTasks) {
-      const date = task.completed_at?.slice(0, 10);
-      lines.push(`- [x] ${task.title}${date ? ` _(${date})_` : ''}`);
+      const dateLabel = isLocalToday(task.completed_at)
+        ? 'TODAY'
+        : formatShortDate(task.completed_at?.slice(0, 10));
+      lines.push(`- [x] ${task.title}${dateLabel ? ` _(${dateLabel})_` : ''}`);
       for (const sub of subtaskMap.get(task.id) ?? []) {
         lines.push(mdSubtask(sub));
       }

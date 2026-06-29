@@ -147,6 +147,21 @@ export function PlanMode({
     return counts;
   }, [focusedTasks, backlogTasks]);
 
+  // Focused tasks per category (for panel indicator)
+  const focusedCountByCategory = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of focusedTasks) {
+      const c = t.categories?.[0] ?? '';
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return counts;
+  }, [focusedTasks]);
+
+  // Focused tasks that are hidden (their category is toggled off) — shown as a dim strip at bottom
+  const hiddenFocusedTasks = useMemo(() => {
+    return filteredFocused.filter(t => hiddenCategories.has(t.categories?.[0] ?? ''));
+  }, [filteredFocused, hiddenCategories]);
+
   const totalCount = orderedTasks.length;
 
   useEffect(() => {
@@ -183,6 +198,11 @@ export function PlanMode({
         persistHiddenCategories(next);
         return;
       }
+      if (action.type === 'jump') {
+        if (allCategories.length === 0) return;
+        setCategoryIndex(action.to === 'top' ? 0 : allCategories.length - 1);
+        return;
+      }
       if (action.type === 'cancel') {
         setPanelFocus('tasks');
         return;
@@ -217,6 +237,12 @@ export function PlanMode({
         } else {
           onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
         }
+        break;
+      }
+
+      case 'jump': {
+        if (totalCount === 0) return;
+        onSelectedIndexChange(action.to === 'top' ? 0 : totalCount - 1);
         break;
       }
 
@@ -501,13 +527,14 @@ export function PlanMode({
 
   // Windowed scrolling: clip taskRows to a visible window that follows the selection.
   // Reserved: Header(3) + Footer(4) + leading blank(1) + 2 rows for optional scroll hints
-  // + any visible banner rows.
+  // + any visible banner rows + hidden focused strip.
   const bannerRows =
     (isSearching ? 1 : 0) +
     (!isSearching && searchQuery ? 1 : 0) +
     (pendingFocusTask ? 1 : 0) +
     (vimMode === 'holding' && clipboard ? 1 : 0);
-  const availableRows = Math.max(1, termHeight - 10 - bannerRows);
+  const hiddenFocusedBand = hiddenFocusedTasks.length > 0 ? hiddenFocusedTasks.length + 1 : 0;
+  const availableRows = Math.max(1, termHeight - 10 - bannerRows - hiddenFocusedBand);
 
   const selRow = taskRowPositions[selectedIndex] ?? 0;
   const maxScroll = Math.max(0, taskRows.length - availableRows);
@@ -551,11 +578,22 @@ export function PlanMode({
         {hasAbove && <Text dimColor>  ↑ {target} more above</Text>}
         {visibleRows}
         {hasBelow && <Text dimColor>  ↓ {taskRows.length - target - availableRows} more below</Text>}
+        {hiddenFocusedTasks.length > 0 && (
+          <Box flexDirection="column">
+            <Text dimColor>  {'─'.repeat(24)}</Text>
+            {hiddenFocusedTasks.map(t => (
+              <Box key={t.id}>
+                <Text dimColor>  ★ {t.title}</Text>
+              </Box>
+            ))}
+          </Box>
+        )}
       </Box>
       <Box
         flexDirection="column"
         flexShrink={0}
-        width={28}
+        alignSelf="flex-start"
+        width={36}
         marginLeft={2}
         borderStyle="single"
         borderColor={panelFocus === 'categories' ? 'cyan' : 'gray'}
@@ -572,17 +610,21 @@ export function PlanMode({
           const hidden = hiddenCategories.has(cat);
           const selected = panelFocus === 'categories' && categoryIndex === i;
           const count = categoryCounts.get(cat) ?? 0;
+          const focusedCount = focusedCountByCategory.get(cat) ?? 0;
           const mark = hidden ? '○' : '●';
           return (
-            <Box key={cat || '__empty'}>
+            <Text key={cat || '__empty'}>
               <Text color={selected ? 'cyan' : undefined} dimColor={!selected}>
                 {selected ? CURSOR_GLYPH : ' '} {mark}
               </Text>
               <Text color={selected ? 'cyan' : undefined} dimColor={!selected || hidden}>
                 {' '}{label}
               </Text>
+              {focusedCount > 0 && (
+                <Text color={selected ? 'cyan' : 'yellow'}>{' '}★</Text>
+              )}
               <Text dimColor>{' '}({count})</Text>
-            </Box>
+            </Text>
           );
         })}
       </Box>
