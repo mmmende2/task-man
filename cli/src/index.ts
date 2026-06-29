@@ -10,6 +10,7 @@ import { configCommand } from './commands/config.js';
 import { endDayCommand } from './commands/end-day.js';
 import { watchCommand } from './commands/watch.js';
 import { sessionRefocusCommand } from './commands/session-refocus.js';
+import { serveCommand } from './commands/serve.js';
 import { launchInteractive } from './commands/interactive.js';
 
 const program = new Command();
@@ -29,6 +30,7 @@ program.addCommand(configCommand);
 program.addCommand(endDayCommand);
 program.addCommand(watchCommand);
 program.addCommand(sessionRefocusCommand);
+program.addCommand(serveCommand);
 
 program.action(() => launchInteractive());
 

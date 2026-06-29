@@ -7,7 +7,21 @@ import { renderDayReportHtml } from 'task-man/render-html';
 import { sendEndOfDayEmail } from 'task-man/email';
 import { getCurrentSessionId } from 'task-man/sessions';
 import { buildRefineQueueWithReasons } from 'task-man/refine-queue';
-import type { SessionColor, Task, TaskFilter, TaskPriority } from 'task-man/types';
+import { parseReportDate } from 'task-man/local-date';
+import {
+  createTask,
+  listTasks,
+  getTask,
+  updateTask,
+  deleteTask,
+  completeTask,
+  startTask,
+  focusTask,
+  unfocusTask,
+  searchTasks,
+  getStats,
+} from 'task-man/handlers';
+import type { SessionColor, Task } from 'task-man/types';
 
 const TIME_ESTIMATES = ['<5m', '20m', '45m', '>1h', '>3h'] as const;
 const VIBES = ['love', 'ok', 'dread'] as const;
@@ -38,27 +52,6 @@ function summarizeTasks(tasks: Task[]): string {
   return `Found ${tasks.length} tasks (${focused} focused, ${inProgress} in_progress, ${todo} todo, ${done} done)`;
 }
 
-function sortTasks(tasks: Task[], sort?: string): Task[] {
-  if (!sort) return tasks;
-  const priorityRank: Record<TaskPriority, number> = { high: 0, medium: 1, low: 2 };
-  const sorted = [...tasks];
-  switch (sort) {
-    case 'priority':
-      sorted.sort((a, b) => priorityRank[a.priority] - priorityRank[b.priority]);
-      break;
-    case 'created_at':
-      sorted.sort((a, b) => a.created_at.localeCompare(b.created_at));
-      break;
-    case 'created_at_desc':
-      sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
-      break;
-    case 'updated_at':
-      sorted.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-      break;
-  }
-  return sorted;
-}
-
 export function registerTools(server: McpServer): void {
   const store = new TaskStore();
 
@@ -81,13 +74,12 @@ export function registerTools(server: McpServer): void {
     },
     async ({ title, priority, scope, categories, parent_id, description, focused, time_estimate, vibe }) => {
       const currentSessionId = getCurrentSessionId();
-      const parentId = parent_id ? store.resolveId(parent_id) : undefined;
-      const task = await store.add({
+      const task = await createTask(store, {
         title,
         priority,
         scope,
         categories,
-        parent_id: parentId,
+        parent_id,
         description,
         focused,
         time_estimate,
@@ -117,21 +109,10 @@ export function registerTools(server: McpServer): void {
     },
     async ({ scope, status, focused, category, parent_id, include_done, sort, limit }) => {
       const currentSessionId = getCurrentSessionId();
-      const filters: TaskFilter = {};
-      if (scope) filters.scope = scope;
-      if (status) filters.status = status;
-      if (focused !== undefined) filters.focused = focused;
-      if (category) filters.category = category;
-      if (parent_id !== undefined) {
-        filters.parent_id = parent_id === 'null' ? null : store.resolveId(parent_id);
-      }
-
-      let tasks = store.query(filters);
-      if (include_done === false && !status) {
-        tasks = tasks.filter(t => t.status !== 'done');
-      }
-      tasks = sortTasks(tasks, sort);
-      if (limit && limit > 0) tasks = tasks.slice(0, limit);
+      const tasks = listTasks(store, {
+        scope, status, focused, category, parent_id,
+        include_done, sort, limit,
+      });
 
       const annotated = tasks.map(t => ({
         ...t,
@@ -151,14 +132,13 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
-      const resolvedId = store.resolveId(id);
-      const all = store.load();
-      const task = all.find(t => t.id === resolvedId);
-      if (!task) {
+      const result = getTask(store, id);
+      if (!result) {
         return { content: [{ type: 'text', text: `Task ${id} not found` }] };
       }
-      const subtasks = all.filter(t => t.parent_id === resolvedId);
-      return { content: [{ type: 'text', text: JSON.stringify({ ...task, subtasks }, null, 2) }] };
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ...result.task, subtasks: result.subtasks }, null, 2) }],
+      };
     },
   );
 
@@ -204,35 +184,22 @@ export function registerTools(server: McpServer): void {
         return { content: [{ type: 'text', text: `Task ${id} not found` }] };
       }
 
+      // Claude-specific guard: the user completes parent tasks, not Claude.
+      // This guard lives only here — the shared updateTask handler has none.
       if (status === 'done' && before.parent_id === null) {
         return { content: [{ type: 'text', text: `Refused: "${before.title}" is a top-level task. Only the user completes parent tasks — feel free to prompt the user to mark it as done.` }] };
       }
 
-      const changes: Record<string, unknown> = {};
-      if (title !== undefined) changes.title = title;
-      if (status !== undefined) changes.status = status;
-      if (priority !== undefined) changes.priority = priority;
-      if (scope !== undefined) changes.scope = scope;
-      if (categories !== undefined) changes.categories = categories;
-      if (description !== undefined) changes.description = description;
-      if (focused !== undefined) changes.focused = focused;
-      if (time_estimate !== undefined) changes.time_estimate = time_estimate;
-      if (vibe !== undefined) changes.vibe = vibe;
-      if (completed_at !== undefined) changes.completed_at = completed_at;
-      if (session_id !== undefined) changes.session_id = session_id;
-      if (parent_id !== undefined) {
-        if (parent_id === null) {
-          changes.parent_id = null;
-        } else {
-          const resolvedParent = store.resolveId(parent_id);
-          if (resolvedParent === resolvedId) {
-            return { content: [{ type: 'text', text: 'A task cannot be its own parent.' }] };
-          }
-          changes.parent_id = resolvedParent;
-        }
+      let task: Task;
+      try {
+        task = await updateTask(store, {
+          id: resolvedId, title, status, priority, scope, categories, description,
+          focused, time_estimate, vibe, parent_id, completed_at, session_id,
+        });
+      } catch (err) {
+        return { content: [{ type: 'text', text: (err as Error).message }] };
       }
 
-      const task = await store.update(resolvedId, changes);
       const diff = computeDiff(before, task);
       return {
         content: [{
@@ -257,11 +224,9 @@ export function registerTools(server: McpServer): void {
       if (!confirm) {
         return { content: [{ type: 'text', text: 'Delete refused: confirm must be true.' }] };
       }
-      const resolvedId = store.resolveId(id);
-      const subtasks = store.query({ parent_id: resolvedId });
-      const { task } = await store.remove(resolvedId);
-      const extra = subtasks.length > 0
-        ? `\nNote: ${subtasks.length} subtask(s) now have a dangling parent_id.`
+      const { task, danglingSubtasks } = await deleteTask(store, id);
+      const extra = danglingSubtasks > 0
+        ? `\nNote: ${danglingSubtasks} subtask(s) now have a dangling parent_id.`
         : '';
       return {
         content: [{ type: 'text', text: `Deleted: ${task.title} (${task.id.slice(0, 8)})${extra}` }],
@@ -282,10 +247,11 @@ export function registerTools(server: McpServer): void {
       if (!existing) {
         return { content: [{ type: 'text', text: `Task ${id} not found` }] };
       }
+      // Claude-specific guard — see task_update.
       if (existing.parent_id === null) {
         return { content: [{ type: 'text', text: `Refused: "${existing.title}" is a top-level task. Only the user completes parent tasks — feel free to prompt the user to mark it as done.` }] };
       }
-      const task = await store.update(resolvedId, { status: 'done' });
+      const task = await completeTask(store, resolvedId);
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -299,7 +265,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ id }) => {
       const currentSessionId = getCurrentSessionId();
-      const task = await store.update(id, { status: 'in_progress', session_id: currentSessionId });
+      const task = await startTask(store, id, { session_id: currentSessionId });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -313,7 +279,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ id }) => {
       const currentSessionId = getCurrentSessionId();
-      const task = await store.update(id, { focused: true, session_id: currentSessionId });
+      const task = await focusTask(store, id, { session_id: currentSessionId });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -326,7 +292,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
-      const task = await store.update(id, { focused: false });
+      const task = await unfocusTask(store, id);
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -339,19 +305,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {},
     },
     async () => {
-      const today = new Date().toISOString().slice(0, 10);
-      const all = store.load();
-      const parents = all.filter(t => t.parent_id === null);
-      const stats = {
-        total: parents.length,
-        focused: parents.filter(t => t.focused && t.status !== 'done').length,
-        in_progress: parents.filter(t => t.status === 'in_progress').length,
-        todo_focused: parents.filter(t => t.focused && t.status === 'todo').length,
-        backlog: parents.filter(t => !t.focused && t.status !== 'done').length,
-        completed_today: parents.filter(t => t.completed_at?.startsWith(today)).length,
-        subtasks_total: all.filter(t => t.parent_id !== null).length,
-        subtasks_done_today: all.filter(t => t.parent_id !== null && t.completed_at?.startsWith(today)).length,
-      };
+      const stats = getStats(store);
       return { content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }] };
     },
   );
@@ -458,16 +412,7 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ date, email, format }) => {
-      let reportDate: string;
-      if (!date || date === 'today') {
-        reportDate = new Date().toISOString().slice(0, 10);
-      } else if (date === 'yesterday') {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        reportDate = d.toISOString().slice(0, 10);
-      } else {
-        reportDate = date;
-      }
+      const reportDate = parseReportDate(date);
 
       const report = buildDayReport(store, reportDate);
 
@@ -539,18 +484,7 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ query, scope, status, include_done }) => {
-      const q = query.toLowerCase();
-      let matches = store.load().filter(t => {
-        const title = t.title.toLowerCase();
-        const desc = (t.description ?? '').toLowerCase();
-        return title.includes(q) || desc.includes(q);
-      });
-
-      if (scope) matches = matches.filter(t => t.scope === scope);
-      if (status) matches = matches.filter(t => t.status === status);
-      if (include_done === false && !status) {
-        matches = matches.filter(t => t.status !== 'done');
-      }
+      const matches = searchTasks(store, { query, scope, status, include_done });
 
       if (matches.length === 0) {
         return { content: [{ type: 'text', text: `No tasks found matching "${query}"` }] };

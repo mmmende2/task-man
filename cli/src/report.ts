@@ -1,6 +1,7 @@
 import { generateInsight } from './insights.js';
 import { getEndOfDayMessage } from './messages.js';
 import { TaskStore } from './store.js';
+import { isOnLocalDate } from './local-date.js';
 import type { DayReport } from './types.js';
 
 export function buildDayReport(store: TaskStore, date: string): DayReport {
@@ -20,7 +21,7 @@ export function buildDayReport(store: TaskStore, date: string): DayReport {
   // Subtask stats: count all subtasks and how many are done
   const allTasks = store.load();
   const allSubtasks = allTasks.filter(t => t.parent_id !== null);
-  const subtasksCompleted = allSubtasks.filter(t => t.completed_at && t.completed_at.startsWith(date)).length;
+  const subtasksCompleted = allSubtasks.filter(t => isOnLocalDate(t.completed_at, date)).length;
   const subtasksTotal = allSubtasks.length;
 
   const insight = generateInsight(store, date);

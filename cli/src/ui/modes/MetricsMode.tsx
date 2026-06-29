@@ -11,6 +11,7 @@ import { PulsingProgressBar } from '../shared/PulsingProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
+import { localDateString } from '../../local-date.js';
 
 interface Props {
   store: TaskStore;
@@ -25,7 +26,7 @@ interface SubtaskInfo {
 
 export function MetricsMode({ store }: Props) {
   const { exit } = useApp();
-  const realToday = new Date().toISOString().slice(0, 10);
+  const realToday = localDateString();
   const [viewDate, setViewDate] = useState(realToday);
   const [editingDate, setEditingDate] = useState(false);
   const [dateText, setDateText] = useState('');

@@ -1,0 +1,10 @@
+{
+  "name": "task-man-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"task-man serve\" \"npm run dev --prefix web\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}

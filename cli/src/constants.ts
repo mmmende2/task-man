@@ -6,6 +6,10 @@ export const DATA_DIR = join(homedir(), '.task-man');
 export const TASKS_FILE = join(DATA_DIR, 'tasks.json');
 export const CONFIG_FILE = join(DATA_DIR, 'config.json');
 export const INSIGHTS_LOG_FILE = join(DATA_DIR, 'insights-log.json');
+export const SERVER_PID_FILE = join(DATA_DIR, 'server.pid');
+
+export const DEFAULT_SERVER_PORT = 3030;
+export const DEFAULT_SERVER_BIND = '0.0.0.0';
 
 export const DEFAULT_CONFIG: TaskManConfig = {
   email: {
@@ -20,6 +24,10 @@ export const DEFAULT_CONFIG: TaskManConfig = {
     hiddenCategories: [],
   },
   sessions: {},
+  server: {
+    port: DEFAULT_SERVER_PORT,
+    bind: DEFAULT_SERVER_BIND,
+  },
 };
 
 export const SESSION_COLORS: Record<SessionColor, string> = {

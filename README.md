@@ -260,6 +260,52 @@ Live-updating display of focused tasks.
 
 Launch the interactive TUI.
 
+### `task-man serve`
+
+Run a small web app on your LAN so you can capture and check tasks from
+your phone or another laptop on the same wifi.
+
+```bash
+# 1. Set a 4-digit PIN (stored as a string, so 0042 stays 0042)
+task-man serve --set-pin
+
+# 2. Start the server (binds to 0.0.0.0 by default → reachable on LAN)
+task-man serve
+```
+
+The first run prints the URLs you can open from another device — typically
+`http://<your-laptop>.local:3030` plus the raw LAN IPs as a fallback if your
+device doesn't resolve `.local` (some corporate-managed networks won't).
+Enter the PIN on first visit; the session cookie lasts 30 days, so you only
+do it once per device.
+
+**Flags.**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--port <port>` | Port to listen on | `3030` |
+| `--bind <addr>` | Bind address — use `127.0.0.1` to disable LAN | `0.0.0.0` |
+| `--set-pin` | Set the 4-digit PIN, then exit | — |
+
+**Add to Home Screen.** On iOS Safari and Android Chrome, "Add to Home
+Screen" turns the page into a standalone PWA. The app shell caches via a
+service worker so the page loads even on flaky cellular; task data itself
+(`/api/*`) is never cached and is always served fresh from your laptop.
+
+**Scope.** The web v1 ships only a mobile-first Focus view and Quick Capture.
+Plan / Refine / Metrics modes remain TUI-only for now. Marking a top-level
+parent task done is the **headline action** on the web — that guard rail
+(only the user, not Claude, completes parents) lives in the MCP path only.
+
+**Security note.** A 4-digit PIN gates the LAN endpoint with rate limiting
+(5 attempts per 5 minutes per IP, then exponential backoff). This is enough
+to keep a roommate or guest on your wifi out; it is explicitly **not**
+real auth, and a determined LAN attacker is out of the threat model. Set
+`--bind 127.0.0.1` if you ever need to disable LAN access entirely.
+
+**TUI footer indicator.** While the server is running, the TUI footer shows
+a discreet `● web :3030` marker so you remember it's up.
+
 ## Data storage
 
 All data lives in `~/.task-man/`:

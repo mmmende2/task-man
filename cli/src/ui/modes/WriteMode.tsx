@@ -8,6 +8,8 @@ import { useUndoStack } from '../hooks/useUndoStack.js';
 import { useTerminalHeight } from '../hooks/useTerminalWidth.js';
 import { loadConfig } from '../../config.js';
 import { getCurrentSessionId } from '../../sessions.js';
+import { parseWriteInput, type ParsedEntry } from '../../parse-entry.js';
+import { isLocalToday } from '../../local-date.js';
 import {
   useCategoryMatch,
   getAllCategories,
@@ -32,101 +34,7 @@ interface Props {
   onSubModeChange?: (sub: WriteSubMode) => void;
 }
 
-interface ParsedInput {
-  title: string;
-  priority: TaskPriority;
-  categories: string[];
-  scope: TaskScope | null;
-  description: string | null;
-  focused: boolean;
-}
-
-const PRIORITY_MAP: Record<string, TaskPriority> = {
-  l: 'low', low: 'low',
-  m: 'medium', medium: 'medium', med: 'medium',
-  h: 'high', high: 'high',
-  u: 'high', urgent: 'high',
-};
-
-const SCOPE_MAP: Record<string, TaskScope> = {
-  per: 'personal', personal: 'personal',
-  pro: 'professional', professional: 'professional',
-};
-
-function parseWriteInput(raw: string): ParsedInput {
-  const result: ParsedInput = {
-    title: '',
-    priority: 'medium',
-    categories: [],
-    scope: null,
-    description: null,
-    focused: false,
-  };
-
-  const flagPattern = /\s+-[pcdsf]\b/;
-  const firstFlagMatch = raw.match(flagPattern);
-
-  if (!firstFlagMatch || firstFlagMatch.index === undefined) {
-    const dashIdx = raw.lastIndexOf(' - ');
-    if (dashIdx > 0) {
-      result.title = raw.slice(0, dashIdx).trim();
-      result.categories = [raw.slice(dashIdx + 3).trim()];
-    } else {
-      result.title = raw.trim();
-    }
-    return result;
-  }
-
-  result.title = raw.slice(0, firstFlagMatch.index).trim();
-  const flagStr = raw.slice(firstFlagMatch.index);
-  const tokens = flagStr.trim().split(/\s+/);
-
-  const consumeQuoted = (startIdx: number): { value: string; nextIdx: number } => {
-    const first = tokens[startIdx];
-    if (first.startsWith('"') && !(first.endsWith('"') && first.length > 1)) {
-      const acc: string[] = [first];
-      let j = startIdx + 1;
-      while (j < tokens.length) {
-        acc.push(tokens[j]);
-        if (tokens[j].endsWith('"')) break;
-        j++;
-      }
-      return { value: acc.join(' ').replace(/^"|"$/g, ''), nextIdx: j + 1 };
-    }
-    return { value: first.replace(/^"|"$/g, ''), nextIdx: startIdx + 1 };
-  };
-
-  let i = 0;
-  while (i < tokens.length) {
-    const token = tokens[i];
-    if (token === '-p' && i + 1 < tokens.length) {
-      const val = PRIORITY_MAP[tokens[i + 1].toLowerCase()];
-      if (val) result.priority = val;
-      i += 2;
-    } else if (token === '-c' && i + 1 < tokens.length) {
-      const { value, nextIdx } = consumeQuoted(i + 1);
-      if (value.length > 0) result.categories.push(value);
-      i = nextIdx;
-    } else if (token === '-s' && i + 1 < tokens.length) {
-      const val = SCOPE_MAP[tokens[i + 1].toLowerCase()];
-      if (val) result.scope = val;
-      i += 2;
-    } else if (token === '-d' && i + 1 < tokens.length) {
-      const { value, nextIdx } = consumeQuoted(i + 1);
-      result.description = value;
-      i = nextIdx;
-    } else if (token === '-f') {
-      result.focused = true;
-      i += 1;
-    } else {
-      i += 1;
-    }
-  }
-
-  return result;
-}
-
-function formatPreview(parsed: ParsedInput, isSubtask: boolean): string {
+function formatPreview(parsed: ParsedEntry, isSubtask: boolean): string {
   const parts: string[] = [];
   if (parsed.priority !== 'medium') parts.push(`Priority: ${parsed.priority}`);
   if (parsed.categories.length > 0) parts.push(`Category: ${parsed.categories.join(', ')}`);
@@ -239,19 +147,19 @@ export function WriteMode({
     return { parents: ps, subtaskMap: sMap };
   }, [allTasks]);
 
-  const today = new Date().toISOString().slice(0, 10);
   const filteredParents = useMemo(() => {
     let list = parents;
     if (scopeFilter !== 'all') list = list.filter(t => t.scope === scopeFilter);
     if (timeFilter === 'session') {
       list = list.filter(t => t.session_id === currentSessionId);
     } else if (timeFilter === 'today') {
-      list = list.filter(t => t.created_at.startsWith(today));
+      // Local-time today — see cli/src/local-date.ts for why.
+      list = list.filter(t => isLocalToday(t.created_at));
     } else {
       list = list.filter(t => t.status !== 'done').slice(0, 100);
     }
     return list;
-  }, [parents, scopeFilter, timeFilter, currentSessionId, today]);
+  }, [parents, scopeFilter, timeFilter, currentSessionId]);
 
   const orderedIds = useMemo(() => orderedTaskIds(filteredParents), [filteredParents]);
 

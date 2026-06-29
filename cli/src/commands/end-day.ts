@@ -6,19 +6,7 @@ import { renderDayReportMarkdown } from '../render-terminal.js';
 import { renderDayReportHtml } from '../render-html.js';
 import { sendEndOfDayEmail } from '../email.js';
 import { loadConfig } from '../config.js';
-
-function resolveDate(dateArg?: string): string {
-  if (!dateArg) {
-    return new Date().toISOString().slice(0, 10);
-  }
-  if (dateArg === 'yesterday') {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
-  }
-  // Assume YYYY-MM-DD
-  return dateArg;
-}
+import { parseReportDate } from '../local-date.js';
 
 export const endDayCommand = new Command('end-day')
   .description('End-of-day report')
@@ -26,7 +14,7 @@ export const endDayCommand = new Command('end-day')
   .option('--email', 'Send report via email')
   .action(async (opts) => {
     const store = new TaskStore();
-    const date = resolveDate(opts.date);
+    const date = parseReportDate(opts.date);
     const report = buildDayReport(store, date);
 
     console.log(renderDayReportMarkdown(report, store.load()));

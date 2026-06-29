@@ -297,8 +297,23 @@ export function FocusMode({
           setClipboard(null);
           setVimMode('normal');
           onHoldingChange?.(undefined);
+        } else if (navTarget === 'subtasks') {
+          setNavTarget('tasks');
         } else if (searchQuery) {
           setSearchQuery('');
+        }
+        break;
+      }
+
+      case 'jump': {
+        if (navTarget === 'subtasks') {
+          if (currentSubtasks.length === 0) return;
+          setSubtaskIndex(action.to === 'top' ? 0 : currentSubtasks.length - 1);
+        } else {
+          if (filteredTasks.length === 0) return;
+          onSelectedIndexChange(action.to === 'top' ? 0 : filteredTasks.length - 1);
+          setNavTarget('tasks');
+          setSubtaskIndex(0);
         }
         break;
       }

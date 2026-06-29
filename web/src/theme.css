@@ -1,0 +1,108 @@
+/*
+ * Outrun palette. Hex equivalents chosen for screen rendering — the
+ * TUI uses ANSI color names ('magenta', 'cyan', 'yellow') for
+ * priority/status, so there is no single hex source of truth to
+ * extract from constants.ts. SESSION_COLORS already are hex and
+ * match the TUI exactly; reuse those.
+ */
+:root {
+  --bg: #0c0814;
+  --bg-elev: #16101e;
+  --bg-row: #1a1326;
+  --border: #2b2140;
+  --fg: #f4f1fa;
+  --fg-dim: #8a7fa5;
+  --fg-muted: #5d557a;
+
+  /* Session/identity tints — match cli/src/constants.ts SESSION_COLORS */
+  --cyan: #00a5a5;
+  --magenta: #ff79c6;
+  --purple: #bd93f9;
+  --yellow: #f1fa8c;
+
+  /* Brighter on-screen accents — terminals dim these, screens don't need to. */
+  --accent: #ff79c6;       /* primary action / current */
+  --accent-soft: #c64a96;
+  --focus: #00e5ff;        /* focused state */
+  --priority-high: #ff4f9a;
+  --priority-medium: #00e5ff;
+  --priority-low: #5d557a;
+
+  --status-done: #38d9a9;
+  --status-progress: #f1fa8c;
+
+  --tap-min: 44px;
+
+  /* Page-level breathing room. Layered on top of the iOS safe-area
+     insets so notched + non-notched devices both feel airy. */
+  --pad-top: calc(env(safe-area-inset-top, 0px) + 20px);
+  --pad-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  overscroll-behavior-y: contain;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-height: var(--tap-min);
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+input,
+textarea {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 121, 198, 0.18);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Monaco,
+    Consolas, 'Liberation Mono', monospace;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --fg-dim: #cfc6e6;
+    --fg-muted: #a89dc4;
+    --border: #4d3f6a;
+  }
+}

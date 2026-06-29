@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, join } from 'node:path';
 import { TASKS_FILE } from './constants.js';
 import { withLock } from './lock.js';
+import { isOnLocalDate } from './local-date.js';
 import type { CreateTaskInput, Task, TaskFilter } from './types.js';
 
 export class TaskStore {
@@ -143,19 +144,22 @@ export class TaskStore {
     return tasks;
   }
 
+  // `date` is interpreted in the user's local time (YYYY-MM-DD). Without
+  // converting `completed_at`/`created_at`/`updated_at` (UTC ISO) to the
+  // local date first, end-of-day reports drop tasks that crossed UTC
+  // midnight — e.g. a task done at 6 PM PT on Sat 6/27 has
+  // completed_at starting with "2026-06-28Z" and would silently fall
+  // out of the Sat 6/27 report.
   getCompletedOn(date: string): Task[] {
-    const tasks = this.load();
-    return tasks.filter(t => t.completed_at && t.completed_at.startsWith(date));
+    return this.load().filter(t => isOnLocalDate(t.completed_at, date));
   }
 
   getCreatedOn(date: string): Task[] {
-    const tasks = this.load();
-    return tasks.filter(t => t.created_at.startsWith(date));
+    return this.load().filter(t => isOnLocalDate(t.created_at, date));
   }
 
   getInProgressUpdatedOn(date: string): Task[] {
-    const tasks = this.load();
-    return tasks.filter(t => t.status === 'in_progress' && t.updated_at.startsWith(date));
+    return this.load().filter(t => t.status === 'in_progress' && isOnLocalDate(t.updated_at, date));
   }
 
   async remove(id: string): Promise<{ task: Task; index: number }> {
