@@ -15,7 +15,9 @@ import {
   getCategories,
   type SortKey,
 } from '../handlers/index.js';
+import { buildMetrics } from '../handlers/metrics.js';
 import type { TaskScope, TaskStatus } from '../types.js';
+import { localDateString } from '../local-date.js';
 import {
   clearSession,
   clientIp,
@@ -137,6 +139,14 @@ export function createApp(deps: ServerDeps): Hono {
   });
 
   app.get('/api/stats', (c) => c.json(getStats(store)));
+
+  app.get('/api/metrics', (c) => {
+    const date = c.req.query('date') ?? localDateString();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return c.json({ error: 'invalid date' }, 400);
+    }
+    return c.json(buildMetrics(store, date));
+  });
 
   app.get('/api/categories', (c) => c.json(getCategories(store)));
 

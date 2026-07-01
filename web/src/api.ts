@@ -1,4 +1,7 @@
 import type { Task } from './types';
+import type { MetricsResponse } from 'task-man/types';
+
+export type { MetricsResponse };
 
 // All requests are same-origin (Vite proxies /api in dev; the Hono
 // server serves the SPA + API together in prod), so a cookie set by
@@ -80,5 +83,9 @@ export const api = {
   },
   async unfocus(id: string): Promise<Task> {
     return unwrap<Task>(await fetch(`/api/tasks/${id}/unfocus`, { ...baseInit, method: 'POST' }));
+  },
+  async getMetrics(date?: string): Promise<MetricsResponse> {
+    const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+    return unwrap<MetricsResponse>(await fetch(`/api/metrics${qs}`, { credentials: 'include' }));
   },
 };

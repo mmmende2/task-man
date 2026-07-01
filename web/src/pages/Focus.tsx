@@ -4,6 +4,7 @@ import { api, ApiError } from '../api';
 import type { Task } from '../types';
 import { usePoll } from '../lib/use-poll';
 import { NavMenu } from '../components/NavMenu';
+import { Brand } from '../components/Brand';
 // 'focus' sort = priority desc, then updated_at desc. The server
 // applies it via ?sort=focus; we then partition parents/subtasks
 // from the same payload client-side.
@@ -88,10 +89,7 @@ export function FocusPage() {
   return (
     <div className="focus-page">
       <header className="focus-header">
-        <div className="brand mono">
-          <span className="brand-magenta">task-</span>
-          <span className="brand-cyan">man</span>
-        </div>
+        <Brand />
         <NavMenu current="focus" />
       </header>
 

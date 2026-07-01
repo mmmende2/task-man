@@ -4,6 +4,7 @@ import { LoginPage } from './pages/Login';
 import { FocusPage } from './pages/Focus';
 import { CapturePage } from './pages/Capture';
 import { BacklogPage } from './pages/Backlog';
+import { MetricsPage } from './pages/Metrics';
 import { api } from './api';
 
 // Only checks the session on mount. Subsequent route changes don't
@@ -39,6 +40,7 @@ export function App() {
           <Route path="/" element={<FocusPage />} />
           <Route path="/capture" element={<CapturePage />} />
           <Route path="/backlog" element={<BacklogPage />} />
+          <Route path="/metrics" element={<MetricsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthGate>

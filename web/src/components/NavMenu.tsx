@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import './NavMenu.css';
 
-type Current = 'focus' | 'backlog' | 'capture';
+type Current = 'focus' | 'backlog' | 'capture' | 'metrics';
 
 interface Props {
   current: Current;
 }
 
 interface Item {
-  key: Current | 'metrics' | 'logout';
+  key: Current | 'logout';
   label: string;
   to?: string;
   soon?: boolean;
@@ -20,7 +20,7 @@ const NAV_ITEMS: Item[] = [
   { key: 'focus', label: 'Focus', to: '/' },
   { key: 'backlog', label: 'Backlog', to: '/backlog' },
   { key: 'capture', label: 'Capture', to: '/capture' },
-  { key: 'metrics', label: 'Metrics', soon: true },
+  { key: 'metrics', label: 'Metrics', to: '/metrics' },
 ];
 
 export function NavMenu({ current }: Props) {

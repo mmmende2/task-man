@@ -17,6 +17,11 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
+    // `task-man serve` reads the SPA from cli/dist-web at runtime, so
+    // write straight there. Prior setup built to web/dist and had a
+    // separate copy step; forgetting the copy silently left prod stale.
+    outDir: '../cli/dist-web',
+    emptyOutDir: true,
   },
   test: {
     environment: 'jsdom',

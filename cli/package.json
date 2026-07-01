@@ -23,7 +23,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:web": "cd ../web && npm run build && rm -rf ../cli/dist-web && cp -r dist ../cli/dist-web",
+    "build:web": "cd ../web && npm run build",
     "build:all": "npm run build && npm run build:web",
     "dev": "tsx src/index.ts",
     "test": "vitest run",

@@ -1,0 +1,338 @@
+.metrics-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+}
+
+.metrics-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--pad-top) 16px 14px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+
+.brand-magenta { color: var(--accent); }
+.brand-cyan { color: var(--focus); }
+
+.metrics-daterow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px 4px;
+}
+
+.metrics-jump {
+  font-size: 13px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--focus);
+  border-color: var(--border);
+  background: rgba(0, 229, 255, 0.06);
+  border-radius: 999px;
+}
+
+.metrics-jump:disabled {
+  opacity: 0.35;
+  color: var(--fg-muted);
+}
+
+.metrics-jump-spacer { width: 1px; }
+
+.metrics-datepick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.metrics-datepick-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--focus);
+  flex-shrink: 0;
+}
+
+/* The real <input type="date"> lives inside the button but is offscreen —
+ * we open the native picker programmatically via showPicker(). Keeping
+ * the input in the DOM lets it act as the source of truth for min/max
+ * and value, but pointer-events:none ensures clicks never split between
+ * the button and the input (which is what broke desktop before). */
+.metrics-datepick-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* The input is a real DOM node (so showPicker() can anchor to it) but
+ * visually hidden. It sits offscreen and can't intercept clicks — the
+ * sibling button opens it via input.showPicker(). */
+.metrics-datepick-input {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
+  padding: 0;
+}
+
+.metrics-summary {
+  padding: 10px 16px 4px;
+}
+
+.metrics-summary-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.metrics-done-label {
+  font-size: 15px;
+  color: var(--status-done);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.metrics-done-label strong {
+  color: var(--status-done);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.metrics-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.metrics-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 240ms ease;
+}
+
+.metrics-attrib {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+
+.metrics-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 6px;
+  color: var(--fg-dim);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.metrics-divider::before,
+.metrics-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.metrics-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 12px 8px;
+  gap: 10px;
+}
+
+.metrics-empty {
+  text-align: center;
+  color: var(--fg-dim);
+  padding: 40px 24px;
+  font-size: 14px;
+}
+
+.metrics-row {
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.metrics-row.status-done .metrics-title {
+  color: var(--fg);
+}
+
+.metrics-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.metrics-dot {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--fg-dim);
+}
+
+.metrics-row.status-done .metrics-dot,
+.metrics-row.status-in_progress .metrics-dot {
+  color: var(--status-done);
+}
+
+.metrics-title {
+  flex: 1;
+  font-size: 15px;
+  color: var(--fg);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics-subbar {
+  display: inline-flex;
+  width: 64px;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.metrics-subbar .seg-today { background: var(--accent); }
+.metrics-subbar .seg-prior { background: var(--accent-soft); }
+.metrics-subbar .seg-rest { background: transparent; }
+
+.metrics-subtree {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0 0 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metrics-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg-dim);
+  font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Monaco, monospace;
+}
+
+.metrics-sub-connector {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.metrics-sub-mark {
+  font-size: 12px;
+  width: 14px;
+  text-align: center;
+}
+
+.metrics-sub.done .metrics-sub-mark,
+.metrics-sub.done .metrics-sub-title {
+  color: var(--fg);
+}
+
+.metrics-sub.today .metrics-sub-mark,
+.metrics-sub.today .metrics-sub-title {
+  color: var(--accent);
+}
+
+.metrics-insight {
+  margin: 14px 16px 0;
+  padding: 12px 14px;
+  background: rgba(0, 229, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--focus);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.metrics-insight-prefix {
+  color: var(--accent);
+  margin-right: 4px;
+}
+
+/* ── Pulses ──────────────────────────────────────────────────
+ * Cyan pulse on fully-done parents and magenta pulse on the
+ * today-completed subtask segment. Use four discrete steps so the
+ * cadence reads like the TUI (400ms × 4 = 1600ms loop) rather than
+ * a smooth fade.
+ */
+@keyframes metrics-cyan-pulse {
+  0%   { color: #00ffff; }
+  25%  { color: #00cccc; }
+  50%  { color: #009999; }
+  75%  { color: #00cccc; }
+  100% { color: #00ffff; }
+}
+
+@keyframes metrics-magenta-pulse {
+  0%   { background: #ff79c6; }
+  25%  { background: #cc5fa0; }
+  50%  { background: #993f7a; }
+  75%  { background: #cc5fa0; }
+  100% { background: #ff79c6; }
+}
+
+.metrics-row.fully-done .metrics-dot,
+.metrics-row.fully-done .metrics-title {
+  animation: metrics-cyan-pulse 1.6s steps(4, end) infinite;
+}
+
+.metrics-subbar .seg-today {
+  animation: metrics-magenta-pulse 1.6s steps(4, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metrics-row.fully-done .metrics-dot,
+  .metrics-row.fully-done .metrics-title {
+    animation: none;
+    color: #00cccc;
+  }
+  .metrics-subbar .seg-today {
+    animation: none;
+    background: var(--accent);
+  }
+}
+
+.conn-error {
+  margin: 8px 12px 0;
+  padding: 10px 14px;
+  background: rgba(255, 79, 154, 0.1);
+  border: 1px solid var(--priority-high);
+  border-radius: 10px;
+  color: var(--priority-high);
+  font-size: 14px;
+  text-align: center;
+}

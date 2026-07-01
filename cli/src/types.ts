@@ -91,6 +91,17 @@ export interface DayReport {
   encouragingMessage: string;
 }
 
+// Shape returned by GET /api/metrics — DayReport plus three fields the
+// web Metrics page needs (subtask tree, last-work-day jump, date-picker
+// lower bound). Lives in types.ts (not handlers/metrics.ts) so the web
+// can import it without pulling the server-only handler module into its
+// bundle.
+export interface MetricsResponse extends DayReport {
+  subtasksByParent: Record<string, Task[]>;
+  lastWorkDay: string | null;
+  earliestDate: string | null;
+}
+
 export type InsightType =
   | 'personal_best'
   | 'streak'

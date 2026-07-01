@@ -1,0 +1,20 @@
+/* Overrides the global `button` reset in theme.css so the wordmark
+ * behaves like text, not a chip: no border, no min-height, no padding.
+ */
+button.brand {
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-height: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  line-height: 1;
+}
+
+button.brand:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
