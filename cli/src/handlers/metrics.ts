@@ -1,4 +1,4 @@
-import type { TaskStore } from '../store.js';
+import type { Store } from '../store-interface.js';
 import type { MetricsResponse, Task } from '../types.js';
 import { buildDayReport } from '../report.js';
 import { localDateString } from '../local-date.js';
@@ -8,9 +8,9 @@ import { localDateString } from '../local-date.js';
 // can import the type without pulling this module's server-only deps.
 export type { MetricsResponse } from '../types.js';
 
-export function buildMetrics(store: TaskStore, date: string): MetricsResponse {
-  const report = buildDayReport(store, date);
-  const all = store.load();
+export async function buildMetrics(store: Store, date: string): Promise<MetricsResponse> {
+  const report = await buildDayReport(store, date);
+  const all = await store.load();
 
   // Parents with activity on `date`: parent done that day OR any of its
   // subtasks completed that day. Mirrors the TUI MetricsMode logic and the

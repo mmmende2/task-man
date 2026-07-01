@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { TaskStore } from '../store.js';
+import { LocalStore } from '../local-store.js';
 import { buildDayReport } from '../report.js';
 import { renderDayReportMarkdown } from '../render-terminal.js';
 import { renderDayReportHtml } from '../render-html.js';
@@ -13,11 +13,11 @@ export const endDayCommand = new Command('end-day')
   .option('--date <date>', 'Date (YYYY-MM-DD or "yesterday")')
   .option('--email', 'Send report via email')
   .action(async (opts) => {
-    const store = new TaskStore();
+    const store = new LocalStore();
     const date = parseReportDate(opts.date);
-    const report = buildDayReport(store, date);
+    const report = await buildDayReport(store, date);
 
-    console.log(renderDayReportMarkdown(report, store.load()));
+    console.log(renderDayReportMarkdown(report, await store.load()));
     console.log('');
 
     if (opts.email) {

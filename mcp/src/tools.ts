@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { TaskStore } from 'task-man/store';
+import { LocalStore } from 'task-man/local-store';
 import { buildDayReport } from 'task-man/report';
 import { loadConfig, saveConfig } from 'task-man/config';
 import { renderDayReportHtml } from 'task-man/render-html';
@@ -53,7 +54,7 @@ function summarizeTasks(tasks: Task[]): string {
 }
 
 export function registerTools(server: McpServer): void {
-  const store = new TaskStore();
+  const store = new LocalStore(new TaskStore());
 
   // ── task_add ──────────────────────────────────────────────
   server.registerTool(
@@ -109,7 +110,7 @@ export function registerTools(server: McpServer): void {
     },
     async ({ scope, status, focused, category, parent_id, include_done, sort, limit }) => {
       const currentSessionId = getCurrentSessionId();
-      const tasks = listTasks(store, {
+      const tasks = await listTasks(store, {
         scope, status, focused, category, parent_id,
         include_done, sort, limit,
       });
@@ -132,7 +133,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
-      const result = getTask(store, id);
+      const result = await getTask(store, id);
       if (!result) {
         return { content: [{ type: 'text', text: `Task ${id} not found` }] };
       }
@@ -150,8 +151,8 @@ export function registerTools(server: McpServer): void {
       inputSchema: { parent_id: z.string().describe('Parent task ID (prefix OK)') },
     },
     async ({ parent_id }) => {
-      const resolvedId = store.resolveId(parent_id);
-      const subtasks = store.query({ parent_id: resolvedId });
+      const resolvedId = await store.resolveId(parent_id);
+      const subtasks = await store.query({ parent_id: resolvedId });
       return { content: [{ type: 'text', text: JSON.stringify(subtasks, null, 2) }] };
     },
   );
@@ -178,8 +179,8 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ id, title, status, priority, scope, categories, description, focused, time_estimate, vibe, parent_id, completed_at, session_id }) => {
-      const resolvedId = store.resolveId(id);
-      const before = store.load().find(t => t.id === resolvedId);
+      const resolvedId = await store.resolveId(id);
+      const before = (await store.load()).find(t => t.id === resolvedId);
       if (!before) {
         return { content: [{ type: 'text', text: `Task ${id} not found` }] };
       }
@@ -242,8 +243,8 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
-      const resolvedId = store.resolveId(id);
-      const existing = store.load().find(t => t.id === resolvedId);
+      const resolvedId = await store.resolveId(id);
+      const existing = (await store.load()).find(t => t.id === resolvedId);
       if (!existing) {
         return { content: [{ type: 'text', text: `Task ${id} not found` }] };
       }
@@ -305,7 +306,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {},
     },
     async () => {
-      const stats = getStats(store);
+      const stats = await getStats(store);
       return { content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }] };
     },
   );
@@ -318,7 +319,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {},
     },
     async () => {
-      const all = store.load();
+      const all = await store.load();
       const counts = new Map<string, number>();
       for (const t of all) {
         for (const c of t.categories) {
@@ -340,7 +341,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {},
     },
     async () => {
-      const candidates = buildRefineQueueWithReasons(store.load());
+      const candidates = buildRefineQueueWithReasons(await store.load());
       return { content: [{ type: 'text', text: JSON.stringify(candidates, null, 2) }] };
     },
   );
@@ -356,7 +357,7 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ scope, context }) => {
-      const all = store.load();
+      const all = await store.load();
       const active = all.filter(t =>
         t.parent_id === null &&
         t.status !== 'done' &&
@@ -414,7 +415,7 @@ export function registerTools(server: McpServer): void {
     async ({ date, email, format }) => {
       const reportDate = parseReportDate(date);
 
-      const report = buildDayReport(store, reportDate);
+      const report = await buildDayReport(store, reportDate);
 
       if (email) {
         const config = loadConfig();
@@ -484,7 +485,7 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ query, scope, status, include_done }) => {
-      const matches = searchTasks(store, { query, scope, status, include_done });
+      const matches = await searchTasks(store, { query, scope, status, include_done });
 
       if (matches.length === 0) {
         return { content: [{ type: 'text', text: `No tasks found matching "${query}"` }] };

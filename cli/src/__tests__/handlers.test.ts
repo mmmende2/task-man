@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TaskStore } from '../store.js';
+import { LocalStore } from '../local-store.js';
+import type { Store } from '../store-interface.js';
 import {
   createTask,
   listTasks,
@@ -20,11 +22,11 @@ import {
 
 describe('handlers', () => {
   let tmpDir: string;
-  let store: TaskStore;
+  let store: Store;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'task-man-handlers-'));
-    store = new TaskStore(join(tmpDir, 'tasks.json'));
+    store = new LocalStore(new TaskStore(join(tmpDir, 'tasks.json')));
   });
 
   afterEach(() => {
@@ -51,10 +53,10 @@ describe('handlers', () => {
     const done = await createTask(store, { title: 'Focused done', focused: true });
     await completeTask(store, done.id);
 
-    const all = listTasks(store, { focused: true });
+    const all = await listTasks(store, { focused: true });
     expect(all).toHaveLength(2);
 
-    const open = listTasks(store, { focused: true, include_done: false });
+    const open = await listTasks(store, { focused: true, include_done: false });
     expect(open.map((t) => t.title)).toEqual(['Focused todo']);
   });
 
@@ -65,7 +67,7 @@ describe('handlers', () => {
     // touch highNew so it is the most-recently updated of the highs
     await updateTask(store, { id: highNew.id, description: 'bump' });
 
-    const ordered = sortTasks(store.load(), 'focus').map((t) => t.title);
+    const ordered = sortTasks(await store.load(), 'focus').map((t) => t.title);
     expect(ordered[0]).toBe('high-new');
     expect(ordered[1]).toBe('high-old');
     expect(ordered[2]).toBe('low');
@@ -112,7 +114,7 @@ describe('handlers', () => {
   it('getTask inlines subtasks; returns null after vanish', async () => {
     const parent = await createTask(store, { title: 'Parent' });
     await createTask(store, { title: 'Sub', parent_id: parent.id });
-    const got = getTask(store, parent.id);
+    const got = await getTask(store, parent.id);
     expect(got?.subtasks).toHaveLength(1);
   });
 
@@ -129,16 +131,16 @@ describe('handlers', () => {
     const done = await createTask(store, { title: 'Buy bread' });
     await completeTask(store, done.id);
 
-    expect(searchTasks(store, { query: 'buy' })).toHaveLength(2);
-    expect(searchTasks(store, { query: 'buy', include_done: false })).toHaveLength(1);
-    expect(searchTasks(store, { query: 'whole' })).toHaveLength(1);
+    expect(await searchTasks(store, { query: 'buy' })).toHaveLength(2);
+    expect(await searchTasks(store, { query: 'buy', include_done: false })).toHaveLength(1);
+    expect(await searchTasks(store, { query: 'whole' })).toHaveLength(1);
   });
 
   it('getStats counts parents, focus and today completions', async () => {
     const a = await createTask(store, { title: 'A', focused: true });
     await createTask(store, { title: 'B' });
     await completeTask(store, a.id);
-    const stats = getStats(store);
+    const stats = await getStats(store);
     expect(stats.total).toBe(2);
     expect(stats.completed_today).toBe(1);
     expect(stats.backlog).toBe(1);

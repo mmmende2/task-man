@@ -1,11 +1,10 @@
-import { randomBytes } from 'node:crypto';
 import { hostname, networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
-import { loadConfig, saveConfig } from '../config.js';
+import { loadConfig } from '../config.js';
 import { DEFAULT_SERVER_BIND, DEFAULT_SERVER_PORT } from '../constants.js';
-import { TaskStore } from '../store.js';
+import { LocalStore } from '../local-store.js';
 import { createApp } from './routes.js';
 import { mountStatic } from './static.js';
 
@@ -22,16 +21,6 @@ export interface RunningServer {
   /** URLs to reach the app from another device on the LAN. */
   urls: string[];
   close: () => void;
-}
-
-/** Ensure a session-signing secret exists, generating + persisting one on first run. */
-export function ensureSessionSecret(): string {
-  const config = loadConfig();
-  if (config.server?.session_secret) return config.server.session_secret;
-  const secret = randomBytes(32).toString('hex');
-  config.server = { ...config.server, session_secret: secret };
-  saveConfig(config);
-  return secret;
 }
 
 /** dist-web sits next to dist/ in the published package; this file runs from dist/server/. */
@@ -65,11 +54,9 @@ export function startServer(opts: ServeOptions = {}): RunningServer {
   const config = loadConfig();
   const port = opts.port ?? config.server?.port ?? DEFAULT_SERVER_PORT;
   const bind = opts.bind ?? config.server?.bind ?? DEFAULT_SERVER_BIND;
-  const pin = config.server?.pin ?? '';
-  const sessionSecret = ensureSessionSecret();
 
-  const store = new TaskStore();
-  const app = createApp({ store, pin, sessionSecret });
+  const store = new LocalStore();
+  const app = createApp({ store });
   mountStatic(app, opts.webRoot ?? resolveWebRoot());
 
   const server = serve({ fetch: app.fetch, port, hostname: bind });

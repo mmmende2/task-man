@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TaskStore } from '../store.js';
+import { LocalStore } from '../local-store.js';
+import type { Store } from '../store-interface.js';
 import { buildMetrics } from '../handlers/metrics.js';
 import { localDateString } from '../local-date.js';
 
@@ -23,19 +25,19 @@ function priorDay(daysBack: number): string {
 
 describe('buildMetrics', () => {
   let tmpDir: string;
-  let store: TaskStore;
+  let store: Store;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'task-man-metrics-'));
-    store = new TaskStore(join(tmpDir, 'tasks.json'));
+    store = new LocalStore(new TaskStore(join(tmpDir, 'tasks.json')));
   });
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns empty report on an empty store', () => {
-    const r = buildMetrics(store, TODAY);
+  it('returns empty report on an empty store', async () => {
+    const r = await buildMetrics(store, TODAY);
     expect(r.stats.completed).toBe(0);
     expect(r.completedTasks).toEqual([]);
     expect(r.subtasksByParent).toEqual({});
@@ -47,7 +49,7 @@ describe('buildMetrics', () => {
     const t = await store.add({ title: 'Ship it', focused: true });
     await store.update(t.id, { status: 'done' });
 
-    const r = buildMetrics(store, TODAY);
+    const r = await buildMetrics(store, TODAY);
     expect(r.stats.completed).toBe(1);
     expect(r.completedTasks.map((x) => x.title)).toEqual(['Ship it']);
     expect(r.subtasksByParent).toEqual({});
@@ -59,7 +61,7 @@ describe('buildMetrics', () => {
     await store.add({ title: 'B', parent_id: parent.id });
     await store.update(a.id, { status: 'done' });
 
-    const r = buildMetrics(store, TODAY);
+    const r = await buildMetrics(store, TODAY);
     const children = r.subtasksByParent[parent.id];
     expect(children).toBeDefined();
     expect(children.map((c) => c.title).sort()).toEqual(['A', 'B']);
@@ -72,21 +74,21 @@ describe('buildMetrics', () => {
     await store.update(t1.id, { status: 'done', completed_at: isoOnLocalDate(priorDay(5)) });
     await store.update(t2.id, { status: 'done', completed_at: isoOnLocalDate(priorDay(2)) });
 
-    const r = buildMetrics(store, TODAY);
+    const r = await buildMetrics(store, TODAY);
     expect(r.lastWorkDay).toBe(priorDay(2));
 
     // Viewing the older day excludes it from "last work day"
-    const r2 = buildMetrics(store, priorDay(2));
+    const r2 = await buildMetrics(store, priorDay(2));
     expect(r2.lastWorkDay).toBe(priorDay(5));
 
     // Viewing the earliest excludes both
-    const r3 = buildMetrics(store, priorDay(5));
+    const r3 = await buildMetrics(store, priorDay(5));
     expect(r3.lastWorkDay).toBeNull();
   });
 
   it('reports earliestDate as the local-date of the oldest created_at', async () => {
     await store.add({ title: 'Today' });
-    const r = buildMetrics(store, TODAY);
+    const r = await buildMetrics(store, TODAY);
     expect(r.earliestDate).toBe(TODAY);
   });
 
@@ -95,7 +97,7 @@ describe('buildMetrics', () => {
     const sub = await store.add({ title: 'Sub', parent_id: parent.id });
     await store.update(sub.id, { status: 'done' });
 
-    const r = buildMetrics(store, TODAY);
+    const r = await buildMetrics(store, TODAY);
     // parent isn't in completedTasks/inProgressTasks (it's still todo) but
     // its subtree should be included via the subtask-completion bridge.
     expect(r.subtasksByParent[parent.id]).toBeDefined();

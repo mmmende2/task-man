@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { TaskStore } from '../store.js';
+import type { Store } from '../store-interface.js';
 import {
   createTask,
   listTasks,
@@ -18,19 +18,9 @@ import {
 import { buildMetrics } from '../handlers/metrics.js';
 import type { TaskScope, TaskStatus } from '../types.js';
 import { localDateString } from '../local-date.js';
-import {
-  clearSession,
-  clientIp,
-  constantTimeEqual,
-  createRateLimiter,
-  hasValidSession,
-  issueSession,
-} from './auth.js';
 
 export interface ServerDeps {
-  store: TaskStore;
-  pin: string;
-  sessionSecret: string;
+  store: Store;
 }
 
 // ── Idempotency (in-memory LRU of the last 100 keys) ────────
@@ -55,9 +45,8 @@ const boolParam = (v: string | undefined): boolean | undefined =>
   v === undefined ? undefined : v === 'true' || v === '1';
 
 export function createApp(deps: ServerDeps): Hono {
-  const { store, pin, sessionSecret } = deps;
+  const { store } = deps;
   const idempotency = makeIdempotencyCache();
-  const rateLimit = createRateLimiter();
   const app = new Hono();
 
   app.get('/healthz', (c) => c.json({ ok: true }));
@@ -70,50 +59,56 @@ export function createApp(deps: ServerDeps): Hono {
     return c.json({ error: msg }, 500);
   });
 
-  // ── Auth gate for /api/* (login is the only exception) ────
-  app.use('/api/*', async (c, next) => {
-    if (c.req.path === '/api/auth/login') return next();
-    if (await hasValidSession(c, sessionSecret)) return next();
-    return c.json({ error: 'unauthorized' }, 401);
-  });
-
-  // ── Auth routes ──────────────────────────────────────────
-  app.post('/api/auth/login', async (c) => {
-    const ip = clientIp(c);
-    const rl = rateLimit.status(ip);
-    if (rl.blocked) {
-      return c.json({ error: 'rate_limited', retryAfter: rl.retryAfter }, 429);
-    }
-    if (!pin) {
-      return c.json({ error: 'no_pin_configured' }, 503);
-    }
-    const body = await c.req.json().catch(() => ({}));
-    const submitted = String((body as { pin?: unknown }).pin ?? '');
-    if (!constantTimeEqual(submitted, pin)) {
-      rateLimit.recordFailure(ip);
-      const after = rateLimit.status(ip);
-      return c.json(
-        { error: 'invalid_pin', ...(after.blocked ? { retryAfter: after.retryAfter } : {}) },
-        401,
-      );
-    }
-    rateLimit.clear(ip);
-    await issueSession(c, sessionSecret);
-    return c.json({ ok: true });
-  });
-
-  app.post('/api/auth/logout', async (c) => {
-    clearSession(c);
-    return c.json({ ok: true });
-  });
-
-  // Lightweight "am I logged in?" check the frontend can poll on load.
+  // Stub kept for the web's "am I logged in?" poll on load. In production
+  // Cloudflare Access is the only gate; in local dev, binding to 127.0.0.1
+  // is the gate. No PIN, no session cookie — see docs/deploy-plan.md 1a.
   app.get('/api/auth/session', (c) => c.json({ authenticated: true }));
 
+  // ── Store routes (faithful primitives) ────────────────────
+  // Unlike /api/tasks below, these pass CreateTaskInput straight through —
+  // no created_by override — so RemoteStore.add() faithfully persists
+  // MCP-attributed tasks (created_by: 'claude', session_id) instead of
+  // silently re-attributing them to 'human'.
+  app.get('/api/store/tasks', async (c) => c.json(await store.load()));
+
+  app.post('/api/store/add', async (c) => {
+    const key = c.req.header('Idempotency-Key');
+    if (key) {
+      const cached = idempotency.get(key);
+      if (cached) return c.json(cached.body, cached.status);
+    }
+    const { input } = await c.req.json();
+    const task = await store.add(input);
+    if (key) idempotency.set(key, { status: 201, body: task });
+    return c.json(task, 201);
+  });
+
+  app.post('/api/store/update', async (c) => {
+    const { id, changes } = await c.req.json();
+    return c.json(await store.update(id, changes));
+  });
+
+  app.post('/api/store/remove', async (c) => {
+    const { id } = await c.req.json();
+    return c.json(await store.remove(id));
+  });
+
+  app.post('/api/store/insertAt', async (c) => {
+    const key = c.req.header('Idempotency-Key');
+    if (key) {
+      const cached = idempotency.get(key);
+      if (cached) return c.json(cached.body, cached.status);
+    }
+    const { task, index } = await c.req.json();
+    const inserted = await store.insertAt(task, index);
+    if (key) idempotency.set(key, { status: 201, body: inserted });
+    return c.json(inserted, 201);
+  });
+
   // ── Task routes ──────────────────────────────────────────
-  app.get('/api/tasks', (c) => {
+  app.get('/api/tasks', async (c) => {
     const q = c.req.query();
-    const tasks = listTasks(store, {
+    const tasks = await listTasks(store, {
       scope: q.scope as TaskScope | undefined,
       status: q.status as TaskStatus | undefined,
       focused: boolParam(q.focused),
@@ -126,10 +121,10 @@ export function createApp(deps: ServerDeps): Hono {
     return c.json(tasks);
   });
 
-  app.get('/api/search', (c) => {
+  app.get('/api/search', async (c) => {
     const q = c.req.query();
     const query = q.q ?? q.query ?? '';
-    const matches = searchTasks(store, {
+    const matches = await searchTasks(store, {
       query,
       scope: q.scope as TaskScope | undefined,
       status: q.status as TaskStatus | undefined,
@@ -138,20 +133,20 @@ export function createApp(deps: ServerDeps): Hono {
     return c.json(matches);
   });
 
-  app.get('/api/stats', (c) => c.json(getStats(store)));
+  app.get('/api/stats', async (c) => c.json(await getStats(store)));
 
-  app.get('/api/metrics', (c) => {
+  app.get('/api/metrics', async (c) => {
     const date = c.req.query('date') ?? localDateString();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return c.json({ error: 'invalid date' }, 400);
     }
-    return c.json(buildMetrics(store, date));
+    return c.json(await buildMetrics(store, date));
   });
 
-  app.get('/api/categories', (c) => c.json(getCategories(store)));
+  app.get('/api/categories', async (c) => c.json(await getCategories(store)));
 
-  app.get('/api/tasks/:id', (c) => {
-    const result = getTask(store, c.req.param('id'));
+  app.get('/api/tasks/:id', async (c) => {
+    const result = await getTask(store, c.req.param('id'));
     if (!result) return c.json({ error: 'not found' }, 404);
     return c.json({ ...result.task, subtasks: result.subtasks });
   });

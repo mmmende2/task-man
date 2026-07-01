@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import { setExitOutput } from '../exitOutput.js';
-import type { Task } from '../../types.js';
+import type { DayReport, Task } from '../../types.js';
 import type { TaskStore } from '../../store.js';
+import { LocalStore } from '../../local-store.js';
 import { buildDayReport } from '../../report.js';
+import { EMPTY_DAY_REPORT } from '../shared/emptyDayReport.js';
 import { getMidDayMessage } from '../../messages.js';
 import { renderDayReportMarkdown } from '../../render-terminal.js';
 import { ProgressBar } from '../shared/ProgressBar.js';
@@ -33,10 +35,25 @@ export function MetricsMode({ store }: Props) {
   const [dateCursor, setDateCursor] = useState(0);
 
   const today = viewDate;
-  const report = buildDayReport(store, today);
+  const asyncStore = useMemo(() => new LocalStore(store), [store]);
+  const [report, setReport] = useState<DayReport>(EMPTY_DAY_REPORT);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([buildDayReport(asyncStore, today), asyncStore.load()]).then(([r, tasks]) => {
+      if (!cancelled) {
+        setReport(r);
+        setAllTasks(tasks);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [asyncStore, today]);
+
   const { stats } = report;
 
-  const allTasks = store.load();
   const allParents = allTasks.filter(t => t.parent_id === null);
 
   // Build subtask info per parent: split done-today vs done-prior

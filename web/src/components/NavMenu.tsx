@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
 import './NavMenu.css';
 
 type Current = 'focus' | 'backlog' | 'capture' | 'metrics';
@@ -10,7 +9,7 @@ interface Props {
 }
 
 interface Item {
-  key: Current | 'logout';
+  key: Current;
   label: string;
   to?: string;
   soon?: boolean;
@@ -40,16 +39,6 @@ export function NavMenu({ current }: Props) {
   const go = (to: string) => {
     setOpen(false);
     nav(to);
-  };
-
-  const logout = async () => {
-    setOpen(false);
-    try {
-      await api.logout();
-    } finally {
-      // logout response is fire-and-forget for UX; route regardless.
-      nav('/login', { replace: true });
-    }
   };
 
   return (
@@ -84,15 +73,6 @@ export function NavMenu({ current }: Props) {
                 </button>
               );
             })}
-            <div className="nav-menu-sep" />
-            <button
-              className="nav-menu-item logout"
-              onClick={logout}
-              type="button"
-              role="menuitem"
-            >
-              Log out
-            </button>
           </div>
         </>
       )}

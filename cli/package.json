@@ -19,7 +19,12 @@
     "./refine-queue": "./dist/refine-queue.js",
     "./handlers": "./dist/handlers/index.js",
     "./parse-entry": "./dist/parse-entry.js",
-    "./local-date": "./dist/local-date.js"
+    "./local-date": "./dist/local-date.js",
+    "./api-client": "./dist/api-client.js",
+    "./store-interface": "./dist/store-interface.js",
+    "./local-store": "./dist/local-store.js",
+    "./remote-store": "./dist/remote-store.js",
+    "./get-store": "./dist/get-store.js"
   },
   "scripts": {
     "build": "tsc",

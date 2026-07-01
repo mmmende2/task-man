@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { INSIGHTS_LOG_FILE } from './constants.js';
-import { TaskStore } from './store.js';
-import type { InsightType } from './types.js';
+import { completedOn } from './task-filters.js';
+import type { InsightType, Task } from './types.js';
 
 interface InsightsLog {
   lastType: InsightType | null;
@@ -31,7 +31,7 @@ function dateStr(daysAgo: number, fromDate: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function generateInsight(store: TaskStore, date: string): string | null {
+export function generateInsight(tasks: Task[], date: string): string | null {
   const log = loadInsightsLog();
   const lastType = log.lastType;
 
@@ -40,16 +40,15 @@ export function generateInsight(store: TaskStore, date: string): string | null {
     return log.lastMessage;
   }
 
-  const completedToday = store.getCompletedOn(date);
+  const completedToday = completedOn(tasks, date);
   const todayCount = completedToday.length;
 
   const candidates: { type: InsightType; message: string }[] = [];
 
   // 1. Personal best
   if (todayCount > 0) {
-    const allTasks = store.load();
     const dateCounts = new Map<string, number>();
-    for (const t of allTasks) {
+    for (const t of tasks) {
       if (t.completed_at) {
         const d = t.completed_at.slice(0, 10);
         if (d !== date) {
@@ -71,7 +70,7 @@ export function generateInsight(store: TaskStore, date: string): string | null {
     let streak = 1;
     for (let i = 1; i <= 365; i++) {
       const d = dateStr(i, date);
-      if (store.getCompletedOn(d).length > 0) {
+      if (completedOn(tasks, d).length > 0) {
         streak++;
       } else {
         break;
@@ -87,7 +86,7 @@ export function generateInsight(store: TaskStore, date: string): string | null {
 
   // 3. vs Yesterday
   const yesterday = dateStr(1, date);
-  const yesterdayCount = store.getCompletedOn(yesterday).length;
+  const yesterdayCount = completedOn(tasks, yesterday).length;
   if (todayCount > yesterdayCount && yesterdayCount > 0) {
     const diff = todayCount - yesterdayCount;
     candidates.push({
@@ -146,8 +145,8 @@ export function generateInsight(store: TaskStore, date: string): string | null {
   let thisWeekTotal = 0;
   let lastWeekTotal = 0;
   for (let i = 0; i <= 6; i++) {
-    thisWeekTotal += store.getCompletedOn(dateStr(i, date)).length;
-    lastWeekTotal += store.getCompletedOn(dateStr(i + 7, date)).length;
+    thisWeekTotal += completedOn(tasks, dateStr(i, date)).length;
+    lastWeekTotal += completedOn(tasks, dateStr(i + 7, date)).length;
   }
   if (lastWeekTotal > 0 && thisWeekTotal > lastWeekTotal) {
     const pctUp = Math.round(((thisWeekTotal - lastWeekTotal) / lastWeekTotal) * 100);
