@@ -1,14 +1,18 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { TaskStore } from '../../store.js';
+import { getStore } from '../../get-store.js';
 import type { Task, TaskFilter } from '../../types.js';
 
 export function useTaskStore(filter?: TaskFilter, pollInterval?: number) {
-  const storeRef = useRef(new TaskStore());
-  const [tasks, setTasks] = useState<Task[]>(() => storeRef.current.query(filter));
+  const storeRef = useRef(getStore());
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   const reload = useCallback(() => {
-    setTasks(storeRef.current.query(filter));
+    storeRef.current.query(filter).then(setTasks);
   }, [filter]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   useEffect(() => {
     if (pollInterval && pollInterval > 0) {

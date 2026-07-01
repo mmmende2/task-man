@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Box, Text } from 'ink';
 import type { Task, TaskScope } from '../../types.js';
-import type { TaskStore } from '../../store.js';
+import type { Store } from '../../store-interface.js';
 import type { VimMode, VimAction } from '../hooks/useVimKeys.js';
 import { useVimKeys } from '../hooks/useVimKeys.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
@@ -18,7 +18,7 @@ interface Props {
   subtaskMap: Map<string, Task[]>;
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
-  store: TaskStore;
+  store: Store;
   reload: () => void;
   vimMode: VimMode;
   setVimMode: (mode: VimMode) => void;
@@ -241,52 +241,52 @@ export function FocusMode({
 
       case 'paste': {
         if (!clipboard) return;
-        const allTasks = store.load();
-
-        // Determine target position
-        let targetIndex: number;
-        if (navTarget === 'subtasks') {
-          const anchorSub = currentSubtasks[subtaskIndex];
-          if (anchorSub) {
-            targetIndex = allTasks.findIndex(t => t.id === anchorSub.id);
-            if (!action.above) targetIndex += 1;
-          } else if (selectedTask) {
-            // No subtasks — insert after parent
-            targetIndex = allTasks.findIndex(t => t.id === selectedTask.id) + 1;
+        store.load().then((allTasks) => {
+          // Determine target position
+          let targetIndex: number;
+          if (navTarget === 'subtasks') {
+            const anchorSub = currentSubtasks[subtaskIndex];
+            if (anchorSub) {
+              targetIndex = allTasks.findIndex(t => t.id === anchorSub.id);
+              if (!action.above) targetIndex += 1;
+            } else if (selectedTask) {
+              // No subtasks — insert after parent
+              targetIndex = allTasks.findIndex(t => t.id === selectedTask.id) + 1;
+            } else {
+              targetIndex = allTasks.length;
+            }
           } else {
-            targetIndex = allTasks.length;
+            const anchorTask = filteredTasks[selectedIndex];
+            if (anchorTask) {
+              targetIndex = allTasks.findIndex(t => t.id === anchorTask.id);
+              if (!action.above) targetIndex += 1;
+            } else {
+              targetIndex = allTasks.length;
+            }
           }
-        } else {
-          const anchorTask = filteredTasks[selectedIndex];
-          if (anchorTask) {
-            targetIndex = allTasks.findIndex(t => t.id === anchorTask.id);
-            if (!action.above) targetIndex += 1;
+
+          const origClipboard = clipboard;
+          const taskToInsert = { ...clipboard.task };
+
+          // If pasting in subtask nav, make it a subtask of the selected task
+          if (navTarget === 'subtasks' && selectedTask) {
+            taskToInsert.parent_id = selectedTask.id;
           } else {
-            targetIndex = allTasks.length;
+            taskToInsert.parent_id = null;
           }
-        }
 
-        const origClipboard = clipboard;
-        const taskToInsert = { ...clipboard.task };
-
-        // If pasting in subtask nav, make it a subtask of the selected task
-        if (navTarget === 'subtasks' && selectedTask) {
-          taskToInsert.parent_id = selectedTask.id;
-        } else {
-          taskToInsert.parent_id = null;
-        }
-
-        store.insertAt(taskToInsert, targetIndex).then(() => {
-          undoStack.push({
-            undo: async () => {
-              await store.remove(taskToInsert.id);
-              await store.insertAt(origClipboard.task, origClipboard.index);
-            },
+          store.insertAt(taskToInsert, targetIndex).then(() => {
+            undoStack.push({
+              undo: async () => {
+                await store.remove(taskToInsert.id);
+                await store.insertAt(origClipboard.task, origClipboard.index);
+              },
+            });
+            setClipboard(null);
+            setVimMode('normal');
+            onHoldingChange?.(undefined);
+            reload();
           });
-          setClipboard(null);
-          setVimMode('normal');
-          onHoldingChange?.(undefined);
-          reload();
         });
         break;
       }

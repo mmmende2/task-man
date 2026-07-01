@@ -95,15 +95,15 @@ function InteractiveAppInner() {
   useEffect(() => {
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
     const now = Date.now();
-    const stale = store.load().filter(t =>
-      t.focused &&
-      t.status === 'done' &&
-      now - new Date(t.updated_at).getTime() >= THREE_DAYS_MS
-    );
-    if (stale.length === 0) return;
-    Promise.all(stale.map(t => store.update(t.id, { focused: false })))
-      .then(() => reload())
-      .catch(() => {});
+    store.load().then(all => {
+      const stale = all.filter(t =>
+        t.focused &&
+        t.status === 'done' &&
+        now - new Date(t.updated_at).getTime() >= THREE_DAYS_MS
+      );
+      if (stale.length === 0) return;
+      return Promise.all(stale.map(t => store.update(t.id, { focused: false }))).then(() => reload());
+    }).catch(() => {});
   }, []);
 
   const switchMode = (newMode: AppMode) => {

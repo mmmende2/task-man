@@ -3,18 +3,19 @@ import { render } from 'ink-testing-library';
 import { createElement } from 'react';
 import stripAnsi from 'strip-ansi';
 
-// Mock useTaskStore to avoid filesystem dependencies
+// Mock useTaskStore to avoid filesystem dependencies. Store methods are
+// async now (Store interface) — must resolve, not return arrays directly.
 vi.mock('../ui/hooks/useTaskStore.js', () => ({
   useTaskStore: () => ({
     tasks: [],
     reload: () => {},
     store: {
       update: vi.fn(() => Promise.resolve({})),
-      load: vi.fn(() => []),
-      query: vi.fn(() => []),
-      getCompletedOn: vi.fn(() => []),
-      getInProgressUpdatedOn: vi.fn(() => []),
-      getCreatedOn: vi.fn(() => []),
+      load: vi.fn(() => Promise.resolve([])),
+      query: vi.fn(() => Promise.resolve([])),
+      getCompletedOn: vi.fn(() => Promise.resolve([])),
+      getInProgressUpdatedOn: vi.fn(() => Promise.resolve([])),
+      getCreatedOn: vi.fn(() => Promise.resolve([])),
     },
   }),
 }));

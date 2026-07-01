@@ -58,7 +58,7 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
       <Box justifyContent="space-between">
         <Text dimColor>  {navContent || ' '}</Text>
         {server.running && (
-          <Text color="#ff79c6" dimColor>● web :{server.port}  </Text>
+          <Text color="#ff79c6" dimColor>● {server.remoteUrl ? 'remote' : `web :${server.port}`}  </Text>
         )}
       </Box>
       <Text color="#00a5a5">  {pageContent || ' '}</Text>

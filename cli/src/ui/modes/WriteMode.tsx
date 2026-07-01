@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { Task, TaskPriority, TaskScope } from '../../types.js';
-import type { TaskStore } from '../../store.js';
+import type { Store, TaskChanges } from '../../store-interface.js';
 import type { AppMode, WriteSubMode } from '../types.js';
 import type { VimMode } from '../hooks/useVimKeys.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
@@ -22,7 +22,7 @@ import { CapturePane } from './write/CapturePane.js';
 export type TimeFilter = 'session' | 'today' | 'all';
 
 interface Props {
-  store: TaskStore;
+  store: Store;
   tasks?: Task[];
   reload: () => void;
   scopeFilter: TaskScope | 'all';
@@ -125,7 +125,15 @@ export function WriteMode({
   const config = useMemo(() => loadConfig(), []);
   const currentSessionId = useMemo(() => getCurrentSessionId(), []);
 
-  const allTasks = useMemo(() => tasksProp ?? store.load(), [tasksProp, store, tick]);
+  // tasksProp (InteractiveApp's normal path) is already-loaded and reactive;
+  // the self-load fallback only exercises when a caller renders WriteMode
+  // standalone without it (some tests, preview.tsx).
+  const [selfLoadedTasks, setSelfLoadedTasks] = useState<Task[]>([]);
+  useEffect(() => {
+    if (tasksProp) return;
+    store.load().then(setSelfLoadedTasks);
+  }, [tasksProp, store, tick]);
+  const allTasks = tasksProp ?? selfLoadedTasks;
 
   const localReload = () => {
     setTick(t => t + 1);
@@ -407,7 +415,7 @@ export function WriteMode({
     return currentSubtasks[subtaskIndex] ?? null;
   };
 
-  const updateSelected = (changes: Parameters<TaskStore['update']>[1]) => {
+  const updateSelected = (changes: TaskChanges) => {
     const task = getSelectedTask();
     if (!task) return;
     const prev: Partial<Task> = {};

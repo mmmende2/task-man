@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import { setExitOutput } from '../exitOutput.js';
 import type { DayReport, Task } from '../../types.js';
-import type { TaskStore } from '../../store.js';
-import { LocalStore } from '../../local-store.js';
+import type { Store } from '../../store-interface.js';
 import { buildDayReport } from '../../report.js';
 import { EMPTY_DAY_REPORT } from '../shared/emptyDayReport.js';
 import { getMidDayMessage } from '../../messages.js';
@@ -16,7 +15,7 @@ import { InlineEdit } from '../shared/InlineEdit.js';
 import { localDateString } from '../../local-date.js';
 
 interface Props {
-  store: TaskStore;
+  store: Store;
 }
 
 interface SubtaskInfo {
@@ -35,13 +34,12 @@ export function MetricsMode({ store }: Props) {
   const [dateCursor, setDateCursor] = useState(0);
 
   const today = viewDate;
-  const asyncStore = useMemo(() => new LocalStore(store), [store]);
   const [report, setReport] = useState<DayReport>(EMPTY_DAY_REPORT);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([buildDayReport(asyncStore, today), asyncStore.load()]).then(([r, tasks]) => {
+    Promise.all([buildDayReport(store, today), store.load()]).then(([r, tasks]) => {
       if (!cancelled) {
         setReport(r);
         setAllTasks(tasks);
@@ -50,7 +48,7 @@ export function MetricsMode({ store }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [asyncStore, today]);
+  }, [store, today]);
 
   const { stats } = report;
 

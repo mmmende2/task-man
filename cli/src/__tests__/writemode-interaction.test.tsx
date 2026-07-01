@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TaskStore } from '../store.js';
+import { LocalStore } from '../local-store.js';
 import { WriteMode } from '../ui/modes/WriteMode.js';
 import { getCurrentSessionId } from '../sessions.js';
 import { renderWithDimensions } from './helpers/renderWithDimensions.js';
@@ -18,12 +19,14 @@ function typeChars(stdin: { write: (s: string) => void }, text: string) {
 describe('WriteMode interaction', () => {
   let tmpDir: string;
   let store: TaskStore;
+  let asyncStore: LocalStore;
   let cleanup: () => void;
   let modeChanges: string[];
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'task-man-writemode-'));
     store = new TaskStore(join(tmpDir, 'tasks.json'));
+    asyncStore = new LocalStore(store);
     modeChanges = [];
   });
 
@@ -35,7 +38,7 @@ describe('WriteMode interaction', () => {
   function renderWrite() {
     return renderWithDimensions(
       createElement(WriteMode, {
-        store,
+        store: asyncStore,
         reload: () => {},
         scopeFilter: 'all',
         onModeChange: (mode: string) => modeChanges.push(mode),
@@ -371,7 +374,7 @@ describe('WriteMode interaction', () => {
 
     const result = renderWithDimensions(
       createElement(WriteMode, {
-        store,
+        store: asyncStore,
         reload: () => {},
         scopeFilter: 'all',
         onModeChange: (mode: string) => modeChanges.push(mode),

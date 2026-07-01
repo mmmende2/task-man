@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TaskStore } from '../store.js';
+import { LocalStore } from '../local-store.js';
 import type { Task } from '../types.js';
 import type { VimMode } from '../ui/hooks/useVimKeys.js';
 import { PlanMode } from '../ui/modes/PlanMode.js';
@@ -27,7 +28,7 @@ function PlanModeHarness({ store, initialTasks }: { store: TaskStore; initialTas
     backlogTasks,
     selectedIndex,
     onSelectedIndexChange: setSelectedIndex,
-    store,
+    store: new LocalStore(store),
     reload,
     vimMode,
     setVimMode,

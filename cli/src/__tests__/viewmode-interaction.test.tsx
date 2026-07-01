@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TaskStore } from '../store.js';
+import { LocalStore } from '../local-store.js';
 import type { Task } from '../types.js';
 import type { VimMode } from '../ui/hooks/useVimKeys.js';
 import { FocusMode } from '../ui/modes/FocusMode.js';
@@ -38,7 +39,7 @@ function FocusModeHarness({ store, initialTasks }: { store: TaskStore; initialTa
     subtaskMap,
     selectedIndex,
     onSelectedIndexChange: setSelectedIndex,
-    store,
+    store: new LocalStore(store),
     reload,
     vimMode,
     setVimMode,
