@@ -12,7 +12,7 @@ import { PulsingProgressBar } from '../shared/PulsingProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
-import { localDateString } from '../../local-date.js';
+import { isOnLocalDate, localDateString } from '../../local-date.js';
 
 interface Props {
   store: Store;
@@ -62,7 +62,7 @@ export function MetricsMode({ store }: Props) {
     info.subtasks.push(t);
     info.total++;
     if (t.status === 'done') {
-      if (t.completed_at && t.completed_at.startsWith(today)) {
+      if (isOnLocalDate(t.completed_at, today)) {
         info.doneToday++;
       } else {
         info.donePrior++;
@@ -76,7 +76,7 @@ export function MetricsMode({ store }: Props) {
   // Focus state is intentionally ignored — metrics reflect actual activity,
   // not current focus membership.
   const todayTasks = allParents.filter(task => {
-    const completedToday = task.status === 'done' && task.completed_at?.startsWith(today);
+    const completedToday = task.status === 'done' && isOnLocalDate(task.completed_at, today);
     const info = subtaskInfoMap.get(task.id);
     const hasSubtasksDoneToday = info ? info.doneToday > 0 : false;
     return completedToday || hasSubtasksDoneToday;
@@ -177,7 +177,7 @@ export function MetricsMode({ store }: Props) {
             const isLast = i === info.subtasks.length - 1;
             const connector = isLast ? '└─' : '├─';
             const isDone = sub.status === 'done';
-            const isDoneToday = isDone && sub.completed_at?.startsWith(today);
+            const isDoneToday = isDone && isOnLocalDate(sub.completed_at, today);
             const marker = isDone ? '◉' : '○';
 
             rows.push(

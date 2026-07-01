@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { INSIGHTS_LOG_FILE } from './constants.js';
 import { completedOn } from './task-filters.js';
+import { localDateString } from './local-date.js';
 import type { InsightType, Task } from './types.js';
 
 interface InsightsLog {
@@ -25,10 +26,15 @@ function saveInsightsLog(log: InsightsLog): void {
   writeFileSync(INSIGHTS_LOG_FILE, JSON.stringify(log, null, 2), 'utf-8');
 }
 
+// `new Date(fromDate)` on a date-only string parses as UTC midnight, not
+// local midnight — near a DST transition, subtracting days off that instant
+// and reading back via toISOString() could land on the wrong local calendar
+// date. Building the Date from local year/month/day fields avoids that.
 function dateStr(daysAgo: number, fromDate: string): string {
-  const d = new Date(fromDate);
+  const [y, m, day] = fromDate.split('-').map(Number);
+  const d = new Date(y, m - 1, day);
   d.setDate(d.getDate() - daysAgo);
-  return d.toISOString().slice(0, 10);
+  return localDateString(d);
 }
 
 export function generateInsight(tasks: Task[], date: string): string | null {
