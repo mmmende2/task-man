@@ -64,8 +64,18 @@ export interface TaskManConfig {
   server?: {
     port?: number;            // default 3030
     bind?: string;            // default "0.0.0.0"; "127.0.0.1" forces local-only
-    pin?: string;             // 4-digit, stored as a string (preserves leading zeros)
-    session_secret?: string;  // auto-generated on first start
+  };
+  client?: {
+    // Anything other than the literal 'remote' is treated as local — a
+    // typo here should fail safe to local, not silently point at a URL
+    // the user didn't opt into.
+    mode?: 'local' | 'remote';
+    remote_url?: string;
+    // Cloudflare Access service token — non-expiring, for headless MCP.
+    // When absent, RemoteStore falls back to the interactive
+    // `cloudflared access login` JWT flow (used by the TUI).
+    service_token_id?: string;
+    service_token_secret?: string;
   };
 }
 

@@ -28,6 +28,9 @@ export const DEFAULT_CONFIG: TaskManConfig = {
     port: DEFAULT_SERVER_PORT,
     bind: DEFAULT_SERVER_BIND,
   },
+  client: {
+    mode: 'local',
+  },
 };
 
 export const SESSION_COLORS: Record<SessionColor, string> = {

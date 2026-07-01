@@ -1,7 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TaskStore } from 'task-man/store';
-import { LocalStore } from 'task-man/local-store';
+import { getStore } from 'task-man/get-store';
 import { buildDayReport } from 'task-man/report';
 import { loadConfig, saveConfig } from 'task-man/config';
 import { renderDayReportHtml } from 'task-man/render-html';
@@ -54,7 +53,7 @@ function summarizeTasks(tasks: Task[]): string {
 }
 
 export function registerTools(server: McpServer): void {
-  const store = new LocalStore(new TaskStore());
+  const store = getStore();
 
   // ── task_add ──────────────────────────────────────────────
   server.registerTool(
