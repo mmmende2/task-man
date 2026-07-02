@@ -1,0 +1,32 @@
+services:
+  task-man:
+    build:
+      context: ..
+      dockerfile: cli/Dockerfile
+    image: task-man:local
+    restart: unless-stopped
+    volumes:
+      - task-man-data:/root/.task-man
+    networks:
+      - internal
+    # Deliberately no `ports:` — cloudflared is the only thing that reaches
+    # this container, over the internal docker network. No inbound ports on
+    # the droplet itself.
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    networks:
+      - internal
+    depends_on:
+      - task-man
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  task-man-data:
