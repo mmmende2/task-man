@@ -8,9 +8,9 @@ This repo is a small multi-package workspace. Each package has its own README wi
 
 | Path | Package | What it is |
 |------|---------|------------|
-| [`cli/`](./cli/README.md) | `task-man` | The CLI, Ink-based TUI, and bundled Hono server. Also exposes the `TaskStore` API consumed by the other packages. |
-| [`web/`](./web/README.md) | `task-man-web` | Vite/React SPA for mobile / second-device access. Built output is embedded into the CLI as `cli/dist-web/`. |
-| [`mcp/`](./mcp/README.md) | `task-man-mcp` | MCP server for Claude Code. Lets Claude read/write your tasks. |
+| [`cli/`](./cli/README.md) | `task-man` | The one publishable package: TUI, bundled Hono server + web app, and the MCP server as a second bin (`task-man-mcp`, source in `cli/src/mcp/`). |
+| [`web/`](./web/README.md) | `task-man-web` (private) | Vite/React SPA for mobile / second-device access. Built output is embedded into the CLI as `cli/dist-web/`. |
+| [`mcp/`](./mcp/README.md) | — | MCP setup docs + full tool reference. The code lives in `cli/src/mcp/` (merged 2026-07, see [`docs/packaging-plan.md`](./docs/packaging-plan.md)). |
 
 ## How they fit together
 
@@ -26,10 +26,10 @@ This repo is a small multi-package workspace. Each package has its own README wi
                     │  RemoteStore ──▶│── HTTPS + Cloudflare Access ──▶ hosted server
                     └────▲───────▲────┘
                          │       │
-                    ┌────┴───┐ ┌─┴──────┐
-                    │  TUI   │ │  MCP   │
-                    │ (cli/) │ │ (mcp/) │
-                    └────────┘ └────────┘
+                    ┌────┴───┐ ┌─┴────────────┐
+                    │  TUI   │ │  MCP         │
+                    │ (cli/) │ │ (cli/src/mcp)│
+                    └────────┘ └──────────────┘
 
         ┌──────────────────────┐         ┌──────────────────┐
         │  task-man serve      │◀──HTTP──│  web SPA         │
@@ -46,14 +46,14 @@ The TUI and MCP code against an async `Store` interface: `LocalStore` (the defau
 git clone <repo-url>
 cd task-man
 
-# Build and link the CLI
+# Build and link — one package provides both the TUI and the MCP server
 cd cli && npm install && npm run build && npm link
-
-# (optional) Build and link the MCP server for Claude Code
-cd ../mcp && npm install && npm run build && npm link
 
 task-man --version    # confirm install
 task-man              # launch the interactive TUI
+
+# Register the MCP server with Claude Code (after linking):
+claude mcp add task-man -- task-man-mcp
 ```
 
 For development across all three packages at once:

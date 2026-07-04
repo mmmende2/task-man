@@ -1,13 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { getStore } from 'task-man/get-store';
-import { buildDayReport } from 'task-man/report';
-import { loadConfig, saveConfig } from 'task-man/config';
-import { renderDayReportHtml } from 'task-man/render-html';
-import { sendEndOfDayEmail } from 'task-man/email';
-import { getCurrentSessionId } from 'task-man/sessions';
-import { buildRefineQueueWithReasons } from 'task-man/refine-queue';
-import { parseReportDate } from 'task-man/local-date';
+import { getStore } from '../get-store.js';
+import { buildDayReport } from '../report.js';
+import { loadConfig, saveConfig } from '../config.js';
+import { renderDayReportHtml } from '../render-html.js';
+import { sendEndOfDayEmail } from '../email.js';
+import { getCurrentSessionId } from '../sessions.js';
+import { buildRefineQueueWithReasons } from '../refine-queue.js';
+import { parseReportDate } from '../local-date.js';
 import {
   createTask,
   listTasks,
@@ -20,8 +20,8 @@ import {
   unfocusTask,
   searchTasks,
   getStats,
-} from 'task-man/handlers';
-import type { SessionColor, Task } from 'task-man/types';
+} from '../handlers/index.js';
+import type { SessionColor, Task } from '../types.js';
 
 const TIME_ESTIMATES = ['<5m', '20m', '45m', '>1h', '>3h'] as const;
 const VIBES = ['love', 'ok', 'dread'] as const;

@@ -1,33 +1,32 @@
-# task-man-mcp
+# task-man MCP server
 
-MCP server for Claude Code. Lets Claude create, update, focus, and report on tasks in the same `~/.task-man/` store the CLI and TUI use.
+MCP server for Claude Code. Lets Claude create, update, focus, and report on tasks in the same `~/.task-man/` store the TUI uses.
 
-Imports the store and handlers from the [CLI package](../cli/README.md) via `getStore()`: in the default local mode it operates on `~/.task-man/tasks.json` in-process; in remote mode (`client.mode = remote` in `~/.task-man/config.json`) the same tools talk to the hosted server over HTTPS, authenticating with a Cloudflare Access service token (`client.service_token_id` / `client.service_token_secret`). Tool signatures are identical in both modes.
+> **The code lives in the main package** — `cli/src/mcp/`, shipped as the
+> `task-man-mcp` bin of the `task-man` npm package (merged 2026-07; see
+> [`docs/packaging-plan.md`](../docs/packaging-plan.md)). This directory
+> holds only this reference.
+
+Uses the store and handlers directly via `getStore()`: in the default local mode it operates on `~/.task-man/tasks.json` in-process; in remote mode (`client.mode = remote` in `~/.task-man/config.json`) the same tools talk to the hosted server over HTTPS, authenticating with a Cloudflare Access service token (`client.service_token_id` / `client.service_token_secret`). Tool signatures are identical in both modes.
 
 ## Install
 
+One package provides both bins:
+
 ```bash
-cd mcp
-npm install
-npm run build
-npm link        # exposes `task-man-mcp` globally
+cd cli && npm install && npm run build && npm link   # from source
+# or, once published:  npm install -g task-man
 ```
 
 ## Configure Claude Code
 
-Add to your Claude Code MCP config (`.claude/settings.json` or equivalent):
-
-```json
-{
-  "mcpServers": {
-    "task-man": {
-      "command": "task-man-mcp"
-    }
-  }
-}
+```bash
+claude mcp add task-man -- task-man-mcp
+# or, once published, with no install at all:
+claude mcp add task-man -- npx -y --package=task-man task-man-mcp
 ```
 
-If `task-man-mcp` was installed via `npm link`, make sure the linked binary is on the PATH that Claude Code uses (see the [nvm note in `cli/README.md`](../cli/README.md#if-you-use-nvm)).
+If the bin came from `npm link`, make sure it's on the PATH Claude Code uses (see the [nvm note in `cli/README.md`](../cli/README.md#if-you-use-nvm)).
 
 ## Conventions
 

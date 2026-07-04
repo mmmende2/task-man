@@ -39,7 +39,7 @@ For the critique of this design, see [`critical-review-2026-07.md`](./critical-r
         │                  └───────────────────────────────────────────┘
         │                          ▲ HTTP :3030
 ┌───────┴───────┬───────────────┬──┴────────────────────────────────────┐
-│ TUI (cli/ui)  │ MCP (mcp/)    │ WEB (web/)                            │
+│ TUI (cli/ui)  │ MCP (cli/mcp) │ WEB (web/)                            │
 │ getStore() via│ getStore() in │ api.ts → createHttpClient (same-      │
 │ useTaskStore; │ tools.ts;     │ origin /api/*); pages: Focus, Capture,│
 │ modes call    │ 17 tools wrap │ Backlog, Metrics; usePoll (pauses on  │

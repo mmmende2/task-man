@@ -1,10 +1,32 @@
 {
   "name": "task-man",
-  "version": "0.1.1",
-  "description": "Personal task manager for developers who live in the terminal",
+  "version": "0.2.0",
+  "description": "Personal task manager for developers who live in the terminal — TUI, LAN web app, and MCP server for Claude",
+  "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mmmende2/task-man.git"
+  },
+  "keywords": [
+    "task-manager",
+    "tui",
+    "cli",
+    "mcp",
+    "claude",
+    "productivity"
+  ],
+  "files": [
+    "dist",
+    "dist-web",
+    "README.md"
+  ],
   "bin": {
-    "task-man": "./dist/index.js"
+    "task-man": "./dist/index.js",
+    "task-man-mcp": "./dist/mcp/index.js"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -27,15 +49,17 @@
     "./get-store": "./dist/get-store.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "build:web": "cd ../web && npm run build",
     "build:all": "npm run build && npm run build:web",
+    "prepublishOnly": "npm run build && npm run build:web && vitest run",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",
+    "@modelcontextprotocol/sdk": "^1.12.1",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
     "hono": "^4.12.23",
