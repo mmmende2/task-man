@@ -139,7 +139,7 @@ export interface UpdateTaskInput {
   priority?: TaskPriority;
   scope?: TaskScope;
   categories?: string[];
-  description?: string;
+  description?: string | null;
   focused?: boolean;
   time_estimate?: TimeEstimate | null;
   vibe?: Vibe | null;

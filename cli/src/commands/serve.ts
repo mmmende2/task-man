@@ -9,9 +9,10 @@ export const serveCommand = new Command('serve')
   .option('--port <port>', 'Port to listen on (default 3030)', (v) => parseInt(v, 10))
   .option(
     '--bind <addr>',
-    'Bind address. 127.0.0.1 for unauthenticated local dev (recommended); ' +
-      '0.0.0.0 for LAN/container access — put this behind Cloudflare Access ' +
-      'or another gate before exposing it beyond your own machine.',
+    'Bind address (default 127.0.0.1 — this machine only). Pass 0.0.0.0 for ' +
+      'LAN/container access, but note the API has no auth of its own: put it ' +
+      'behind Cloudflare Access or another gate before exposing it beyond ' +
+      'your own machine.',
   )
   .action(async (opts: { port?: number; bind?: string }) => {
     const { port, bind, urls, close } = startServer({ port: opts.port, bind: opts.bind });
@@ -32,7 +33,12 @@ export const serveCommand = new Command('serve')
     console.log();
     console.log(chalk.magenta.bold('  task-man web') + chalk.dim(`  (bind ${bind}:${port})`));
     console.log();
-    console.log('  Reach it from this or another device on the wifi:');
+    const localOnly = bind === '127.0.0.1' || bind === 'localhost';
+    console.log(
+      localOnly
+        ? '  Reach it from this machine (pass --bind 0.0.0.0 to allow LAN devices):'
+        : '  Reach it from this or another device on the wifi:',
+    );
     for (const url of urls) {
       console.log('    ' + chalk.cyan(url));
     }

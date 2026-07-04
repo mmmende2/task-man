@@ -1,6 +1,6 @@
 # Task Man — Product Requirements Document
 
-> This document is the product spec — what task-man is, who it's for, and how it should feel. It intentionally avoids implementation detail; the CLI reference lives in [`cli/README.md`](cli/README.md), MCP tools in [`mcp/README.md`](mcp/README.md), web UI in [`web/README.md`](web/README.md), and architectural notes in [`docs/architecture.md`](docs/architecture.md). The forward-looking hosting migration lives in [`docs/deploy-plan.md`](docs/deploy-plan.md).
+> This document is the product spec — what task-man is, who it's for, and how it should feel. It intentionally avoids implementation detail; the CLI reference lives in [`cli/README.md`](cli/README.md), MCP tools in [`mcp/README.md`](mcp/README.md), web UI in [`web/README.md`](web/README.md), and architectural notes in [`docs/system-map.md`](docs/system-map.md). The forward-looking hosting migration lives in [`docs/deploy-plan.md`](docs/deploy-plan.md).
 
 ---
 
@@ -144,13 +144,13 @@ Tasks are the only first-class object. Each task carries:
 
 ---
 
-## Non-Interactive CLI, MCP, and Web
+## MCP, Web, and the Operational CLI
 
 Everything the TUI does is also available as:
 
-- **Non-interactive CLI** — `task-man add`, `list`, `done`, `start`, `focus`, `unfocus`, `end-day`, `watch`, `config`, `serve`, `session-refocus`. Full flag reference in [`cli/README.md`](cli/README.md).
+- **Operational CLI only** — `task-man watch`, `config`, `serve`, `login` (plus the default interactive TUI). The task-facing CRUD/report subcommands were retired 2026-07 (humans → TUI/web, Claude → MCP; see Phase 5). Reference in [`cli/README.md`](cli/README.md).
 - **MCP server** — exposes the same actions to Claude as tools: add, list, get, subtasks, update, delete, complete, start, focus, unfocus, stats, categories, refine-queue, prioritize, end-day, search, session-color. Stdio transport, same JSON store, all mutations attributed as `created_by: claude`. Full reference in [`mcp/README.md`](mcp/README.md).
-- **Web (LAN)** — `task-man serve` starts a Hono server with a mobile-first React SPA. Reachable on the local wifi via `http://<host>.local:3030` after setting a 4-digit PIN. Scope: Focus view + Quick Capture. See [`web/README.md`](web/README.md).
+- **Web** — `task-man serve` starts a Hono server with a mobile-first React SPA. Local-only by default; `--bind 0.0.0.0` exposes it on the LAN (no auth of its own — in production Cloudflare Access gates the hostname). Scope: Focus, Quick Capture, Backlog, and Metrics. Plan/Refine stay TUI-only. See [`web/README.md`](web/README.md).
 
 All paths write to the same file. Focus mode reflects AI and web progress in real time.
 
@@ -234,16 +234,22 @@ Data model, JSON storage, non-interactive CLI, MCP server, interactive TUI (focu
 ### Phase 4 — LAN Web ✓
 - [x] Hono REST API server (`task-man serve`)
 - [x] Vite/React mobile-first web UI (Focus + Quick Capture)
-- [x] 4-digit PIN auth + signed session cookie
+- [x] 4-digit PIN auth + signed session cookie *(removed in Phase 5 — Cloudflare Access replaces it)*
 - [x] PWA shell (Add to Home Screen)
 
 ### Phase 5 — Hosted & Multi-Device
-Detailed in [`docs/deploy-plan.md`](docs/deploy-plan.md).
-- [ ] Single droplet on DigitalOcean (Docker + Cloudflare Tunnel)
-- [ ] Cloudflare Access as the auth gate (drops PIN)
-- [ ] TUI and MCP become remote clients (HTTP-backed `Store` with local-file fallback)
+Detailed in [`docs/deploy-plan.md`](docs/deploy-plan.md); manual infra steps in [`docs/phase2-manual-setup-guide.md`](docs/phase2-manual-setup-guide.md).
+- [x] TUI and MCP become remote clients (HTTP-backed `Store` with local-file fallback)
+- [x] PIN dropped; server verifies the Cloudflare Access JWT at the origin (`CF_ACCESS_*` env)
+- [ ] Single droplet on DigitalOcean (Docker + Cloudflare Tunnel) — Dockerfile/compose ready, not deployed
+- [x] Authorization layer — per-identity namespaces enforced server-side (scoped-store) + zod request validation; see docs/authorization-plan.md
 - [ ] Nightly backups to DO Spaces
 - [ ] SQLite migration (optional, when JSON contention warrants)
+- [x] Retire the task-facing CLI (`add`, `list`, `done`, `start`, `focus`, `unfocus`,
+  `session-refocus`, `end-day`) — removed 2026-07-04. Humans use the TUI/web, Claude
+  uses MCP (`task_end_day` covers reports/email); the commands only ever wrote the
+  local file, bypassing remote mode. Operational commands stay: interactive TUI,
+  `watch`, `serve`, `login`, `config`.
 
 ### Phase 6 — Advanced
 - [ ] Recurring tasks

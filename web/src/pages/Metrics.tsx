@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api';
+import { api, ApiError, reloadForAuth } from '../api';
 import { usePoll } from '../lib/use-poll';
 import { NavMenu } from '../components/NavMenu';
 import { Brand } from '../components/Brand';
@@ -11,7 +10,6 @@ import './Metrics.css';
 const STATUS_ORDER: Record<string, number> = { done: 0, in_progress: 1, todo: 2 };
 
 export function MetricsPage() {
-  const nav = useNavigate();
   const today = localDateString();
   const [viewDate, setViewDate] = useState(today);
 
@@ -20,11 +18,11 @@ export function MetricsPage() {
       return await api.getMetrics(viewDate);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        nav('/login', { replace: true });
+        reloadForAuth();
       }
       throw err;
     }
-  }, [nav, viewDate]);
+  }, [viewDate]);
 
   // Slower cadence than Focus — Metrics is a reflective view.
   const { data: metrics, failures } = usePoll(fetcher, 15000);

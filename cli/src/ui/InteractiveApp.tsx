@@ -192,6 +192,7 @@ function InteractiveAppInner() {
           scopeFilter={scopeFilter}
           onModeChange={switchMode}
           onCycleScope={cycleScope}
+          onHoldingChange={setHoldingTitle}
           vimMode={vimMode}
           setVimMode={setVimMode}
           subMode={writeSubMode}

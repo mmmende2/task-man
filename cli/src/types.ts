@@ -22,6 +22,10 @@ export interface Task {
   session_id: string | null;
   time_estimate: TimeEstimate | null;
   vibe: Vibe | null;
+  // Email of the identity this task belongs to. null/absent = legacy task,
+  // treated as TASK_MAN_DEFAULT_OWNER's at filter time (see server/scoped-store.ts).
+  // Stamped server-side only — never client-assignable (schemas.ts strips it).
+  owner?: string | null;
 }
 
 export interface CreateTaskInput {
@@ -36,6 +40,8 @@ export interface CreateTaskInput {
   session_id?: string | null;
   time_estimate?: TimeEstimate | null;
   vibe?: Vibe | null;
+  // Server-internal (set by scoped-store, stripped from request bodies).
+  owner?: string | null;
 }
 
 export interface TaskFilter {
@@ -63,7 +69,7 @@ export interface TaskManConfig {
   sessions: Record<string, SessionColor>;
   server?: {
     port?: number;            // default 3030
-    bind?: string;            // default "0.0.0.0"; "127.0.0.1" forces local-only
+    bind?: string;            // default "127.0.0.1" (local-only); "0.0.0.0" exposes on LAN
   };
   client?: {
     // Anything other than the literal 'remote' is treated as local — a

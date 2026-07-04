@@ -66,16 +66,19 @@ task-man                          # launch interactive TUI
 
 ## Interactive TUI
 
-Running `task-man` with no arguments opens the TUI. Four modes:
+Running `task-man` with no arguments opens the TUI. Five modes:
 
 | Key | Mode | Purpose |
 |-----|------|---------|
 | `f` | Focus | Work through your focused tasks |
-| `p` | Plan | Organize focused + backlog lists |
+| `t` | Plan (triage) | Organize focused + backlog lists |
 | `w` | Write | Quick-add tasks from a prompt |
 | `m` | Metrics | View stats and generate end-of-day reports |
+| `r` | Refine | Rapid-fire triage of tasks missing metadata |
 
-`S` cycles the scope filter: all / personal / professional.
+`~` cycles the scope filter: all / personal / professional. The active scope always
+shows in the header (dim `all` when unfiltered), and rows carry a dim `·per`/`·pro`
+tag while viewing all scopes. `q` quits.
 
 ### Vim keybindings
 
@@ -92,7 +95,7 @@ Running `task-man` with no arguments opens the TUI. Four modes:
 |-----|--------|
 | `i` | Edit title (cursor at start) |
 | `A` | Edit title (cursor at end) |
-| `cc` | Clear title and edit from scratch |
+| `cc` | Clear title and edit from scratch (write review only) |
 | `o` | Create new task below |
 | `O` | Create new task above |
 | `Esc` / `Enter` | Save edit |
@@ -102,6 +105,7 @@ Running `task-man` with no arguments opens the TUI. Four modes:
 | Key | Action |
 |-----|--------|
 | `x` | Toggle done / todo |
+| `S` | Toggle scope personal / professional (focus, plan, write review) |
 | `Space` | Toggle focused / backlog (plan mode) |
 | `dd` | Cut task (enter holding mode) |
 | `p` | Paste below (in holding mode) |
@@ -113,42 +117,11 @@ Running `task-man` with no arguments opens the TUI. Four modes:
 
 ## CLI reference
 
-### `task-man add <title>`
-
-Create a new task.
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `-p, --priority <level>` | `low`, `medium`, `high` | `high` |
-| `-s, --scope <scope>` | `personal`, `professional` | `personal` |
-| `-c, --category <name>` | Category tag (repeatable) | — |
-| `--parent <id>` | Parent task ID (creates subtask) | — |
-| `-d, --description <text>` | Description | — |
-| `--created-by <who>` | `human`, `claude` | `human` |
-| `-f, --focused` | Add directly to focus list | backlog |
-
-```bash
-task-man add "Write tests" -p medium -c testing -s professional
-task-man add "Unit tests for store" --parent abc12
-```
-
-### `task-man list`
-
-| Flag | Description |
-|------|-------------|
-| `-s, --scope <scope>` | Filter by `personal` or `professional` |
-| `--status <status>` | Filter by `todo`, `in_progress`, `done` |
-| `--focused` | Show only focused tasks |
-| `--backlog` | Show only backlog tasks |
-| `-c, --category <name>` | Filter by category |
-
-### `task-man done <id>` / `task-man start <id>`
-
-Mark a task as `done` / `in_progress`. Accepts full ID or unambiguous prefix.
-
-### `task-man focus <id>` / `task-man unfocus <id>`
-
-Move a task into / out of the focused working set.
+> **Retired (2026-07):** the task-facing subcommands (`add`, `list`, `done`,
+> `start`, `focus`, `unfocus`, `session-refocus`, `end-day`) were removed —
+> humans work in the TUI/web, Claude works through MCP (`task_end_day` covers
+> reports and email), and those commands only ever touched the local file
+> (they never followed `client.mode = remote`). What remains is operational.
 
 ### `task-man config <key> [value]`
 
@@ -166,17 +139,11 @@ task-man config email.to me@example.com
 | `email.to` | Email address for end-of-day reports | — |
 | `email.resendApiKey` | Resend API key for email delivery | — |
 | `email.autoPromptAfter` | Time to prompt for end-of-day | `17:00` |
+| `client.mode` | `local` (file) or `remote` (hosted server) | `local` |
+| `client.remote_url` | Base URL of the hosted server | — |
+| `client.service_token_id` / `client.service_token_secret` | CF Access service token for headless clients (MCP) | — |
 
 Config lives at `~/.task-man/config.json`.
-
-### `task-man end-day`
-
-Generate an end-of-day report.
-
-| Flag | Description |
-|------|-------------|
-| `--date <date>` | Date in `YYYY-MM-DD` or `yesterday` |
-| `--email` | Send report via email (requires config) |
 
 ### `task-man watch`
 
@@ -186,36 +153,45 @@ Live-updating display of focused tasks. Useful as a sidebar.
 |------|-------------|---------|
 | `-i, --interval <ms>` | Poll interval | `2000` |
 
-### `task-man session-refocus`
-
-Refocus all tasks linked to the current Claude Code session (detected via `CLAUDE_SESSION_ID`). Useful after an autonomous Claude run when you want to surface what it touched.
-
 ### `task-man serve`
 
-Run the bundled web app on your LAN so you can capture/check tasks from a phone or second laptop on the same wifi.
+Run the bundled web app so you can capture/check tasks from a browser.
 
 ```bash
-task-man serve --set-pin     # one-time: set the 4-digit PIN
-task-man serve               # start the server
+task-man serve                     # local-only (127.0.0.1)
+task-man serve --bind 0.0.0.0     # expose on the LAN (see security note)
 ```
 
-The first run prints reachable URLs (typically `http://<your-laptop>.local:3030` plus raw LAN IPs as a fallback for devices that don't resolve `.local`). Enter the PIN on first visit; the session cookie lasts 30 days.
+Startup prints the reachable URLs (with `--bind 0.0.0.0`, typically `http://<your-laptop>.local:3030` plus raw LAN IPs as a fallback for devices that don't resolve `.local`).
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--port <port>` | Port to listen on | `3030` |
-| `--bind <addr>` | Bind address — `127.0.0.1` disables LAN | `0.0.0.0` |
-| `--set-pin` | Set the 4-digit PIN, then exit | — |
+| `--bind <addr>` | Bind address — `0.0.0.0` enables LAN/container access | `127.0.0.1` |
 
 **Add to Home Screen.** iOS Safari and Android Chrome can install the page as a standalone PWA. The shell caches via a service worker; `/api/*` is never cached.
 
-**Scope.** The web v1 ships only the mobile-first Focus view and Quick Capture. Plan / Refine / Metrics stay TUI-only.
+**Security.** The server has **no auth of its own**. Local-only binding is the gate in dev; in production, Cloudflare Access gates the hostname in front of a tunnel, and the server additionally verifies the Access JWT on every `/api/*` request when `CF_ACCESS_TEAM_DOMAIN` + `CF_ACCESS_AUD` are set (see `src/server/access-auth.ts` and [`docs/deploy-plan.md`](../docs/deploy-plan.md)). Only bind `0.0.0.0` on a network where you'd hand your task list to anyone on the wifi — or put a gate in front.
 
-**Security.** PIN gates the LAN endpoint with rate limiting (5 attempts per 5 min per IP, then exponential backoff). Enough to keep a roommate off it; explicitly **not** real auth. A determined LAN attacker is out of the threat model. Use `--bind 127.0.0.1` to disable LAN.
+**Authorization.** When Access verification is on, every request is scoped to the verified identity's own tasks (`src/server/scoped-store.ts`): reads are filtered by `owner`, writes stamp it, and another identity's task ids behave like nonexistent ones (404). Two env vars shape this: `TASK_MAN_DEFAULT_OWNER` (email that owns pre-authorization `owner: null` tasks) and `TASK_MAN_AGENTS` (comma-separated `common_name=email` pairs mapping Access service tokens — headless MCP — to the person they act for; unmapped tokens get 403). Without auth (local dev) nothing is scoped. Request bodies are validated with zod (`src/server/schemas.ts`); `owner`, `id`, and timestamps are never client-assignable.
 
-**TUI footer indicator.** While the server is running, the TUI footer shows `● web :3030`.
+**TUI footer indicator.** While the server is running, the TUI footer shows `● web :3030` (or `● remote` when the TUI itself is in remote mode).
 
-> A planned change (see [`docs/deploy-plan.md`](../docs/deploy-plan.md)) replaces PIN auth with Cloudflare Access and makes the TUI a remote client of a hosted server. The flags above describe today's behavior.
+### `task-man login`
+
+Authenticate the TUI against a remote (Cloudflare Access-gated) server. Thin wrapper around `cloudflared access login <remote_url>`; the JWT is cached under `~/.cloudflared/` and refreshed automatically.
+
+### Remote mode
+
+By default all commands operate on the local file. To point the CLI/TUI at a hosted server instead:
+
+```bash
+task-man config client.remote_url https://tasks.yourdomain.com
+task-man login
+task-man config client.mode remote     # switch back with: ... local
+```
+
+Headless clients (MCP) use a Cloudflare Access service token instead of the interactive login: set `client.service_token_id` and `client.service_token_secret`.
 
 ## Data storage
 
@@ -246,7 +222,12 @@ Other packages in the repo import from `task-man/*`:
 
 | Subpath | Module |
 |---------|--------|
-| `task-man/store` | `TaskStore` |
+| `task-man/store` | `TaskStore` (sync, file-backed) |
+| `task-man/store-interface` | `Store` — the async interface all clients code against |
+| `task-man/local-store` | `LocalStore` — async wrapper over `TaskStore` |
+| `task-man/remote-store` | `RemoteStore` — HTTP-backed `Store` + CF Access auth providers |
+| `task-man/get-store` | `getStore()` — picks local/remote from config |
+| `task-man/api-client` | Shared fetch wrapper (`ApiError`, idempotency keys) |
 | `task-man/types` | Type definitions |
 | `task-man/config` | Config load/save helpers |
 | `task-man/handlers` | Server-side handlers (used by routes and MCP) |

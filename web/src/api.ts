@@ -11,6 +11,19 @@ export { ApiError } from 'task-man/api-client';
 // no auth of its own.
 const client = createHttpClient({ baseUrl: '', credentials: 'include' });
 
+// 401 means the Cloudflare Access session expired (or origin JWT
+// verification rejected us). There is no in-app login — the PIN flow is
+// gone — so the recovery is a full page load, which lets Access run its
+// redirect-to-login dance on the document request. Guarded to once per
+// page load: if the reload comes back still 401ing (misconfigured
+// deploy), we must not reload-loop; pages fall back to their error UI.
+let reloadedForAuth = false;
+export function reloadForAuth(): void {
+  if (reloadedForAuth) return;
+  reloadedForAuth = true;
+  window.location.reload();
+}
+
 export const api = {
   async listCategories(): Promise<{ name: string; count: number }[]> {
     return client.req('/api/categories');

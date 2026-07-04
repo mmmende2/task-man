@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { Hono } from 'hono';
 import { TaskStore } from '../store.js';
 import { LocalStore } from '../local-store.js';
 import type { Store } from '../store-interface.js';
@@ -11,7 +10,7 @@ import { createApp } from '../server/routes.js';
 describe('server', () => {
   let tmpDir: string;
   let store: Store;
-  let app: Hono;
+  let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'task-man-server-'));
@@ -59,6 +58,25 @@ describe('server', () => {
 
     const list = await app.request('/api/tasks');
     expect((await list.json()) as unknown[]).toHaveLength(1);
+  });
+
+  it('replays a keyed store remove instead of 404ing (lost-response retry)', async () => {
+    const created = await app.request('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Removed twice' }),
+    });
+    const task = (await created.json()) as { id: string };
+
+    const headers = { 'Content-Type': 'application/json', 'Idempotency-Key': 'store-remove-1' };
+    const body = JSON.stringify({ id: task.id });
+    const first = await app.request('/api/store/remove', { method: 'POST', headers, body });
+    expect(first.status).toBe(200);
+    // RemoteStore retries with the same key when the response was lost —
+    // the replay must return the cached result, not "No task found".
+    const second = await app.request('/api/store/remove', { method: 'POST', headers, body });
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual(await first.json());
   });
 
   it('completes a top-level task from the web (no MCP guard)', async () => {

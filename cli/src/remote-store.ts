@@ -156,8 +156,11 @@ export class RemoteStore implements Store {
   }
 
   async update(id: string, changes: TaskChanges): Promise<Task> {
+    // Keyed like add/insertAt: a retry after a lost response must replay
+    // the cached result, not re-run (or 404) the operation.
     return this.req<Task>('/api/store/update', {
       method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey() },
       body: JSON.stringify({ id, changes }),
     });
   }
@@ -165,6 +168,7 @@ export class RemoteStore implements Store {
   async remove(id: string): Promise<{ task: Task; index: number }> {
     return this.req('/api/store/remove', {
       method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey() },
       body: JSON.stringify({ id }),
     });
   }

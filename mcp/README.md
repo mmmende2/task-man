@@ -2,7 +2,7 @@
 
 MCP server for Claude Code. Lets Claude create, update, focus, and report on tasks in the same `~/.task-man/` store the CLI and TUI use.
 
-Imports `TaskStore` and handlers directly from the [CLI package](../cli/README.md) — no HTTP in between. Operates on local files.
+Imports the store and handlers from the [CLI package](../cli/README.md) via `getStore()`: in the default local mode it operates on `~/.task-man/tasks.json` in-process; in remote mode (`client.mode = remote` in `~/.task-man/config.json`) the same tools talk to the hosted server over HTTPS, authenticating with a Cloudflare Access service token (`client.service_token_id` / `client.service_token_secret`). Tool signatures are identical in both modes.
 
 ## Install
 
@@ -191,4 +191,4 @@ Because the MCP server imports from the CLI as `task-man/*`, rebuild the CLI (`c
 
 ## Future
 
-When the [hosted-server plan](../docs/deploy-plan.md) lands, the MCP server will follow the same `Store` interface swap as the TUI — defaulting to remote, falling back to local. No tool signatures change.
+The `Store` interface swap has landed — the MCP server follows the TUI's local/remote mode from config. What remains before remote mode is usable end-to-end is the hosting itself (droplet + Cloudflare Tunnel/Access): see [`docs/deploy-plan.md`](../docs/deploy-plan.md) and [`docs/phase2-manual-setup-guide.md`](../docs/phase2-manual-setup-guide.md).

@@ -1,20 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api';
-import type { TaskPriority } from '../types';
+import { api, ApiError, reloadForAuth } from '../api';
+import type { TaskPriority, TaskScope } from '../types';
 import { NavMenu } from '../components/NavMenu';
 import './Capture.css';
 
 const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high'];
 const TIME_ESTIMATES = ['<5m', '20m', '45m', '>1h', '>3h'] as const;
 type TimeEstimate = (typeof TIME_ESTIMATES)[number];
-
-// SCOPE intentionally disabled in the UI — the data field still
-// exists on Task and the server still accepts it, but Mario doesn't
-// care about scope right now. Bring back the import + control + state
-// + submit field if that changes.
-//   import type { TaskScope } from '../types';
-//   const SCOPES: TaskScope[] = ['personal', 'professional'];
+const SCOPES: TaskScope[] = ['personal', 'professional'];
 
 export function CapturePage() {
   const nav = useNavigate();
@@ -24,6 +18,9 @@ export function CapturePage() {
   // the field on submit and the server falls back to 'medium'.
   const [priority, setPriority] = useState<TaskPriority | null>(null);
   const [time, setTime] = useState<TimeEstimate | null>(null);
+  // Scope follows the priority pattern: nullable, tap-again-to-clear.
+  // When null we omit it and the server defaults to 'personal'.
+  const [scope, setScope] = useState<TaskScope | null>(null);
   const [focused, setFocused] = useState(true);
   const [categories, setCategories] = useState<string[]>([]);
   const [description, setDescription] = useState('');
@@ -94,8 +91,9 @@ export function CapturePage() {
     try {
       const parent = await api.createTask({
         title: cleanTitle,
-        // Omit priority when null so the server's default ('medium') applies.
+        // Omit priority/scope when null so the server defaults apply.
         priority: priority ?? undefined,
+        scope: scope ?? undefined,
         categories: categories.length ? categories : undefined,
         description: description.trim() || undefined,
         focused,
@@ -122,6 +120,7 @@ export function CapturePage() {
       setCategories([]);
       setTime(null);
       setPriority(null);
+      setScope(null);
       setFocused(true);
       setSubtasks([]);
       setSubtaskDraft('');
@@ -130,7 +129,7 @@ export function CapturePage() {
       titleRef.current?.focus();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        nav('/login', { replace: true });
+        reloadForAuth();
         return;
       }
       setToast((err as Error).message || 'Failed to capture');
@@ -282,15 +281,14 @@ export function CapturePage() {
           clearable
         />
 
-        {/* ── Scope: hidden for now per user; bring back if needed. ──
         <Segmented
           label="Scope"
           options={SCOPES}
           value={scope}
-          onChange={setScope}
+          onChange={(v) => setScope(v === scope ? null : v)}
           variant="scope"
+          clearable
         />
-        */}
 
         <div className="control control-row">
           <span className="control-label">Focused</span>

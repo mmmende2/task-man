@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api';
+import { api, ApiError, reloadForAuth } from '../api';
 import type { Task } from '../types';
 import { usePoll } from '../lib/use-poll';
 import { NavMenu } from '../components/NavMenu';
 import { sortTasks } from 'task-man/handlers';
 import { isLocalToday } from 'task-man/local-date';
 import { CategoryFilterButton } from '../components/CategoryFilterDrawer';
+import { ScopeChip, loadScopeFilter, saveScopeFilter, matchesScope, type ScopeFilter } from '../components/ScopeChip';
 import './Backlog.css';
 
 const FILTER_STORAGE_KEY = 'backlog.categoryFilter';
@@ -36,10 +37,16 @@ export function BacklogPage() {
   const [acting, setActing] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(() => loadFilter());
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>(() => loadScopeFilter());
 
   const updateCategoryFilter = (next: Set<string>) => {
     setCategoryFilter(next);
     saveFilter(next);
+  };
+
+  const changeScopeFilter = (v: ScopeFilter) => {
+    setScopeFilter(v);
+    saveScopeFilter(v);
   };
 
   const fetcher = useCallback(async () => {
@@ -47,7 +54,7 @@ export function BacklogPage() {
       return await api.listTasks();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        nav('/login', { replace: true });
+        reloadForAuth();
       }
       throw err;
     }
@@ -74,6 +81,7 @@ export function BacklogPage() {
       // completed today still show in their respective bucket; done +
       // older falls off entirely.
       if (t.status === 'done' && !isLocalToday(t.completed_at)) continue;
+      if (!matchesScope(t.scope, scopeFilter)) continue;
       // Category filter: a parent matches when its categories intersect
       // the active set. Empty set = no filter.
       if (hasFilter && !t.categories.some((c) => categoryFilter.has(c))) continue;
@@ -85,7 +93,7 @@ export function BacklogPage() {
       backlogParents: sortTasks(backlogList, 'focus'),
       subtasksByParent: subs,
     };
-  }, [tasks, categoryFilter]);
+  }, [tasks, categoryFilter, scopeFilter]);
 
   const flashToast = (msg: string) => {
     setToast(msg);
@@ -115,6 +123,7 @@ export function BacklogPage() {
     <BacklogRow
       key={t.id}
       task={t}
+      showScope={scopeFilter === 'all'}
       subtasks={subtasksByParent.get(t.id) ?? []}
       expanded={expandedId === t.id}
       busy={acting.has(t.id)}
@@ -168,6 +177,7 @@ export function BacklogPage() {
           ←
         </button>
         <div className="backlog-title">Backlog</div>
+        <ScopeChip value={scopeFilter} onChange={changeScopeFilter} />
         <CategoryFilterButton active={categoryFilter} onChange={updateCategoryFilter} />
         <NavMenu current="backlog" />
       </header>
@@ -221,6 +231,8 @@ interface RowProps {
   subtasks: Task[];
   expanded: boolean;
   busy: boolean;
+  /** Render a dim per/pro tag — set when the scope filter is 'all'. */
+  showScope?: boolean;
   onToggleExpand: () => void;
   onToggleFocus: () => void;
   onComplete: () => void;
@@ -230,7 +242,7 @@ interface RowProps {
 }
 
 function BacklogRow({
-  task, subtasks, expanded, busy,
+  task, subtasks, expanded, busy, showScope,
   onToggleExpand, onToggleFocus, onComplete, onReopen, onSubtaskToggle, onAddSubtask,
 }: RowProps) {
   const isDone = task.status === 'done';
@@ -275,6 +287,7 @@ function BacklogRow({
           <div className="row-title-block">
             <div className="row-title mono">{task.title}</div>
             <div className="row-meta">
+              {showScope && <span className="chip scope-tag">{task.scope === 'professional' ? 'pro' : 'per'}</span>}
               {task.categories.slice(0, 2).map((c) => (
                 <span key={c} className="chip">{c}</span>
               ))}

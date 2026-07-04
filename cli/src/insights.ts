@@ -56,7 +56,10 @@ export function generateInsight(tasks: Task[], date: string): string | null {
     const dateCounts = new Map<string, number>();
     for (const t of tasks) {
       if (t.completed_at) {
-        const d = t.completed_at.slice(0, 10);
+        // Bucket history by LOCAL date — todayCount comes from completedOn,
+        // which is local. Using the UTC prefix here split evening
+        // completions onto the wrong day and skewed the record threshold.
+        const d = localDateString(new Date(t.completed_at));
         if (d !== date) {
           dateCounts.set(d, (dateCounts.get(d) ?? 0) + 1);
         }
@@ -171,7 +174,12 @@ export function generateInsight(tasks: Task[], date: string): string | null {
   const pick = filtered.length > 0 ? filtered[0] : (candidates.length > 0 ? candidates[0] : null);
 
   if (pick) {
-    saveInsightsLog({ lastType: pick.type, lastDate: date, lastMessage: pick.message });
+    // Only persist for the live "today" — the log exists to dedupe today's
+    // insight across report/metrics calls. Browsing a past date in Metrics
+    // used to overwrite lastType/lastDate and disturb that dedupe.
+    if (date === localDateString()) {
+      saveInsightsLog({ lastType: pick.type, lastDate: date, lastMessage: pick.message });
+    }
     return pick.message;
   }
 

@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Box, Text, useInput, useApp } from 'ink';
-import { setExitOutput } from '../exitOutput.js';
+import { Box, Text, useInput } from 'ink';
 import type { DayReport, Task } from '../../types.js';
 import type { Store } from '../../store-interface.js';
 import { buildDayReport } from '../../report.js';
 import { EMPTY_DAY_REPORT } from '../shared/emptyDayReport.js';
 import { getMidDayMessage } from '../../messages.js';
-import { renderDayReportMarkdown } from '../../render-terminal.js';
 import { ProgressBar } from '../shared/ProgressBar.js';
 import { PulsingProgressBar } from '../shared/PulsingProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
-import { PriorityDot } from '../shared/PriorityDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { isOnLocalDate, localDateString } from '../../local-date.js';
 
@@ -26,7 +23,6 @@ interface SubtaskInfo {
 }
 
 export function MetricsMode({ store }: Props) {
-  const { exit } = useApp();
   const realToday = localDateString();
   const [viewDate, setViewDate] = useState(realToday);
   const [editingDate, setEditingDate] = useState(false);
@@ -137,11 +133,9 @@ export function MetricsMode({ store }: Props) {
       setDateText(viewDate);
       setDateCursor(viewDate.length);
       setEditingDate(true);
-    } else if (input === 'e') {
-      const md = renderDayReportMarkdown(report, allTasks);
-      setExitOutput(md + '\n');
-      exit();
     }
+    // 'e' (print report + exit) removed 2026-07 — reports/email live in MCP
+    // task_end_day; Metrics stays on-screen only.
   });
 
   const focusedRows = sortedFocused.length === 0

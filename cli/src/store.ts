@@ -27,6 +27,7 @@ export class TaskStore {
     for (const t of tasks) {
       if (t.time_estimate === undefined) t.time_estimate = null;
       if (t.vibe === undefined) t.vibe = null;
+      if (t.owner === undefined) t.owner = null;
     }
     return tasks;
   }
@@ -71,6 +72,7 @@ export class TaskStore {
         session_id: input.session_id ?? null,
         time_estimate: input.time_estimate ?? null,
         vibe: input.vibe ?? null,
+        owner: input.owner ?? null,
       };
 
       tasks.push(newTask);

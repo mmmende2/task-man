@@ -5,6 +5,7 @@ import { serve } from '@hono/node-server';
 import { loadConfig } from '../config.js';
 import { DEFAULT_SERVER_BIND, DEFAULT_SERVER_PORT } from '../constants.js';
 import { LocalStore } from '../local-store.js';
+import { accessAuthFromEnv } from './access-auth.js';
 import { createApp } from './routes.js';
 import { mountStatic } from './static.js';
 
@@ -56,7 +57,11 @@ export function startServer(opts: ServeOptions = {}): RunningServer {
   const bind = opts.bind ?? config.server?.bind ?? DEFAULT_SERVER_BIND;
 
   const store = new LocalStore();
-  const app = createApp({ store });
+  const app = createApp({
+    store,
+    accessAuth: accessAuthFromEnv() ?? undefined,
+    defaultOwner: process.env.TASK_MAN_DEFAULT_OWNER,
+  });
   mountStatic(app, opts.webRoot ?? resolveWebRoot());
 
   const server = serve({ fetch: app.fetch, port, hostname: bind });

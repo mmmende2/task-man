@@ -5,6 +5,14 @@ services:
       dockerfile: cli/Dockerfile
     image: task-man:local
     restart: unless-stopped
+    environment:
+      # Origin-side verification of the Access JWT that Cloudflare attaches
+      # to every request — defense in depth beyond the tunnel itself.
+      - CF_ACCESS_TEAM_DOMAIN=${CF_ACCESS_TEAM_DOMAIN}
+      - CF_ACCESS_AUD=${CF_ACCESS_AUD}
+      # Authorization: legacy-task owner + service-token→person mapping.
+      - TASK_MAN_DEFAULT_OWNER=${TASK_MAN_DEFAULT_OWNER}
+      - TASK_MAN_AGENTS=${TASK_MAN_AGENTS}
     volumes:
       - task-man-data:/root/.task-man
     networks:

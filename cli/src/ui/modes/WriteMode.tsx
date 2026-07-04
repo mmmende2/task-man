@@ -28,6 +28,7 @@ interface Props {
   scopeFilter: TaskScope | 'all';
   onModeChange: (mode: AppMode) => void;
   onCycleScope: () => void;
+  onHoldingChange?: (title: string | undefined) => void;
   vimMode?: VimMode;
   setVimMode?: (mode: VimMode) => void;
   subMode?: WriteSubMode;
@@ -96,6 +97,7 @@ export function WriteMode({
   scopeFilter,
   onModeChange,
   onCycleScope,
+  onHoldingChange,
   vimMode,
   setVimMode,
   subMode: subModeProp,
@@ -114,6 +116,10 @@ export function WriteMode({
   const [navTarget, setNavTarget] = useState<'tasks' | 'subtasks'>('tasks');
   const [subtaskIndex, setSubtaskIndex] = useState(0);
   const [editing, setEditing] = useState<EntryListEditing | null>(null);
+  // Cut-and-confirm clipboard, same flow as Focus/Plan: dd removes and holds,
+  // p/P pastes, Esc confirms the delete. Holding is keyed off this state (not
+  // vimMode) so it works when WriteMode renders without a vimMode wire-up.
+  const [clipboard, setClipboard] = useState<{ task: Task; index: number } | null>(null);
   const [tick, setTick] = useState(0);
 
   const keyBufferRef = useRef('');
@@ -431,16 +437,66 @@ export function WriteMode({
     });
   };
 
-  const deleteSelected = () => {
+  // dd = cut-and-hold (parity with Focus/Plan): the task is removed but the
+  // operation isn't final until paste (move) or Esc (confirmed delete). One
+  // undo entry per resolved operation — never one on cut itself, which is
+  // what made double-undo duplicate tasks in the other modes.
+  const cutSelected = () => {
     const target = navTarget === 'subtasks' ? getSelectedSubtask() : getSelectedTask();
     if (!target) return;
     store.remove(target.id).then(({ index }) => {
-      undoStack.push({ undo: async () => { await store.insertAt(target, index); } });
+      setClipboard({ task: target, index });
+      setVimMode?.('holding');
+      onHoldingChange?.(target.title);
       if (navTarget === 'subtasks') {
         const remaining = Math.max(0, currentSubtasks.length - 2);
         if (subtaskIndex > remaining) setSubtaskIndex(remaining);
       }
       localReload();
+    });
+  };
+
+  const confirmCutDelete = () => {
+    if (!clipboard) return;
+    const { task, index } = clipboard;
+    undoStack.push({ undo: async () => { await store.insertAt(task, index); } });
+    setClipboard(null);
+    setVimMode?.('normal');
+    onHoldingChange?.(undefined);
+  };
+
+  const pasteClipboard = (above: boolean) => {
+    if (!clipboard) return;
+    store.load().then((allTasks) => {
+      let targetIndex: number;
+      const anchor = navTarget === 'subtasks'
+        ? (getSelectedSubtask() ?? getSelectedTask())
+        : getSelectedTask();
+      if (anchor) {
+        targetIndex = allTasks.findIndex(t => t.id === anchor.id);
+        if (!above) targetIndex += 1;
+      } else {
+        targetIndex = allTasks.length;
+      }
+
+      const origClipboard = clipboard;
+      const taskToInsert = { ...clipboard.task };
+      // Pasting in subtask nav re-parents under the selected task; pasting
+      // in parent nav promotes to top level (same rules as Focus mode).
+      taskToInsert.parent_id = navTarget === 'subtasks' && cursorId ? cursorId : null;
+
+      store.insertAt(taskToInsert, targetIndex).then(() => {
+        undoStack.push({
+          undo: async () => {
+            await store.remove(taskToInsert.id);
+            await store.insertAt(origClipboard.task, origClipboard.index);
+          },
+        });
+        setClipboard(null);
+        setVimMode?.('normal');
+        onHoldingChange?.(undefined);
+        localReload();
+      });
     });
   };
 
@@ -510,6 +566,24 @@ export function WriteMode({
       return;
     }
 
+    // --- Holding a cut task: nav + paste + confirm only ---
+    if (clipboard) {
+      if (input === 'j' || key.downArrow) {
+        if (navTarget === 'subtasks') moveSubtaskCursor(1);
+        else moveParentCursor(1);
+        return;
+      }
+      if (input === 'k' || key.upArrow) {
+        if (navTarget === 'subtasks') moveSubtaskCursor(-1);
+        else moveParentCursor(-1);
+        return;
+      }
+      if (input === 'p') { pasteClipboard(false); return; }
+      if (input === 'P') { pasteClipboard(true); return; }
+      if (key.escape) { confirmCutDelete(); return; }
+      return;
+    }
+
     // --- Capture sub-mode ---
     if (subMode === 'capture') {
       if (key.escape) {
@@ -546,7 +620,7 @@ export function WriteMode({
     }
     if (buffer === 'd' && input === 'd') {
       clearKeyBuffer();
-      deleteSelected();
+      cutSelected();
       return;
     }
     if (buffer === 'g' && input === 'g') {
@@ -587,12 +661,15 @@ export function WriteMode({
       else moveParentCursor(-1);
       return;
     }
-    if (input === 'p' && navTarget === 'tasks') {
+    // Capital P — priority. Lowercase p is reserved for paste (holding mode),
+    // matching Focus/Plan.
+    if (input === 'P' && navTarget === 'tasks') {
       const task = getSelectedTask();
       if (task) updateSelected({ priority: cyclePriority(task.priority) });
       return;
     }
-    if (input === 's' && navTarget === 'tasks') {
+    if (input === 'S' && navTarget === 'tasks') {
+      // Capital S — Scope, same binding as Focus/Plan.
       const task = getSelectedTask();
       if (task) updateSelected({ scope: toggleScope(task.scope) });
       return;
@@ -644,6 +721,7 @@ export function WriteMode({
           maxRows={entryListMaxRows}
           cursorTone={subMode === 'capture' ? 'magenta' : 'cyan'}
           captureAnchor={captureAnchor}
+          showScope={scopeFilter === 'all'}
         />
       </Box>
 

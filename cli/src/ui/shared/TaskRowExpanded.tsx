@@ -1,5 +1,6 @@
 import { Box, Text } from 'ink';
 import type { Task } from '../../types.js';
+import { SCOPE_LABELS } from '../../constants.js';
 import { PriorityDot } from './PriorityDot.js';
 import { SubtaskCheckbox } from './SubtaskCheckbox.js';
 import { ProgressBar } from './ProgressBar.js';
@@ -19,16 +20,19 @@ interface Props {
   editText?: string;
   cursorPos?: number;
   terminalColor?: string | null;
+  /** Append a per/pro tag to the card's corner label (scope filter = 'all'). */
+  showScope?: boolean;
 }
 
-export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editingDateId, editingDescriptionId, editText, cursorPos, terminalColor }: Props) {
+export function TaskRowExpanded({ task, subtasks, subtaskProgress, inSubtaskNav, selectedSubtaskIndex, editingSubtaskId, editingDateId, editingDescriptionId, editText, cursorPos, terminalColor, showScope }: Props) {
   const width = useTerminalWidth();
   const cardInner = width - 2;
 
   // Session color overrides default; otherwise cyan for task nav, white for subtask nav
   const borderColor = terminalColor ?? (inSubtaskNav ? 'white' : 'cyan');
 
-  const bottomLabel = task.categories?.length ? task.categories[0] : task.status;
+  const baseLabel = task.categories?.length ? task.categories[0] : task.status;
+  const bottomLabel = showScope ? `${baseLabel} · ${SCOPE_LABELS[task.scope]}` : baseLabel;
 
   const isEditingTaskDate = editingDateId === task.id && editText !== undefined && cursorPos !== undefined;
   const isEditingDescription = editingDescriptionId === task.id && editText !== undefined && cursorPos !== undefined;

@@ -10,6 +10,7 @@ import { TaskRowExpanded } from '../shared/TaskRowExpanded.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
 import { loadConfig } from '../../config.js';
+import { localDateString } from '../../local-date.js';
 import { getSessionHexColor, getCurrentSessionId, isSessionActive } from '../../sessions.js';
 
 interface Props {
@@ -164,7 +165,10 @@ export function FocusMode({
       case 'edit-date': {
         const task = navTarget === 'subtasks' ? currentSubtasks[subtaskIndex] : filteredTasks[selectedIndex];
         if (!task || task.status !== 'done' || !task.completed_at) return;
-        const dateStr = task.completed_at.slice(0, 10);
+        // Show the LOCAL calendar date, not the UTC prefix — an evening
+        // completion has tomorrow's date in UTC, and every "done on day X"
+        // comparison in the app is local (see local-date.ts).
+        const dateStr = localDateString(new Date(task.completed_at));
         setEditingDateId(task.id);
         // Place cursor at end (day portion) — vim A behavior
         setEditState({ text: dateStr, cursor: dateStr.length });
@@ -209,6 +213,10 @@ export function FocusMode({
       }
 
       case 'cut': {
+        // No undo entry here — holding mode ends in paste or Esc, each of
+        // which pushes exactly one entry for the whole operation. Pushing
+        // on cut too meant a second `u` after a move re-inserted the task
+        // a second time (duplicate id).
         if (navTarget === 'subtasks') {
           const sub = currentSubtasks[subtaskIndex];
           if (sub) {
@@ -216,9 +224,6 @@ export function FocusMode({
               setClipboard({ task: sub, index, isSubtask: true, parentId: sub.parent_id ?? undefined });
               setVimMode('holding');
               onHoldingChange?.(sub.title);
-              undoStack.push({
-                undo: async () => { await store.insertAt(sub, index); },
-              });
               reload();
             });
           }
@@ -229,9 +234,6 @@ export function FocusMode({
               setClipboard({ task, index, isSubtask: false });
               setVimMode('holding');
               onHoldingChange?.(task.title);
-              undoStack.push({
-                undo: async () => { await store.insertAt(task, index); },
-              });
               reload();
             });
           }
@@ -294,6 +296,10 @@ export function FocusMode({
       case 'cancel': {
         if (vimMode === 'holding' && clipboard) {
           // Confirm delete — task stays removed, undo available via 'u'
+          const { task, index } = clipboard;
+          undoStack.push({
+            undo: async () => { await store.insertAt(task, index); },
+          });
           setClipboard(null);
           setVimMode('normal');
           onHoldingChange?.(undefined);
@@ -318,6 +324,22 @@ export function FocusMode({
         break;
       }
 
+      case 'toggle-scope': {
+        // Parent tasks only — subtasks follow their parent conceptually.
+        if (navTarget !== 'tasks') return;
+        const task = filteredTasks[selectedIndex];
+        if (!task) return;
+        const prevScope = task.scope;
+        const nextScope = prevScope === 'personal' ? 'professional' : 'personal';
+        store.update(task.id, { scope: nextScope }).then(() => {
+          undoStack.push({
+            undo: async () => { await store.update(task.id, { scope: prevScope }); },
+          });
+          reload();
+        });
+        break;
+      }
+
       // toggle-focus not supported in focus mode
       default:
         break;
@@ -338,7 +360,15 @@ export function FocusMode({
       const newDate = editText.trim();
       // Validate YYYY-MM-DD format
       if (/^\d{4}-\d{2}-\d{2}$/.test(newDate) && !isNaN(new Date(newDate).getTime())) {
-        const newCompletedAt = newDate + (prevCompletedAt ? prevCompletedAt.slice(10) : 'T00:00:00.000Z');
+        // The typed date is a LOCAL calendar day. Rebuild the timestamp on
+        // that local day, keeping the original local time-of-day — splicing
+        // the date onto the UTC string (the old approach) shifted evening
+        // completions onto the wrong local day.
+        const [y, m, d] = newDate.split('-').map(Number);
+        const prev = prevCompletedAt ? new Date(prevCompletedAt) : new Date();
+        const newCompletedAt = new Date(
+          y, m - 1, d, prev.getHours(), prev.getMinutes(), prev.getSeconds(), prev.getMilliseconds(),
+        ).toISOString();
         const id = editingDateId;
         store.update(id, { completed_at: newCompletedAt }).then(() => {
           undoStack.push({
@@ -483,6 +513,7 @@ export function FocusMode({
             editText={editText}
             cursorPos={cursorPos}
             terminalColor={currentSessionColor ?? terminalColor}
+            showScope={scopeFilter === 'all'}
           />
           {/* Insert creation row for subtask */}
           {creatingAt !== null && navTarget === 'subtasks' && (
@@ -500,6 +531,7 @@ export function FocusMode({
         subtaskProgress={getSubtaskProgress(task.id, subtaskMap)}
         terminalColor={terminalColor}
         sessionActive={active}
+        showScope={scopeFilter === 'all'}
       />
     );
   });

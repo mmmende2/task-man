@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import type { Task, TaskManConfig } from '../../../types.js';
+import { SCOPE_LABELS } from '../../../constants.js';
 import { getSessionHexColor } from '../../../sessions.js';
 import { PriorityDot } from '../../shared/PriorityDot.js';
 import { InlineEdit } from '../../shared/InlineEdit.js';
@@ -47,6 +48,8 @@ interface Props {
   cursorTone?: CursorTone;
   /** Capture-mode anchor: renders a subtask-target hint under the parent. */
   captureAnchor?: CaptureAnchor | null;
+  /** Show a dim per/pro tag per row — passed when the scope filter is 'all'. */
+  showScope?: boolean;
 }
 
 interface CategoryGroup {
@@ -89,6 +92,7 @@ export function EntryList({
   maxRows,
   cursorTone = 'cyan',
   captureAnchor,
+  showScope,
 }: Props) {
   const tone = cursorTone;
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -128,6 +132,7 @@ export function EntryList({
             <Text color={selected ? tone : undefined} dimColor={!selected}>{gutter} </Text>
             <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
             <Text color={titleColor} dimColor={titleDim}>{' '}{task.title}</Text>
+            {showScope && <Text dimColor>{' ·'}{SCOPE_LABELS[task.scope]}</Text>}
             {task.focused && <Text color="yellow">{' ★'}</Text>}
             {task.status === 'done' && <Text dimColor>{' ✓'}</Text>}
             {selected && <Text color={tone}>{' ──────'}</Text>}

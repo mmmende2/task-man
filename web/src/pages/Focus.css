@@ -367,3 +367,11 @@
   from { opacity: 0; transform: translate(-50%, -8px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* Scope tag — shown only when the scope filter is "all", where rows
+   would otherwise be indistinguishable. Quieter than category chips. */
+.chip.scope-tag {
+  background: transparent;
+  border-style: dashed;
+  color: var(--fg-muted);
+}

@@ -85,8 +85,14 @@ function buildQuestions(
     });
   }
 
-  // 2. Missing scope
-  if (!task.scope) {
+  // 2. Scope check. `scope` is never null in practice (TaskStore defaults it
+  // to 'personal'), so the old `!task.scope` condition made this card
+  // unreachable. Instead, ask on unrefined Claude-created tasks: Claude
+  // rarely sets scope deliberately, and "no time_estimate + no vibe yet"
+  // is the proxy for "first refine pass" — once refined, this stops firing.
+  const unrefinedClaudeTask =
+    task.created_by === 'claude' && task.time_estimate == null && task.vibe == null;
+  if (!task.scope || unrefinedClaudeTask) {
     list.push({
       type: 'number',
       prompt: 'Work thing or personal thing?',
@@ -151,8 +157,10 @@ function buildQuestions(
 
   // 5. AI task review — skip if user has already set any metadata on this task,
   // or if it has subtasks (a parent with children is clearly relevant).
+  // NOTE: scope is deliberately absent here — it defaults to 'personal' on
+  // every task, so `scope != null` was always true and made this check
+  // (and the "does it belong?" card below) permanently dead.
   const hasEngagement =
-    task.scope != null ||
     task.time_estimate != null ||
     task.vibe != null ||
     task.categories.length > 0 ||
@@ -368,11 +376,14 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
       undoLast();
       return;
     }
-    if (input === 'S') {
+    // n/N — vim-style "next": n skips the question, N skips the whole task.
+    // (Was s/S, which collided with S-for-Scope everywhere else; `n` also
+    // reads naturally as "no" on the yes/no and confirm cards below.)
+    if (input === 'N') {
       skipTask();
       return;
     }
-    if (input === 's') {
+    if (input === 'n') {
       skipQuestion();
       return;
     }
@@ -381,7 +392,8 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
       case 'yesno': {
         if (input === 'y' || input === 't') {
           applyChange({ focused: true }, 'focused');
-        } else if (input === 'n' || input === 'f') {
+        } else if (input === 'f') {
+          // 'n' is handled by the generic skip above — same outcome.
           skipQuestion();
         }
         break;

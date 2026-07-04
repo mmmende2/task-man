@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
-import type { Hono } from 'hono';
+import type { Env, Hono } from 'hono';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -24,7 +24,7 @@ const MIME: Record<string, string> = {
 // worker are always revalidated so deploys land immediately.
 // NOTE: /api/* is never reached here — those routes are registered
 // before this catch-all, so task data is never served from cache.
-export function mountStatic(app: Hono, root: string): void {
+export function mountStatic<E extends Env>(app: Hono<E>, root: string): void {
   // Validated once at mount; we don't pay an existsSync per request.
   const rootMissing = !existsSync(root);
   const indexPath = join(root, 'index.html');

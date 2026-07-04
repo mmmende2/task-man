@@ -9,7 +9,11 @@ export const INSIGHTS_LOG_FILE = join(DATA_DIR, 'insights-log.json');
 export const SERVER_PID_FILE = join(DATA_DIR, 'server.pid');
 
 export const DEFAULT_SERVER_PORT = 3030;
-export const DEFAULT_SERVER_BIND = '0.0.0.0';
+// Local-only by default. With PIN auth removed (Cloudflare Access is the
+// production gate), binding wider than loopback exposes an unauthenticated
+// read/write API — that must be an explicit choice (--bind 0.0.0.0), never
+// a default.
+export const DEFAULT_SERVER_BIND = '127.0.0.1';
 
 export const DEFAULT_CONFIG: TaskManConfig = {
   email: {

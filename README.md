@@ -18,24 +18,27 @@ This repo is a small multi-package workspace. Each package has its own README wi
 ┌─────────────────────────────────────────────────────────────┐
 │                        ~/.task-man/                         │
 │            tasks.json · config.json · insights-log.json     │
-└────────────▲───────────────────────▲────────────────────────┘
-             │ direct file access    │ direct file access
-             │                       │
-        ┌────┴─────┐            ┌────┴─────┐
-        │   TUI    │            │   MCP    │
-        │ (cli/)   │            │ (mcp/)   │
-        └────▲─────┘            └──────────┘
-             │
-             │ launches Hono server
-             ▼
+└────────────────────────────▲────────────────────────────────┘
+                             │ TaskStore (file lock, atomic writes)
+                    ┌────────┴────────┐
+                    │  Store (async)  │   getStore() picks per config:
+                    │  LocalStore ────┤   local (default) or remote
+                    │  RemoteStore ──▶│── HTTPS + Cloudflare Access ──▶ hosted server
+                    └────▲───────▲────┘
+                         │       │
+                    ┌────┴───┐ ┌─┴──────┐
+                    │  TUI   │ │  MCP   │
+                    │ (cli/) │ │ (mcp/) │
+                    └────────┘ └────────┘
+
         ┌──────────────────────┐         ┌──────────────────┐
         │  task-man serve      │◀──HTTP──│  web SPA         │
         │  (cli/src/server/)   │         │  (web/, served   │
-        │                      │         │   from dist-web) │
+        │  /api + /api/store   │         │   from dist-web) │
         └──────────────────────┘         └──────────────────┘
 ```
 
-Today, the TUI and MCP read and write `~/.task-man/tasks.json` in-process via `TaskStore`. Only the web SPA goes over HTTP. See [`docs/deploy-plan.md`](./docs/deploy-plan.md) for the planned move to a hosted server with a remote-capable TUI/MCP.
+The TUI and MCP code against an async `Store` interface: `LocalStore` (the default) wraps the in-process `TaskStore`; `RemoteStore` speaks HTTPS to a hosted instance of the same Hono server behind Cloudflare Access. The web SPA always goes over HTTP to its own origin. See [`docs/system-map.md`](./docs/system-map.md) for the full connection map and [`docs/deploy-plan.md`](./docs/deploy-plan.md) for the hosting plan (droplet + Tunnel, not yet deployed).
 
 ## Quick start
 
@@ -66,7 +69,7 @@ npm run dev   # starts `task-man serve` + the web dev server concurrently
 - [`cli/README.md`](./cli/README.md) — CLI commands, TUI keybindings, `task-man serve`, config
 - [`web/README.md`](./web/README.md) — web dev and build flow
 - [`mcp/README.md`](./mcp/README.md) — MCP setup and full tool reference
-- [`docs/architecture.md`](./docs/architecture.md) — current architecture notes
+- [`docs/system-map.md`](./docs/system-map.md) — terse architecture reference (layers, seams, run modes)
 - [`docs/deploy-plan.md`](./docs/deploy-plan.md) — plan to host on DigitalOcean behind Cloudflare
 - [`PRD.md`](./PRD.md) — product requirements
 - [`CLAUDE.md`](./CLAUDE.md) — repo conventions for Claude Code

@@ -1,5 +1,6 @@
 import { Box, Text } from 'ink';
 import type { Task } from '../../types.js';
+import { SCOPE_LABELS } from '../../constants.js';
 import { PriorityDot } from './PriorityDot.js';
 import { ProgressBar } from './ProgressBar.js';
 import { CURSOR_GLYPH } from './selection.js';
@@ -10,16 +11,20 @@ interface Props {
   subtaskProgress?: { done: number; total: number };
   terminalColor?: string | null;
   sessionActive?: boolean;
+  /** Show a dim per/pro tag — passed when the scope filter is 'all', where rows are otherwise indistinguishable. */
+  showScope?: boolean;
 }
 
-export function TaskRow({ task, isSelected, subtaskProgress, terminalColor, sessionActive }: Props) {
+export function TaskRow({ task, isSelected, subtaskProgress, terminalColor, sessionActive, showScope }: Props) {
   const isDone = task.status === 'done';
 
   return (
     <Box>
       <Text>{isSelected ? `  ${CURSOR_GLYPH} ` : '    '}</Text>
       <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
-      <Text dimColor={isDone}> {task.title}  </Text>
+      <Text dimColor={isDone}> {task.title}</Text>
+      {showScope && <Text dimColor> ·{SCOPE_LABELS[task.scope]}</Text>}
+      <Text>{'  '}</Text>
       {subtaskProgress && subtaskProgress.total > 0 && (
         <ProgressBar
           current={subtaskProgress.done}
