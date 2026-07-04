@@ -464,8 +464,7 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
       case 'correction': {
         if (input === 'y') {
           applyChange({ title: currentQuestion.suggestion ?? currentTask!.title }, 'fixed');
-        } else if (input === 'n') {
-          skipQuestion();
+          // 'n' (keep as-is) is handled by the generic skip above.
         } else if (input === 'e') {
           setEditText(currentQuestion.suggestion ?? currentTask?.title ?? '');
           setEditCursor((currentQuestion.suggestion ?? currentTask?.title ?? '').length);

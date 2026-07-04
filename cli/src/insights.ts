@@ -149,8 +149,6 @@ export function generateInsight(tasks: Task[], date: string): string | null {
   }
 
   // 7. Velocity trend (this week vs last week avg)
-  const thisWeekStart = dateStr(6, date);
-  const lastWeekStart = dateStr(13, date);
   let thisWeekTotal = 0;
   let lastWeekTotal = 0;
   for (let i = 0; i <= 6; i++) {
