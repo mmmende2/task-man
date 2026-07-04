@@ -9,7 +9,7 @@ handler), `RefineMode.tsx` (own handler), `MetricsMode.tsx` (own handler),
 
 | Key | Global | Focus | Plan | Write capture | Write review | Metrics | Refine |
 |-----|--------|-------|------|---------------|--------------|---------|--------|
-| `f` `t` `w` `m` `r` | switch mode | — | — | (typed as text) | `w`→capture, `f`→toggle focused ⚠ | switch | — |
+| `f` `t` `w` `m` `r` | switch mode | — | — | (typed as text) | `w`→capture | switch | — |
 | `~` | cycle scope filter | ✓ | ✓ | ✓ | ✓ | no visible effect ⚠ | — |
 | `q` | quit app | ✓ | ✓ | (text) | (unbound) | ✓ | exit mode ⚠ |
 | `j`/`k`, `gg`/`G` | — | nav | nav | — | nav | — | nav (list Qs) |
@@ -24,7 +24,7 @@ handler), `RefineMode.tsx` (own handler), `MetricsMode.tsx` (own handler),
 | `o`/`O` | — | create | create | — | — | — | — |
 | `D` | — | edit completion date | (emitted, ignored) | — | — | go to date | — |
 | `e` | — | edit description | edit description | — | — | (unbound) | edit title (card) |
-| `Space` | — | (unbound) | toggle focused | — | — | — | — |
+| `Space` | — | (unbound) | toggle focused | — | toggle focused | — | — |
 | `Tab` | — | subtask nav | (accepted) | accept category ghost | subtask nav | — | — |
 | `u` | — | undo | undo | — | undo | — | undo answer |
 | `/` | — | search | search | — | — | — | — |
@@ -50,17 +50,16 @@ handler), `RefineMode.tsx` (own handler), `MetricsMode.tsx` (own handler),
 
 ## Remaining (accepted for now)
 
-1. **`f` in Write review toggles focused** while `f` elsewhere switches to
-   Focus mode; Plan uses `Space` for the same toggle. Mario asked whether
-   Plan could use `f` too — it can't without losing `f` as the way *back to
-   Focus mode from Plan*, which is the highest-traffic mode switch in the
-   app. Recommendation: unify on `Space` instead (add it to Write review)
-   if this itches; `f` stays a mode key.
-2. **`q` in Refine exits the mode, not the app** (footer says `q:quit`).
+1. **`q` in Refine exits the mode, not the app** (footer says `q:quit`).
    Defensible mid-card-flip; cosmetic.
-3. **`~` in Metrics** updates the header but the report ignores scope — the
+2. **`~` in Metrics** updates the header but the report ignores scope — the
    day report is a whole-day artifact. Revisit only if scoped metrics become
    a real want.
+
+(Resolved 2026-07-04: focused-toggle unified on `Space` — Plan and Write
+review both use it; Write review's `f` binding is gone, so `f` means exactly
+one thing everywhere: go to Focus mode. Mario's original ask — `f` to toggle
+focus in Plan — was declined to keep that guarantee.)
 
 ## CLI retirement — done 2026-07-04
 

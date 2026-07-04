@@ -674,7 +674,9 @@ export function WriteMode({
       if (task) updateSelected({ scope: toggleScope(task.scope) });
       return;
     }
-    if (input === 'f' && navTarget === 'tasks') {
+    // Space — toggle focused, same as Plan mode. (Was `f`, which shadowed
+    // the global switch-to-Focus key; see docs/controls-audit.md.)
+    if (input === ' ' && navTarget === 'tasks') {
       const task = getSelectedTask();
       if (task) updateSelected({ focused: !task.focused });
       return;

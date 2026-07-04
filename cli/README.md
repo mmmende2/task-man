@@ -106,7 +106,7 @@ tag while viewing all scopes. `q` quits.
 |-----|--------|
 | `x` | Toggle done / todo |
 | `S` | Toggle scope personal / professional (focus, plan, write review) |
-| `Space` | Toggle focused / backlog (plan mode) |
+| `Space` | Toggle focused / backlog (plan + write review) |
 | `dd` | Cut task (enter holding mode) |
 | `p` | Paste below (in holding mode) |
 | `P` | Paste above (in holding mode) |
