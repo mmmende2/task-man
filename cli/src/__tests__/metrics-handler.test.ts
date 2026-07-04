@@ -92,6 +92,49 @@ describe('buildMetrics', () => {
     expect(r.earliestDate).toBe(TODAY);
   });
 
+  describe('scope filtering', () => {
+    beforeEach(async () => {
+      const work = await store.add({ title: 'Work thing', scope: 'professional' });
+      const home = await store.add({ title: 'Home thing', scope: 'personal' });
+      await store.update(work.id, { status: 'done' });
+      await store.update(home.id, { status: 'done' });
+      // A professional completion two days back, for lastWorkDay.
+      const oldWork = await store.add({ title: 'Old work', scope: 'professional' });
+      await store.update(oldWork.id, { status: 'done', completed_at: isoOnLocalDate(priorDay(2)) });
+      // A personal completion yesterday — must NOT count as a professional work day.
+      const oldHome = await store.add({ title: 'Old home', scope: 'personal' });
+      await store.update(oldHome.id, { status: 'done', completed_at: isoOnLocalDate(priorDay(1)) });
+    });
+
+    it('restricts counts and task lists to the requested scope', async () => {
+      const pro = await buildMetrics(store, TODAY, 'professional');
+      expect(pro.stats.completed).toBe(1);
+      expect(pro.completedTasks.map((t) => t.title)).toEqual(['Work thing']);
+
+      const per = await buildMetrics(store, TODAY, 'personal');
+      expect(per.completedTasks.map((t) => t.title)).toEqual(['Home thing']);
+
+      // Unscoped: both of today's completions (the backdated ones don't
+      // count toward TODAY's stats).
+      const all = await buildMetrics(store, TODAY);
+      expect(all.stats.completed).toBe(2);
+    });
+
+    it('computes lastWorkDay within the scope', async () => {
+      // Unscoped: yesterday (the personal completion) is the last day.
+      const all = await buildMetrics(store, TODAY);
+      expect(all.lastWorkDay).toBe(priorDay(1));
+      // Professional: skips yesterday's personal completion.
+      const pro = await buildMetrics(store, TODAY, 'professional');
+      expect(pro.lastWorkDay).toBe(priorDay(2));
+    });
+
+    it('carries no insight when scoped (whole-day artifact only)', async () => {
+      const pro = await buildMetrics(store, TODAY, 'professional');
+      expect(pro.insight).toBeNull();
+    });
+  });
+
   it('treats a parent as active when a subtask was completed that day (parent itself untouched)', async () => {
     const parent = await store.add({ title: 'Parent' });
     const sub = await store.add({ title: 'Sub', parent_id: parent.id });

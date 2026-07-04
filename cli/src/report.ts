@@ -3,14 +3,24 @@ import { getEndOfDayMessage } from './messages.js';
 import type { Store } from './store-interface.js';
 import { completedOn, createdOn, inProgressUpdatedOn } from './task-filters.js';
 import { isOnLocalDate } from './local-date.js';
-import type { DayReport } from './types.js';
+import type { DayReport, TaskScope } from './types.js';
+
+export interface DayReportOptions {
+  /** Restrict every number/list to one scope (web Metrics scope chip). */
+  scope?: TaskScope;
+}
 
 // Loads the full task list once and derives everything else in-memory —
 // generateInsight alone would otherwise re-query per-date up to ~380 times
 // (streak + velocity-trend lookback), which is fine against a local file but
 // would be ~380 sequential HTTP round-trips against a RemoteStore.
-export async function buildDayReport(store: Store, date: string): Promise<DayReport> {
-  const allTasks = await store.load();
+export async function buildDayReport(
+  store: Store,
+  date: string,
+  opts: DayReportOptions = {},
+): Promise<DayReport> {
+  const loaded = await store.load();
+  const allTasks = opts.scope ? loaded.filter(t => t.scope === opts.scope) : loaded;
 
   const allCompletedOn = completedOn(allTasks, date);
   const completedTasks = allCompletedOn.filter(t => t.parent_id === null);
@@ -30,7 +40,11 @@ export async function buildDayReport(store: Store, date: string): Promise<DayRep
   const subtasksCompleted = allSubtasks.filter(t => isOnLocalDate(t.completed_at, date)).length;
   const subtasksTotal = allSubtasks.length;
 
-  const insight = generateInsight(allTasks, date);
+  // Insight stays a whole-day artifact: it's generated once per day and
+  // dedupe state is persisted (insights-log). A scoped view must neither
+  // show a misleading "record day!" computed on a slice nor write that
+  // slice into the log — so scoped reports simply carry no insight.
+  const insight = opts.scope ? null : generateInsight(allTasks, date);
   const encouragingMessage = getEndOfDayMessage();
 
   // Tasks still focused and not done — tomorrow's plan

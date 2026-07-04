@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, reloadForAuth } from '../api';
 import { usePoll } from '../lib/use-poll';
 import { NavMenu } from '../components/NavMenu';
 import { Brand } from '../components/Brand';
+import { ScopeChip, loadScopeFilter, saveScopeFilter, type ScopeFilter } from '../components/ScopeChip';
 import { localDateString, isOnLocalDate } from 'task-man/local-date';
 import type { Task } from '../types';
 import './Metrics.css';
@@ -12,21 +13,54 @@ const STATUS_ORDER: Record<string, number> = { done: 0, in_progress: 1, todo: 2 
 export function MetricsPage() {
   const today = localDateString();
   const [viewDate, setViewDate] = useState(today);
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>(() => loadScopeFilter());
+  // "Last work day" pressed from a non-professional scope: jump once the
+  // professionally-scoped response (with its own lastWorkDay) arrives.
+  const [pendingLastWork, setPendingLastWork] = useState(false);
+  // Which scope the currently-displayed metrics were fetched under — guards
+  // the pending jump against acting on stale (pre-scope-switch) data.
+  const fetchedScope = useRef<ScopeFilter>('all');
+
+  const changeScopeFilter = (v: ScopeFilter) => {
+    setScopeFilter(v);
+    saveScopeFilter(v);
+  };
 
   const fetcher = useCallback(async () => {
     try {
-      return await api.getMetrics(viewDate);
+      const m = await api.getMetrics(viewDate, scopeFilter === 'all' ? undefined : scopeFilter);
+      fetchedScope.current = scopeFilter;
+      return m;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         reloadForAuth();
       }
       throw err;
     }
-  }, [viewDate]);
+  }, [viewDate, scopeFilter]);
 
   // Slower cadence than Focus — Metrics is a reflective view.
-  const { data: metrics, failures } = usePoll(fetcher, 15000);
+  const { data: metrics, failures, refresh } = usePoll(fetcher, 15000);
   const showConnectionError = failures >= 3;
+
+  // usePoll only refires on its timer; a 15s wait after changing the date or
+  // scope reads as broken. Refetch immediately on either (skip the mount run —
+  // usePoll's own initial tick covers it).
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewDate, scopeFilter]);
+
+  useEffect(() => {
+    if (!pendingLastWork || !metrics || fetchedScope.current !== 'professional') return;
+    setPendingLastWork(false);
+    if (metrics.lastWorkDay) setViewDate(metrics.lastWorkDay);
+  }, [pendingLastWork, metrics]);
 
   const isPast = viewDate !== today;
   const dateLabel = isPast ? `Done on ${viewDate}` : 'Done today';
@@ -47,8 +81,18 @@ export function MetricsPage() {
     );
   }, [metrics]);
 
+  // "Last work day" means it: jump to the last day with professional
+  // completions, switching the scope to professional if it isn't already.
+  // The jump target must come from the professionally-scoped response, so
+  // when switching we defer the date change until that data lands (see the
+  // pendingLastWork effect above).
   const goLastWorkDay = () => {
-    if (metrics?.lastWorkDay) setViewDate(metrics.lastWorkDay);
+    if (scopeFilter === 'professional') {
+      if (metrics?.lastWorkDay) setViewDate(metrics.lastWorkDay);
+    } else {
+      changeScopeFilter('professional');
+      setPendingLastWork(true);
+    }
   };
 
   const goToday = () => setViewDate(today);
@@ -82,6 +126,7 @@ export function MetricsPage() {
     <div className="metrics-page">
       <header className="metrics-header">
         <Brand />
+        <ScopeChip value={scopeFilter} onChange={changeScopeFilter} />
         <NavMenu current="metrics" />
       </header>
 
@@ -93,7 +138,7 @@ export function MetricsPage() {
         <button
           className="metrics-jump"
           onClick={goLastWorkDay}
-          disabled={!metrics?.lastWorkDay}
+          disabled={scopeFilter === 'professional' ? !metrics?.lastWorkDay : !metrics}
           type="button"
         >
           ‹ Last work day

@@ -49,8 +49,11 @@ export const api = {
   async unfocus(id: string): Promise<Task> {
     return client.req<Task>(`/api/tasks/${id}/unfocus`, { method: 'POST' });
   },
-  async getMetrics(date?: string): Promise<MetricsResponse> {
-    const qs = date ? `?date=${encodeURIComponent(date)}` : '';
-    return client.req<MetricsResponse>(`/api/metrics${qs}`);
+  async getMetrics(date?: string, scope?: 'personal' | 'professional'): Promise<MetricsResponse> {
+    const qs = new URLSearchParams();
+    if (date) qs.set('date', date);
+    if (scope) qs.set('scope', scope);
+    const s = qs.toString();
+    return client.req<MetricsResponse>(`/api/metrics${s ? `?${s}` : ''}`);
   },
 };

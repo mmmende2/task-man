@@ -124,6 +124,11 @@ export const listQuery = z.object({
   limit: z.coerce.number().int().positive().optional(),
 });
 
+export const metricsQuery = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  scope: scope.optional(),
+});
+
 export const searchQuery = z.object({
   q: z.string().optional(),
   query: z.string().optional(),
