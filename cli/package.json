@@ -2,6 +2,7 @@
   "name": "task-man",
   "version": "0.2.0",
   "description": "Personal task manager for developers who live in the terminal — TUI, LAN web app, and MCP server for Claude",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=18"
