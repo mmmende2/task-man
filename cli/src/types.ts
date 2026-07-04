@@ -22,6 +22,10 @@ export interface Task {
   session_id: string | null;
   time_estimate: TimeEstimate | null;
   vibe: Vibe | null;
+  // Email of the identity this task belongs to. null/absent = legacy task,
+  // treated as TASK_MAN_DEFAULT_OWNER's at filter time (see server/scoped-store.ts).
+  // Stamped server-side only — never client-assignable (schemas.ts strips it).
+  owner?: string | null;
 }
 
 export interface CreateTaskInput {
@@ -36,6 +40,8 @@ export interface CreateTaskInput {
   session_id?: string | null;
   time_estimate?: TimeEstimate | null;
   vibe?: Vibe | null;
+  // Server-internal (set by scoped-store, stripped from request bodies).
+  owner?: string | null;
 }
 
 export interface TaskFilter {
@@ -63,9 +69,19 @@ export interface TaskManConfig {
   sessions: Record<string, SessionColor>;
   server?: {
     port?: number;            // default 3030
-    bind?: string;            // default "0.0.0.0"; "127.0.0.1" forces local-only
-    pin?: string;             // 4-digit, stored as a string (preserves leading zeros)
-    session_secret?: string;  // auto-generated on first start
+    bind?: string;            // default "127.0.0.1" (local-only); "0.0.0.0" exposes on LAN
+  };
+  client?: {
+    // Anything other than the literal 'remote' is treated as local — a
+    // typo here should fail safe to local, not silently point at a URL
+    // the user didn't opt into.
+    mode?: 'local' | 'remote';
+    remote_url?: string;
+    // Cloudflare Access service token — non-expiring, for headless MCP.
+    // When absent, RemoteStore falls back to the interactive
+    // `cloudflared access login` JWT flow (used by the TUI).
+    service_token_id?: string;
+    service_token_secret?: string;
   };
 }
 
@@ -89,6 +105,17 @@ export interface DayReport {
   stats: DayStats;
   insight: string | null;
   encouragingMessage: string;
+}
+
+// Shape returned by GET /api/metrics — DayReport plus three fields the
+// web Metrics page needs (subtask tree, last-work-day jump, date-picker
+// lower bound). Lives in types.ts (not handlers/metrics.ts) so the web
+// can import it without pulling the server-only handler module into its
+// bundle.
+export interface MetricsResponse extends DayReport {
+  subtasksByParent: Record<string, Task[]>;
+  lastWorkDay: string | null;
+  earliestDate: string | null;
 }
 
 export type InsightType =

@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import type { Task, TaskScope } from '../../types.js';
-import type { TaskStore } from '../../store.js';
+import type { Store } from '../../store-interface.js';
 import type { VimMode, VimAction } from '../hooks/useVimKeys.js';
 import { useVimKeys } from '../hooks/useVimKeys.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
 import { useTerminalHeight } from '../hooks/useTerminalWidth.js';
 import { loadConfig, saveConfig } from '../../config.js';
+import { SCOPE_LABELS } from '../../constants.js';
 import { getSessionHexColor } from '../../sessions.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
@@ -18,7 +19,7 @@ interface Props {
   backlogTasks: Task[];
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
-  store: TaskStore;
+  store: Store;
   reload: () => void;
   vimMode: VimMode;
   setVimMode: (mode: VimMode) => void;
@@ -253,11 +254,10 @@ export function PlanMode({
           setClipboard({ task, index, wasFocused: task.focused });
           setVimMode('holding');
           onHoldingChange?.(task.title);
-          undoStack.push({
-            undo: async () => {
-              await store.insertAt(task, index);
-            },
-          });
+          // No undo entry yet — holding mode always ends in paste or Esc,
+          // and each of those pushes exactly one entry for the whole
+          // operation. Pushing here too meant a second `u` after a move
+          // re-inserted the task a second time (duplicate id).
           reload();
         });
         break;
@@ -265,31 +265,31 @@ export function PlanMode({
 
       case 'paste': {
         if (!clipboard) return;
-        const allTasks = store.load();
+        store.load().then((allTasks) => {
+          let targetIndex: number;
+          const anchorTask = getSelectedTask();
+          if (anchorTask) {
+            targetIndex = allTasks.findIndex(t => t.id === anchorTask.id);
+            if (!action.above) targetIndex += 1;
+          } else {
+            targetIndex = allTasks.length;
+          }
 
-        let targetIndex: number;
-        const anchorTask = getSelectedTask();
-        if (anchorTask) {
-          targetIndex = allTasks.findIndex(t => t.id === anchorTask.id);
-          if (!action.above) targetIndex += 1;
-        } else {
-          targetIndex = allTasks.length;
-        }
+          const origClipboard = clipboard;
+          const taskToInsert = { ...clipboard.task };
 
-        const origClipboard = clipboard;
-        const taskToInsert = { ...clipboard.task };
-
-        store.insertAt(taskToInsert, targetIndex).then(() => {
-          undoStack.push({
-            undo: async () => {
-              await store.remove(taskToInsert.id);
-              await store.insertAt(origClipboard.task, origClipboard.index);
-            },
+          store.insertAt(taskToInsert, targetIndex).then(() => {
+            undoStack.push({
+              undo: async () => {
+                await store.remove(taskToInsert.id);
+                await store.insertAt(origClipboard.task, origClipboard.index);
+              },
+            });
+            setClipboard(null);
+            setVimMode('normal');
+            onHoldingChange?.(undefined);
+            reload();
           });
-          setClipboard(null);
-          setVimMode('normal');
-          onHoldingChange?.(undefined);
-          reload();
         });
         break;
       }
@@ -297,6 +297,12 @@ export function PlanMode({
       case 'cancel': {
         if (vimMode === 'holding' && clipboard) {
           // Confirm delete — task stays removed, undo available via 'u'
+          const { task, index } = clipboard;
+          undoStack.push({
+            undo: async () => {
+              await store.insertAt(task, index);
+            },
+          });
           setClipboard(null);
           setVimMode('normal');
           onHoldingChange?.(undefined);
@@ -365,6 +371,20 @@ export function PlanMode({
         } else {
           store.update(task.id, { focused: true }).then(() => reload());
         }
+        break;
+      }
+
+      case 'toggle-scope': {
+        const task = getSelectedTask();
+        if (!task) return;
+        const prevScope = task.scope;
+        const nextScope = prevScope === 'personal' ? 'professional' : 'personal';
+        store.update(task.id, { scope: nextScope }).then(() => {
+          undoStack.push({
+            undo: async () => { await store.update(task.id, { scope: prevScope }); },
+          });
+          reload();
+        });
         break;
       }
     }
@@ -492,6 +512,7 @@ export function PlanMode({
             <Text dimColor={!task.focused && !activeSel} color={activeSel ? 'cyan' : undefined}>
               {' '}{task.title}
             </Text>
+            {scopeFilter === 'all' && <Text dimColor>{' ·'}{SCOPE_LABELS[task.scope]}</Text>}
             {task.focused && <Text color="yellow">{' ★'}</Text>}
             {task.status === 'done' && <Text dimColor>{' ✓'}</Text>}
           </Box>

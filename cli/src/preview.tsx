@@ -10,6 +10,7 @@ import { createElement } from 'react';
 import { render } from 'ink-testing-library';
 import { Box } from 'ink';
 import { TaskStore } from './store.js';
+import { LocalStore } from './local-store.js';
 import { TerminalDimensionsProvider } from './ui/hooks/useTerminalWidth.js';
 import { Header } from './ui/shared/Header.js';
 import { Footer } from './ui/shared/Footer.js';
@@ -20,8 +21,8 @@ import { MetricsMode } from './ui/modes/MetricsMode.js';
 import type { Task } from './types.js';
 import type { AppMode } from './ui/types.js';
 
-const store = new TaskStore();
-const allTasks = store.load();
+const store = new LocalStore(new TaskStore());
+const allTasks = await store.load();
 
 // Separate parents and subtasks
 const subtaskMap = new Map<string, Task[]>();

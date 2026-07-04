@@ -1,0 +1,17 @@
+.scope-chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-dim);
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: var(--tap-min, 32px);
+}
+
+.scope-chip.active {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}

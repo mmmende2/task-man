@@ -1,14 +1,21 @@
 import { generateInsight } from './insights.js';
 import { getEndOfDayMessage } from './messages.js';
-import { TaskStore } from './store.js';
+import type { Store } from './store-interface.js';
+import { completedOn, createdOn, inProgressUpdatedOn } from './task-filters.js';
 import { isOnLocalDate } from './local-date.js';
 import type { DayReport } from './types.js';
 
-export function buildDayReport(store: TaskStore, date: string): DayReport {
-  const allCompletedOn = store.getCompletedOn(date);
+// Loads the full task list once and derives everything else in-memory —
+// generateInsight alone would otherwise re-query per-date up to ~380 times
+// (streak + velocity-trend lookback), which is fine against a local file but
+// would be ~380 sequential HTTP round-trips against a RemoteStore.
+export async function buildDayReport(store: Store, date: string): Promise<DayReport> {
+  const allTasks = await store.load();
+
+  const allCompletedOn = completedOn(allTasks, date);
   const completedTasks = allCompletedOn.filter(t => t.parent_id === null);
-  const inProgressTasks = store.getInProgressUpdatedOn(date);
-  const startedTasks = store.getCreatedOn(date);
+  const inProgressTasks = inProgressUpdatedOn(allTasks, date);
+  const startedTasks = createdOn(allTasks, date);
 
   const completedByHuman = completedTasks.filter(t => t.created_by === 'human').length;
   const completedByClaude = completedTasks.filter(t => t.created_by === 'claude').length;
@@ -19,17 +26,16 @@ export function buildDayReport(store: TaskStore, date: string): DayReport {
     : 0;
 
   // Subtask stats: count all subtasks and how many are done
-  const allTasks = store.load();
   const allSubtasks = allTasks.filter(t => t.parent_id !== null);
   const subtasksCompleted = allSubtasks.filter(t => isOnLocalDate(t.completed_at, date)).length;
   const subtasksTotal = allSubtasks.length;
 
-  const insight = generateInsight(store, date);
+  const insight = generateInsight(allTasks, date);
   const encouragingMessage = getEndOfDayMessage();
 
   // Tasks still focused and not done — tomorrow's plan
-  const tomorrowFocus = store.query({ focused: true })
-    .filter(t => t.status !== 'done' && t.parent_id === null)
+  const tomorrowFocus = allTasks
+    .filter(t => t.focused && t.status !== 'done' && t.parent_id === null)
     .sort((a, b) => {
       // in_progress first, then by priority
       if (a.status !== b.status) {

@@ -1,4 +1,4 @@
-import type { TaskStore } from '../store.js';
+import type { Store } from '../store-interface.js';
 import { isLocalToday } from '../local-date.js';
 
 export interface CategoryCount {
@@ -7,9 +7,9 @@ export interface CategoryCount {
 }
 
 /** Distinct category names with usage counts, ordered most-used first. */
-export function getCategories(store: TaskStore): CategoryCount[] {
+export async function getCategories(store: Store): Promise<CategoryCount[]> {
   const counts = new Map<string, number>();
-  for (const t of store.load()) {
+  for (const t of await store.load()) {
     for (const c of t.categories) {
       counts.set(c, (counts.get(c) ?? 0) + 1);
     }
@@ -30,12 +30,12 @@ export interface TaskStats {
   subtasks_done_today: number;
 }
 
-export function getStats(store: TaskStore): TaskStats {
+export async function getStats(store: Store): Promise<TaskStats> {
   const s: TaskStats = {
     total: 0, focused: 0, in_progress: 0, todo_focused: 0, backlog: 0,
     completed_today: 0, subtasks_total: 0, subtasks_done_today: 0,
   };
-  for (const t of store.load()) {
+  for (const t of await store.load()) {
     const doneToday = isLocalToday(t.completed_at);
     if (t.parent_id !== null) {
       s.subtasks_total += 1;

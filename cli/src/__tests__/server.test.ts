@@ -2,37 +2,20 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { Hono } from 'hono';
 import { TaskStore } from '../store.js';
+import { LocalStore } from '../local-store.js';
+import type { Store } from '../store-interface.js';
 import { createApp } from '../server/routes.js';
-
-const PIN = '4242';
-const SECRET = 'test-secret-please-ignore';
-
-function extractCookie(res: Response): string {
-  const setCookie = res.headers.get('set-cookie') ?? '';
-  return setCookie.split(';')[0]; // name=value
-}
-
-async function login(app: Hono, pin = PIN): Promise<string> {
-  const res = await app.request('/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pin }),
-  });
-  expect(res.status).toBe(200);
-  return extractCookie(res);
-}
 
 describe('server', () => {
   let tmpDir: string;
-  let store: TaskStore;
-  let app: Hono;
+  let store: Store;
+  let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'task-man-server-'));
-    store = new TaskStore(join(tmpDir, 'tasks.json'));
-    app = createApp({ store, pin: PIN, sessionSecret: SECRET });
+    store = new LocalStore(new TaskStore(join(tmpDir, 'tasks.json')));
+    app = createApp({ store });
   });
 
   afterEach(() => {
@@ -45,55 +28,10 @@ describe('server', () => {
     expect(await res.json()).toEqual({ ok: true });
   });
 
-  it('rejects unauthenticated API requests with 401', async () => {
-    const res = await app.request('/api/tasks');
-    expect(res.status).toBe(401);
-  });
-
-  it('rejects a bad PIN', async () => {
-    const res = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: '0000' }),
-    });
-    expect(res.status).toBe(401);
-  });
-
-  it('issues a cookie on valid PIN and authorizes subsequent requests', async () => {
-    const cookie = await login(app);
-    expect(cookie).toContain('task-man-session=');
-
-    const res = await app.request('/api/tasks', { headers: { Cookie: cookie } });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual([]);
-  });
-
-  it('rate-limits after 5 failed attempts', async () => {
-    for (let i = 0; i < 5; i++) {
-      const res = await app.request('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: '9999' }),
-      });
-      expect(res.status).toBe(401);
-    }
-    // 6th attempt is blocked outright
-    const blocked = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: '9999' }),
-    });
-    expect(blocked.status).toBe(429);
-    const body = (await blocked.json()) as { error: string; retryAfter: number };
-    expect(body.error).toBe('rate_limited');
-    expect(body.retryAfter).toBeGreaterThan(0);
-  });
-
   it('creates a task (created_by human) and lists it', async () => {
-    const cookie = await login(app);
     const res = await app.request('/api/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'From phone', priority: 'high' }),
     });
     expect(res.status).toBe(201);
@@ -101,15 +39,13 @@ describe('server', () => {
     expect(task.created_by).toBe('human');
     expect(task.priority).toBe('high');
 
-    const list = await app.request('/api/tasks', { headers: { Cookie: cookie } });
+    const list = await app.request('/api/tasks');
     expect((await list.json()) as unknown[]).toHaveLength(1);
   });
 
   it('idempotency key replay returns the same task without duplicating', async () => {
-    const cookie = await login(app);
     const headers = {
       'Content-Type': 'application/json',
-      Cookie: cookie,
       'Idempotency-Key': 'abc-123',
     };
     const body = JSON.stringify({ title: 'Double tapped' });
@@ -120,47 +56,165 @@ describe('server', () => {
     const t2 = (await second.json()) as { id: string };
     expect(t1.id).toBe(t2.id);
 
-    const list = await app.request('/api/tasks', { headers: { Cookie: cookie } });
+    const list = await app.request('/api/tasks');
     expect((await list.json()) as unknown[]).toHaveLength(1);
   });
 
-  it('completes a top-level task from the web (no MCP guard)', async () => {
-    const cookie = await login(app);
+  it('replays a keyed store remove instead of 404ing (lost-response retry)', async () => {
     const created = await app.request('/api/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Removed twice' }),
+    });
+    const task = (await created.json()) as { id: string };
+
+    const headers = { 'Content-Type': 'application/json', 'Idempotency-Key': 'store-remove-1' };
+    const body = JSON.stringify({ id: task.id });
+    const first = await app.request('/api/store/remove', { method: 'POST', headers, body });
+    expect(first.status).toBe(200);
+    // RemoteStore retries with the same key when the response was lost —
+    // the replay must return the cached result, not "No task found".
+    const second = await app.request('/api/store/remove', { method: 'POST', headers, body });
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual(await first.json());
+  });
+
+  it('completes a top-level task from the web (no MCP guard)', async () => {
+    const created = await app.request('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Headline task' }),
     });
     const task = (await created.json()) as { id: string };
 
-    const done = await app.request(`/api/tasks/${task.id}/complete`, {
-      method: 'POST',
-      headers: { Cookie: cookie },
-    });
+    const done = await app.request(`/api/tasks/${task.id}/complete`, { method: 'POST' });
     expect(done.status).toBe(200);
     expect((await done.json()) as { status: string }).toMatchObject({ status: 'done' });
   });
 
   it('focused filter + focus sort serves the Focus view', async () => {
-    const cookie = await login(app);
     const mk = (title: string, priority: string, focused: boolean) =>
       app.request('/api/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Cookie: cookie },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, priority, focused }),
       });
     await mk('low focus', 'low', true);
     await mk('high focus', 'high', true);
     await mk('backlog', 'high', false);
 
-    const res = await app.request('/api/tasks?focused=true&sort=focus', { headers: { Cookie: cookie } });
+    const res = await app.request('/api/tasks?focused=true&sort=focus');
     const titles = ((await res.json()) as { title: string }[]).map((t) => t.title);
     expect(titles).toEqual(['high focus', 'low focus']);
   });
 
   it('returns 404 for an unknown task id', async () => {
-    const cookie = await login(app);
-    const res = await app.request('/api/tasks/does-not-exist', { headers: { Cookie: cookie } });
+    const res = await app.request('/api/tasks/does-not-exist');
     expect(res.status).toBe(404);
+  });
+
+  describe('/api/store/* (faithful primitives for RemoteStore)', () => {
+    it('add faithfully persists created_by and session_id (no re-attribution to human)', async () => {
+      const res = await app.request('/api/store/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { title: 'MCP task', created_by: 'claude', session_id: 'sess-1' } }),
+      });
+      expect(res.status).toBe(201);
+      const task = (await res.json()) as { created_by: string; session_id: string };
+      expect(task.created_by).toBe('claude');
+      expect(task.session_id).toBe('sess-1');
+    });
+
+    it('add replays idempotency key without duplicating', async () => {
+      const headers = { 'Content-Type': 'application/json', 'Idempotency-Key': 'store-add-1' };
+      const body = JSON.stringify({ input: { title: 'Once only' } });
+
+      const first = await app.request('/api/store/add', { method: 'POST', headers, body });
+      const second = await app.request('/api/store/add', { method: 'POST', headers, body });
+      const t1 = (await first.json()) as { id: string };
+      const t2 = (await second.json()) as { id: string };
+      expect(t1.id).toBe(t2.id);
+
+      const list = await app.request('/api/store/tasks');
+      expect((await list.json()) as unknown[]).toHaveLength(1);
+    });
+
+    it('update round-trips a change', async () => {
+      const added = await app.request('/api/store/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { title: 'To update' } }),
+      });
+      const task = (await added.json()) as { id: string };
+
+      const res = await app.request('/api/store/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: task.id, changes: { status: 'in_progress' } }),
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as { status: string }).toMatchObject({ status: 'in_progress' });
+    });
+
+    it('remove round-trips and removes the task', async () => {
+      const added = await app.request('/api/store/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { title: 'To remove' } }),
+      });
+      const task = (await added.json()) as { id: string };
+
+      const res = await app.request('/api/store/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: task.id }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { task: { id: string }; index: number };
+      expect(body.task.id).toBe(task.id);
+
+      const list = await app.request('/api/store/tasks');
+      expect((await list.json()) as unknown[]).toHaveLength(0);
+    });
+
+    it('insertAt round-trips and replays idempotency key without duplicating', async () => {
+      const added = await app.request('/api/store/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { title: 'Original' } }),
+      });
+      const task = (await added.json()) as Record<string, unknown>;
+
+      const headers = { 'Content-Type': 'application/json', 'Idempotency-Key': 'store-insert-1' };
+      const body = JSON.stringify({ task: { ...task, title: 'Reinserted' }, index: 0 });
+
+      const first = await app.request('/api/store/insertAt', { method: 'POST', headers, body });
+      const second = await app.request('/api/store/insertAt', { method: 'POST', headers, body });
+      expect(first.status).toBe(201);
+      const t1 = (await first.json()) as { id: string; title: string };
+      const t2 = (await second.json()) as { id: string; title: string };
+      expect(t2).toEqual(t1);
+
+      // Original 'Original' task is still present (insertAt adds, it doesn't replace)
+      const list = (await (await app.request('/api/store/tasks')).json()) as { title: string }[];
+      expect(list.map((t) => t.title).sort()).toEqual(['Original', 'Reinserted']);
+    });
+
+    it('GET /api/store/tasks returns raw insertion order (no sort applied)', async () => {
+      await app.request('/api/store/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { title: 'First' } }),
+      });
+      await app.request('/api/store/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: { title: 'Second' } }),
+      });
+
+      const list = (await (await app.request('/api/store/tasks')).json()) as { title: string }[];
+      expect(list.map((t) => t.title)).toEqual(['First', 'Second']);
+    });
   });
 });

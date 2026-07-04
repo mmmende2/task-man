@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TaskStore } from '../store.js';
+import { localDateString } from '../local-date.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -104,7 +105,7 @@ describe('TaskStore', () => {
   it('gets tasks completed on a date', async () => {
     const task = await store.add({ title: 'Done today' });
     await store.update(task.id, { status: 'done' });
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateString();
     const completed = store.getCompletedOn(today);
     expect(completed).toHaveLength(1);
   });

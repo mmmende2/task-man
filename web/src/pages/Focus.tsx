@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api';
+import { api, ApiError, reloadForAuth } from '../api';
 import type { Task } from '../types';
 import { usePoll } from '../lib/use-poll';
 import { NavMenu } from '../components/NavMenu';
+import { Brand } from '../components/Brand';
 // 'focus' sort = priority desc, then updated_at desc. The server
 // applies it via ?sort=focus; we then partition parents/subtasks
 // from the same payload client-side.
@@ -11,20 +12,20 @@ import { sortTasks } from 'task-man/handlers';
 // Shared local-midnight retention rule — same source of truth the TUI uses
 // (see cli/src/local-date.ts comment for the timezone bug it fixes).
 import { isLocalToday } from 'task-man/local-date';
+import { ScopeChip, loadScopeFilter, saveScopeFilter, matchesScope, type ScopeFilter } from '../components/ScopeChip';
 import './Focus.css';
-
-// SCOPE filter intentionally disabled in the UI — bring back the
-// import + ScopeChip + cycle handler if the user starts caring about
-// per-scope filtering again. Data field on Task still exists.
-//   import type { TaskScope } from '../types';
-//   type ScopeFilter = 'all' | TaskScope;
-//   const SCOPE_CYCLE: ScopeFilter[] = ['all', 'personal', 'professional'];
 
 export function FocusPage() {
   const nav = useNavigate();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [acting, setActing] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>(() => loadScopeFilter());
+
+  const changeScopeFilter = (v: ScopeFilter) => {
+    setScopeFilter(v);
+    saveScopeFilter(v);
+  };
 
   // One fetch covers parents + subtasks; client groups them. We
   // include done tasks here and let the retention rule below decide
@@ -35,7 +36,7 @@ export function FocusPage() {
       return await api.listTasks();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        nav('/login', { replace: true });
+        reloadForAuth();
       }
       throw err;
     }
@@ -52,6 +53,7 @@ export function FocusPage() {
         arr.push(t);
         subs.set(t.parent_id, arr);
       } else if (t.focused) {
+        if (!matchesScope(t.scope, scopeFilter)) continue;
         // Retention: keep done parents on screen if completed today
         // (local time). Same rule as the TUI.
         if (t.status !== 'done' || isLocalToday(t.completed_at)) {
@@ -60,7 +62,7 @@ export function FocusPage() {
       }
     }
     return { focused: sortTasks(parents, 'focus'), subtasksByParent: subs };
-  }, [tasks]);
+  }, [tasks, scopeFilter]);
 
   const flashToast = (msg: string) => {
     setToast(msg);
@@ -88,10 +90,8 @@ export function FocusPage() {
   return (
     <div className="focus-page">
       <header className="focus-header">
-        <div className="brand mono">
-          <span className="brand-magenta">task-</span>
-          <span className="brand-cyan">man</span>
-        </div>
+        <Brand />
+        <ScopeChip value={scopeFilter} onChange={changeScopeFilter} />
         <NavMenu current="focus" />
       </header>
 
@@ -117,6 +117,7 @@ export function FocusPage() {
           <FocusRow
             key={t.id}
             task={t}
+            showScope={scopeFilter === 'all'}
             subtasks={subtasksByParent.get(t.id) ?? []}
             expanded={expandedId === t.id}
             onToggle={() => setExpandedId(expandedId === t.id ? null : t.id)}
@@ -161,6 +162,8 @@ interface RowProps {
   subtasks: Task[];
   expanded: boolean;
   busy: boolean;
+  /** Render a dim per/pro tag — set when the scope filter is 'all'. */
+  showScope?: boolean;
   onToggle: () => void;
   onComplete: () => void;
   onReopen: () => void;
@@ -169,7 +172,7 @@ interface RowProps {
   onAddSubtask: (title: string) => Promise<boolean>;
 }
 
-function FocusRow({ task, subtasks, expanded, busy, onToggle, onComplete, onReopen, onUnfocus, onSubtaskToggle, onAddSubtask }: RowProps) {
+function FocusRow({ task, subtasks, expanded, busy, showScope, onToggle, onComplete, onReopen, onUnfocus, onSubtaskToggle, onAddSubtask }: RowProps) {
   const isDone = task.status === 'done';
   const subDone = subtasks.filter((s) => s.status === 'done').length;
   const subTotal = subtasks.length;
@@ -214,6 +217,7 @@ function FocusRow({ task, subtasks, expanded, busy, onToggle, onComplete, onReop
           {isDone && <div className="row-status done-stamp">done today</div>}
         </div>
         <div className="row-side">
+          {showScope && <span className="chip scope-tag">{task.scope === 'professional' ? 'pro' : 'per'}</span>}
           {task.categories.slice(0, 2).map((c) => (
             <span key={c} className="chip">{c}</span>
           ))}

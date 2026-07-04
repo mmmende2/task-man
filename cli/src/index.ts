@@ -1,16 +1,10 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
-import { addCommand } from './commands/add.js';
-import { listCommand } from './commands/list.js';
-import { doneCommand } from './commands/done.js';
-import { startCommand } from './commands/start.js';
-import { focusCommand, unfocusCommand } from './commands/focus.js';
 import { configCommand } from './commands/config.js';
-import { endDayCommand } from './commands/end-day.js';
 import { watchCommand } from './commands/watch.js';
-import { sessionRefocusCommand } from './commands/session-refocus.js';
 import { serveCommand } from './commands/serve.js';
+import { loginCommand } from './commands/login.js';
 import { launchInteractive } from './commands/interactive.js';
 
 const program = new Command();
@@ -20,17 +14,15 @@ program
   .description('Personal task manager for developers who live in the terminal')
   .version('0.1.0');
 
-program.addCommand(addCommand);
-program.addCommand(listCommand);
-program.addCommand(doneCommand);
-program.addCommand(startCommand);
-program.addCommand(focusCommand);
-program.addCommand(unfocusCommand);
+// The task-facing CLI (add/list/done/start/focus/unfocus/session-refocus/
+// end-day) was retired 2026-07: humans work in the TUI/web, Claude works
+// through MCP (task_end_day covers reports + email), and those commands only
+// ever touched the local file (never remote mode). See PRD Phase 5.
+// What remains is operational.
 program.addCommand(configCommand);
-program.addCommand(endDayCommand);
 program.addCommand(watchCommand);
-program.addCommand(sessionRefocusCommand);
 program.addCommand(serveCommand);
+program.addCommand(loginCommand);
 
 program.action(() => launchInteractive());
 

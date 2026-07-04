@@ -120,7 +120,7 @@ function renderBody(
           <Text dimColor>    </Text>
           <Text color="cyan">[j/k]</Text><Text dimColor> nav  </Text>
           <Text color="cyan">[enter]</Text><Text dimColor> select  </Text>
-          <Text color="cyan">[s]</Text><Text dimColor> skip</Text>
+          <Text color="cyan">[n]</Text><Text dimColor> skip</Text>
         </Box>
       </Box>
     );

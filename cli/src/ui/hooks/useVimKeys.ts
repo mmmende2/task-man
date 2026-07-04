@@ -17,6 +17,7 @@ export type VimAction =
   | { type: 'search' }
   | { type: 'cancel' }
   | { type: 'toggle-focus' }
+  | { type: 'toggle-scope' }
   | { type: 'tab' };
 
 export interface UseVimKeysOptions {
@@ -149,6 +150,9 @@ export function useVimKeys(
       opts.onAction({ type: 'edit-description' });
     } else if (input === 'x') {
       opts.onAction({ type: 'mark-done' });
+    } else if (input === 'S') {
+      // Capital S — Scope. Same binding in Write's review pane.
+      opts.onAction({ type: 'toggle-scope' });
     } else if (input === 'G') {
       opts.onAction({ type: 'jump', to: 'bottom' });
     } else if (input === 'u') {

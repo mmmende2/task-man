@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { Task, TaskPriority, TaskScope, TimeEstimate, Vibe } from '../../types.js';
-import type { TaskStore } from '../../store.js';
+import type { Store } from '../../store-interface.js';
 import type { AppMode } from '../types.js';
 import { loadConfig } from '../../config.js';
 import { buildRefineQueue } from '../../refine-queue.js';
@@ -9,7 +9,7 @@ import { usePulse, CYAN_PULSE } from '../hooks/usePulse.js';
 import { RefineQuestion, type QuestionDef } from './RefineQuestion.js';
 
 interface Props {
-  store: TaskStore;
+  store: Store;
   reload: () => void;
   onExit: (target: AppMode) => void;
   previousMode: AppMode;
@@ -85,8 +85,14 @@ function buildQuestions(
     });
   }
 
-  // 2. Missing scope
-  if (!task.scope) {
+  // 2. Scope check. `scope` is never null in practice (TaskStore defaults it
+  // to 'personal'), so the old `!task.scope` condition made this card
+  // unreachable. Instead, ask on unrefined Claude-created tasks: Claude
+  // rarely sets scope deliberately, and "no time_estimate + no vibe yet"
+  // is the proxy for "first refine pass" — once refined, this stops firing.
+  const unrefinedClaudeTask =
+    task.created_by === 'claude' && task.time_estimate == null && task.vibe == null;
+  if (!task.scope || unrefinedClaudeTask) {
     list.push({
       type: 'number',
       prompt: 'Work thing or personal thing?',
@@ -151,8 +157,10 @@ function buildQuestions(
 
   // 5. AI task review — skip if user has already set any metadata on this task,
   // or if it has subtasks (a parent with children is clearly relevant).
+  // NOTE: scope is deliberately absent here — it defaults to 'personal' on
+  // every task, so `scope != null` was always true and made this check
+  // (and the "does it belong?" card below) permanently dead.
   const hasEngagement =
-    task.scope != null ||
     task.time_estimate != null ||
     task.vibe != null ||
     task.categories.length > 0 ||
@@ -183,20 +191,12 @@ function buildQuestions(
 export function RefineMode({ store, reload, onExit, previousMode }: Props) {
   const pulseColor = usePulse({ colors: CYAN_PULSE, intervalMs: 350 });
 
-  const initialQueue = useMemo(() => buildRefineQueue(store.load()), [store]);
-  const knownCategories = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of store.load()) {
-      for (const c of t.categories) set.add(c);
-    }
-    return Array.from(set);
-  }, [store]);
   const config = useMemo(() => loadConfig(), []);
 
-  const [queue, setQueue] = useState<Task[]>(initialQueue);
+  const [queue, setQueue] = useState<Task[]>([]);
   const [taskIndex, setTaskIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>(initialQueue.length === 0 ? 'empty' : 'asking');
+  const [phase, setPhase] = useState<Phase>('asking');
   const [reviewedCount, setReviewedCount] = useState(0);
 
   const [listCursor, setListCursor] = useState(0);
@@ -216,7 +216,34 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
 
   const currentTask: Task | undefined = queue[taskIndex];
 
-  const allTasks = useMemo(() => store.load(), [store, reviewedCount]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
+  useEffect(() => {
+    store.load().then((tasks) => {
+      setAllTasks(tasks);
+      setTasksLoaded(true);
+    });
+  }, [store, reviewedCount]);
+
+  // Seed the queue once, from the first load — later reloads (triggered by
+  // reviewedCount) refresh allTasks/focusedCount context but must not reset
+  // the in-progress queue.
+  const queueInitialized = useRef(false);
+  useEffect(() => {
+    if (queueInitialized.current || !tasksLoaded) return;
+    queueInitialized.current = true;
+    const initialQueue = buildRefineQueue(allTasks);
+    setQueue(initialQueue);
+    setPhase(initialQueue.length === 0 ? 'empty' : 'asking');
+  }, [tasksLoaded, allTasks]);
+
+  const knownCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of allTasks) {
+      for (const c of t.categories) set.add(c);
+    }
+    return Array.from(set);
+  }, [allTasks]);
 
   const focusedCount = useMemo(() =>
     allTasks.filter(t => t.focused && t.status !== 'done').length,
@@ -349,11 +376,14 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
       undoLast();
       return;
     }
-    if (input === 'S') {
+    // n/N — vim-style "next": n skips the question, N skips the whole task.
+    // (Was s/S, which collided with S-for-Scope everywhere else; `n` also
+    // reads naturally as "no" on the yes/no and confirm cards below.)
+    if (input === 'N') {
       skipTask();
       return;
     }
-    if (input === 's') {
+    if (input === 'n') {
       skipQuestion();
       return;
     }
@@ -362,7 +392,8 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
       case 'yesno': {
         if (input === 'y' || input === 't') {
           applyChange({ focused: true }, 'focused');
-        } else if (input === 'n' || input === 'f') {
+        } else if (input === 'f') {
+          // 'n' is handled by the generic skip above — same outcome.
           skipQuestion();
         }
         break;
@@ -433,8 +464,7 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
       case 'correction': {
         if (input === 'y') {
           applyChange({ title: currentQuestion.suggestion ?? currentTask!.title }, 'fixed');
-        } else if (input === 'n') {
-          skipQuestion();
+          // 'n' (keep as-is) is handled by the generic skip above.
         } else if (input === 'e') {
           setEditText(currentQuestion.suggestion ?? currentTask?.title ?? '');
           setEditCursor((currentQuestion.suggestion ?? currentTask?.title ?? '').length);

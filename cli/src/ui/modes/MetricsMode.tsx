@@ -1,20 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Box, Text, useInput, useApp } from 'ink';
-import { setExitOutput } from '../exitOutput.js';
-import type { Task } from '../../types.js';
-import type { TaskStore } from '../../store.js';
+import { Box, Text, useInput } from 'ink';
+import type { DayReport, Task } from '../../types.js';
+import type { Store } from '../../store-interface.js';
 import { buildDayReport } from '../../report.js';
+import { EMPTY_DAY_REPORT } from '../shared/emptyDayReport.js';
 import { getMidDayMessage } from '../../messages.js';
-import { renderDayReportMarkdown } from '../../render-terminal.js';
 import { ProgressBar } from '../shared/ProgressBar.js';
 import { PulsingProgressBar } from '../shared/PulsingProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
-import { PriorityDot } from '../shared/PriorityDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
-import { localDateString } from '../../local-date.js';
+import { isOnLocalDate, localDateString } from '../../local-date.js';
 
 interface Props {
-  store: TaskStore;
+  store: Store;
 }
 
 interface SubtaskInfo {
@@ -25,7 +23,6 @@ interface SubtaskInfo {
 }
 
 export function MetricsMode({ store }: Props) {
-  const { exit } = useApp();
   const realToday = localDateString();
   const [viewDate, setViewDate] = useState(realToday);
   const [editingDate, setEditingDate] = useState(false);
@@ -33,10 +30,24 @@ export function MetricsMode({ store }: Props) {
   const [dateCursor, setDateCursor] = useState(0);
 
   const today = viewDate;
-  const report = buildDayReport(store, today);
+  const [report, setReport] = useState<DayReport>(EMPTY_DAY_REPORT);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([buildDayReport(store, today), store.load()]).then(([r, tasks]) => {
+      if (!cancelled) {
+        setReport(r);
+        setAllTasks(tasks);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [store, today]);
+
   const { stats } = report;
 
-  const allTasks = store.load();
   const allParents = allTasks.filter(t => t.parent_id === null);
 
   // Build subtask info per parent: split done-today vs done-prior
@@ -47,7 +58,7 @@ export function MetricsMode({ store }: Props) {
     info.subtasks.push(t);
     info.total++;
     if (t.status === 'done') {
-      if (t.completed_at && t.completed_at.startsWith(today)) {
+      if (isOnLocalDate(t.completed_at, today)) {
         info.doneToday++;
       } else {
         info.donePrior++;
@@ -61,7 +72,7 @@ export function MetricsMode({ store }: Props) {
   // Focus state is intentionally ignored — metrics reflect actual activity,
   // not current focus membership.
   const todayTasks = allParents.filter(task => {
-    const completedToday = task.status === 'done' && task.completed_at?.startsWith(today);
+    const completedToday = task.status === 'done' && isOnLocalDate(task.completed_at, today);
     const info = subtaskInfoMap.get(task.id);
     const hasSubtasksDoneToday = info ? info.doneToday > 0 : false;
     return completedToday || hasSubtasksDoneToday;
@@ -122,11 +133,9 @@ export function MetricsMode({ store }: Props) {
       setDateText(viewDate);
       setDateCursor(viewDate.length);
       setEditingDate(true);
-    } else if (input === 'e') {
-      const md = renderDayReportMarkdown(report, allTasks);
-      setExitOutput(md + '\n');
-      exit();
     }
+    // 'e' (print report + exit) removed 2026-07 — reports/email live in MCP
+    // task_end_day; Metrics stays on-screen only.
   });
 
   const focusedRows = sortedFocused.length === 0
@@ -162,7 +171,7 @@ export function MetricsMode({ store }: Props) {
             const isLast = i === info.subtasks.length - 1;
             const connector = isLast ? '└─' : '├─';
             const isDone = sub.status === 'done';
-            const isDoneToday = isDone && sub.completed_at?.startsWith(today);
+            const isDoneToday = isDone && isOnLocalDate(sub.completed_at, today);
             const marker = isDone ? '◉' : '○';
 
             rows.push(

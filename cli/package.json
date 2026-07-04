@@ -19,11 +19,16 @@
     "./refine-queue": "./dist/refine-queue.js",
     "./handlers": "./dist/handlers/index.js",
     "./parse-entry": "./dist/parse-entry.js",
-    "./local-date": "./dist/local-date.js"
+    "./local-date": "./dist/local-date.js",
+    "./api-client": "./dist/api-client.js",
+    "./store-interface": "./dist/store-interface.js",
+    "./local-store": "./dist/local-store.js",
+    "./remote-store": "./dist/remote-store.js",
+    "./get-store": "./dist/get-store.js"
   },
   "scripts": {
     "build": "tsc",
-    "build:web": "cd ../web && npm run build && rm -rf ../cli/dist-web && cp -r dist ../cli/dist-web",
+    "build:web": "cd ../web && npm run build",
     "build:all": "npm run build && npm run build:web",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
@@ -37,7 +42,8 @@
     "ink": "^6.8.0",
     "proper-lockfile": "^4.1.2",
     "react": "^19.2.4",
-    "resend": "^4.1.2"
+    "resend": "^4.1.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

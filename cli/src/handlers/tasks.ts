@@ -1,4 +1,4 @@
-import type { TaskStore } from '../store.js';
+import type { Store, TaskChanges } from '../store-interface.js';
 import type {
   CreatedBy,
   Task,
@@ -69,8 +69,8 @@ export interface CreateTaskInput {
   session_id?: string | null;
 }
 
-export async function createTask(store: TaskStore, input: CreateTaskInput): Promise<Task> {
-  const parent_id = input.parent_id ? store.resolveId(input.parent_id) : undefined;
+export async function createTask(store: Store, input: CreateTaskInput): Promise<Task> {
+  const parent_id = input.parent_id ? await store.resolveId(input.parent_id) : undefined;
   return store.add({ ...input, parent_id });
 }
 
@@ -93,7 +93,7 @@ export interface ListTasksInput {
   limit?: number;
 }
 
-export function listTasks(store: TaskStore, input: ListTasksInput = {}): Task[] {
+export async function listTasks(store: Store, input: ListTasksInput = {}): Promise<Task[]> {
   const filters: TaskFilter = {
     scope: input.scope,
     status: input.status,
@@ -104,9 +104,9 @@ export function listTasks(store: TaskStore, input: ListTasksInput = {}): Task[] 
     filters.parent_id =
       input.parent_id === null || input.parent_id === 'null'
         ? null
-        : store.resolveId(input.parent_id);
+        : await store.resolveId(input.parent_id);
   }
-  let tasks = store.query(filters);
+  let tasks = await store.query(filters);
   if (input.include_done === false && !input.status) {
     tasks = tasks.filter(t => t.status !== 'done');
   }
@@ -117,9 +117,9 @@ export function listTasks(store: TaskStore, input: ListTasksInput = {}): Task[] 
 
 // ── getTask ─────────────────────────────────────────────────
 
-export function getTask(store: TaskStore, id: string): { task: Task; subtasks: Task[] } | null {
-  const resolvedId = store.resolveId(id);
-  const all = store.load();
+export async function getTask(store: Store, id: string): Promise<{ task: Task; subtasks: Task[] } | null> {
+  const resolvedId = await store.resolveId(id);
+  const all = await store.load();
   const task = all.find(t => t.id === resolvedId);
   if (!task) return null;
   const subtasks = all.filter(t => t.parent_id === resolvedId);
@@ -139,7 +139,7 @@ export interface UpdateTaskInput {
   priority?: TaskPriority;
   scope?: TaskScope;
   categories?: string[];
-  description?: string;
+  description?: string | null;
   focused?: boolean;
   time_estimate?: TimeEstimate | null;
   vibe?: Vibe | null;
@@ -148,10 +148,10 @@ export interface UpdateTaskInput {
   session_id?: string | null;
 }
 
-export async function updateTask(store: TaskStore, input: UpdateTaskInput): Promise<Task> {
-  const resolvedId = store.resolveId(input.id);
+export async function updateTask(store: Store, input: UpdateTaskInput): Promise<Task> {
+  const resolvedId = await store.resolveId(input.id);
 
-  const changes: Record<string, unknown> = {};
+  const changes: TaskChanges = {};
   if (input.title !== undefined) changes.title = input.title;
   if (input.status !== undefined) changes.status = input.status;
   if (input.priority !== undefined) changes.priority = input.priority;
@@ -167,7 +167,7 @@ export async function updateTask(store: TaskStore, input: UpdateTaskInput): Prom
     if (input.parent_id === null) {
       changes.parent_id = null;
     } else {
-      const resolvedParent = store.resolveId(input.parent_id);
+      const resolvedParent = await store.resolveId(input.parent_id);
       if (resolvedParent === resolvedId) {
         throw new Error('A task cannot be its own parent.');
       }
@@ -175,17 +175,17 @@ export async function updateTask(store: TaskStore, input: UpdateTaskInput): Prom
     }
   }
 
-  return store.update(resolvedId, changes as Parameters<TaskStore['update']>[1]);
+  return store.update(resolvedId, changes);
 }
 
 // ── deleteTask ──────────────────────────────────────────────
 
 export async function deleteTask(
-  store: TaskStore,
+  store: Store,
   id: string,
 ): Promise<{ task: Task; danglingSubtasks: number }> {
-  const resolvedId = store.resolveId(id);
-  const subtasks = store.query({ parent_id: resolvedId });
+  const resolvedId = await store.resolveId(id);
+  const subtasks = await store.query({ parent_id: resolvedId });
   const { task } = await store.remove(resolvedId);
   return { task, danglingSubtasks: subtasks.length };
 }
@@ -193,7 +193,7 @@ export async function deleteTask(
 // ── completeTask ────────────────────────────────────────────
 // No top-level guard — see updateTask note.
 
-export async function completeTask(store: TaskStore, id: string): Promise<Task> {
+export async function completeTask(store: Store, id: string): Promise<Task> {
   return store.update(id, { status: 'done' });
 }
 
@@ -208,7 +208,7 @@ function sessionPatch(opts: { session_id?: string | null }) {
 }
 
 export async function startTask(
-  store: TaskStore,
+  store: Store,
   id: string,
   opts: { session_id?: string | null } = {},
 ): Promise<Task> {
@@ -216,14 +216,14 @@ export async function startTask(
 }
 
 export async function focusTask(
-  store: TaskStore,
+  store: Store,
   id: string,
   opts: { session_id?: string | null } = {},
 ): Promise<Task> {
   return store.update(id, { focused: true, ...sessionPatch(opts) });
 }
 
-export async function unfocusTask(store: TaskStore, id: string): Promise<Task> {
+export async function unfocusTask(store: Store, id: string): Promise<Task> {
   return store.update(id, { focused: false });
 }
 
@@ -236,9 +236,10 @@ export interface SearchTasksInput {
   include_done?: boolean;
 }
 
-export function searchTasks(store: TaskStore, input: SearchTasksInput): Task[] {
+export async function searchTasks(store: Store, input: SearchTasksInput): Promise<Task[]> {
   const q = input.query.toLowerCase();
-  let matches = store.load().filter(t => {
+  const all = await store.load();
+  let matches = all.filter(t => {
     const title = t.title.toLowerCase();
     const desc = (t.description ?? '').toLowerCase();
     return title.includes(q) || desc.includes(q);

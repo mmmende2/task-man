@@ -424,3 +424,11 @@
   font-size: 14px;
   z-index: 20;
 }
+
+/* Scope tag — shown only when the scope filter is "all", where rows
+   would otherwise be indistinguishable. Quieter than category chips. */
+.chip.scope-tag {
+  background: transparent;
+  border-style: dashed;
+  color: var(--fg-muted);
+}

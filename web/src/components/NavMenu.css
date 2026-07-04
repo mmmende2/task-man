@@ -98,12 +98,3 @@
   color: var(--fg-muted);
 }
 
-.nav-menu-sep {
-  height: 1px;
-  background: var(--border);
-  margin: 4px 6px;
-}
-
-.nav-menu-item.logout {
-  color: var(--fg-dim);
-}

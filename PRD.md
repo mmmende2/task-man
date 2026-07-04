@@ -1,6 +1,6 @@
 # Task Man — Product Requirements Document
 
-> Session-by-session change notes live in [docs/sessions.md](docs/sessions.md). This document is the product spec — what task-man is, who it's for, and how it should feel. It intentionally avoids implementation detail; the CLI reference lives in [README.md](README.md) and architectural notes live with the code.
+> This document is the product spec — what task-man is, who it's for, and how it should feel. It intentionally avoids implementation detail; the CLI reference lives in [`cli/README.md`](cli/README.md), MCP tools in [`mcp/README.md`](mcp/README.md), web UI in [`web/README.md`](web/README.md), and architectural notes in [`docs/system-map.md`](docs/system-map.md). The forward-looking hosting migration lives in [`docs/deploy-plan.md`](docs/deploy-plan.md).
 
 ---
 
@@ -31,7 +31,7 @@ These are the rules that any change has to answer to.
 |------|-----------|--------------|
 | **Mario (human)** | Interactive TUI | Lives in a terminal pane; plans the day, works the focus list, logs completions, reviews metrics at day-end |
 | **Claude (AI)** | MCP / non-interactive CLI | Creates tasks it picks up, marks them in-progress, closes them on completion — all attributed as `created_by: claude` |
-| **Mario (mobile/web)** | Web UI (future) | Reviews and captures from away-from-desk (Phase 4) |
+| **Mario (mobile/web)** | Web UI on the same wifi | Reviews focused tasks and quick-captures from a phone or second laptop on the LAN. Hosted access (anywhere) tracked in [`docs/deploy-plan.md`](docs/deploy-plan.md). |
 
 ---
 
@@ -144,14 +144,15 @@ Tasks are the only first-class object. Each task carries:
 
 ---
 
-## Non-Interactive CLI & MCP
+## MCP, Web, and the Operational CLI
 
 Everything the TUI does is also available as:
 
-- **Non-interactive CLI** — `task-man add`, `list`, `done`, `start`, `focus`, `unfocus`, `end-day`, `watch`, `config`. Full flag reference in [README.md](README.md).
-- **MCP server** — exposes the same actions to Claude as tools (add, list, update, complete, start, focus, unfocus, search, end-day, session-color). Stdio transport, same JSON store, all mutations attributed as `created_by: claude`.
+- **Operational CLI only** — `task-man watch`, `config`, `serve`, `login` (plus the default interactive TUI). The task-facing CRUD/report subcommands were retired 2026-07 (humans → TUI/web, Claude → MCP; see Phase 5). Reference in [`cli/README.md`](cli/README.md).
+- **MCP server** — exposes the same actions to Claude as tools: add, list, get, subtasks, update, delete, complete, start, focus, unfocus, stats, categories, refine-queue, prioritize, end-day, search, session-color. Stdio transport, same JSON store, all mutations attributed as `created_by: claude`. Full reference in [`mcp/README.md`](mcp/README.md).
+- **Web** — `task-man serve` starts a Hono server with a mobile-first React SPA. Local-only by default; `--bind 0.0.0.0` exposes it on the LAN (no auth of its own — in production Cloudflare Access gates the hostname). Scope: Focus, Quick Capture, Backlog, and Metrics. Plan/Refine stay TUI-only. See [`web/README.md`](web/README.md).
 
-Both paths write to the same file. Focus mode reflects AI progress in real time.
+All paths write to the same file. Focus mode reflects AI and web progress in real time.
 
 ---
 
@@ -192,8 +193,9 @@ Low-progress messages are carefully written to be shame-free. This is a load-bea
 
 ## Storage
 
-- **Phase 1 (current)**: single JSON file at `~/.task-man/tasks.json` with file locking and atomic rename on write. Portable, diffable, shared by CLI and MCP.
-- **Phase 2 (future)**: SQLite (and then Postgres + REST) for web/mobile and multi-device sync. MCP becomes a thin client.
+- **Today**: single JSON file at `~/.task-man/tasks.json` with file locking and atomic rename on write. Portable, diffable, shared in-process by CLI, TUI, and MCP. A REST API (Hono) sits in front of the same file for the web UI.
+- **Next**: hosted server on a single droplet behind Cloudflare Access, with the TUI and MCP becoming thin clients of that API (see [`docs/deploy-plan.md`](docs/deploy-plan.md)). Local-file mode is retained as a fallback.
+- **Later (open)**: SQLite once concurrent client traffic warrants it. Not committed.
 
 JSON is deliberate: a single plain-text store means I can edit it by hand in an emergency, rsync it between machines, and reason about it without tooling.
 
@@ -204,7 +206,7 @@ JSON is deliberate: a single plain-text store means I can edit it by hand in an 
 ### Phase 1 — Foundation ✓
 Data model, JSON storage, non-interactive CLI, MCP server, interactive TUI (focus/plan/write/metrics), watch mode, end-of-day email, insights, encouraging messages.
 
-### Phase 2 — Polish & Daily Use ✓ (mostly)
+### Phase 2 — Polish & Daily Use ✓
 - [x] Subtasks in the TUI
 - [x] Quick-entry syntax (`-p`/`-c`/`-s`/`-d`/`-f`, `:` subtask prefix)
 - [x] Priority + status color coding
@@ -216,26 +218,40 @@ Data model, JSON storage, non-interactive CLI, MCP server, interactive TUI (focu
 - [x] Session-color integration with Claude Code
 - [x] Refine mode (standalone rapid-fire triage)
 - [x] `time_estimate` and `vibe` metadata
-- [ ] Write mode v2 (Capture + Review sub-modes, category autocomplete, inline spell-fix suggestion)
+- [x] Write mode v2 (Capture + Review sub-modes, category autocomplete)
+- [ ] Inline spell-fix suggestions in Write Capture
 - [ ] Category management (list, rename, merge)
 - [ ] Keyboard shortcut help overlay
 
 ### Phase 3 — AI Integration
-- [ ] AI-assisted prioritization using `time_estimate` + `vibe` (see `docs/adhd-feature-specs.md` §7)
+- [x] AI-assisted prioritization via `task_prioritize` MCP tool (uses `time_estimate` + `vibe`; AI proposes, user approves via `task_update`)
+- [x] Claude auto-closing tasks as it completes work (via `task_complete` / `task_update`)
 - [ ] AI-assisted task entry (natural language → structured task)
-- [ ] AI auto-categorization for Refine mode (string-heuristic spell-fix already covered by Write mode v2)
+- [ ] AI auto-categorization for Refine mode
 - [ ] Smart subtask suggestions
 - [ ] Natural-language standup generation
-- [ ] Claude auto-closing tasks as it completes work
 
-### Phase 4 — Web & Multi-Device
-- [ ] SQLite backend migration
-- [ ] REST API server
-- [ ] Web UI (outrun aesthetic)
-- [ ] Mobile-responsive
-- [ ] Multi-device sync + auth
+### Phase 4 — LAN Web ✓
+- [x] Hono REST API server (`task-man serve`)
+- [x] Vite/React mobile-first web UI (Focus + Quick Capture)
+- [x] 4-digit PIN auth + signed session cookie *(removed in Phase 5 — Cloudflare Access replaces it)*
+- [x] PWA shell (Add to Home Screen)
 
-### Phase 5 — Advanced
+### Phase 5 — Hosted & Multi-Device
+Detailed in [`docs/deploy-plan.md`](docs/deploy-plan.md); manual infra steps in [`docs/phase2-manual-setup-guide.md`](docs/phase2-manual-setup-guide.md).
+- [x] TUI and MCP become remote clients (HTTP-backed `Store` with local-file fallback)
+- [x] PIN dropped; server verifies the Cloudflare Access JWT at the origin (`CF_ACCESS_*` env)
+- [ ] Single droplet on DigitalOcean (Docker + Cloudflare Tunnel) — Dockerfile/compose ready, not deployed
+- [x] Authorization layer — per-identity namespaces enforced server-side (scoped-store) + zod request validation; see docs/authorization-plan.md
+- [ ] Nightly backups to DO Spaces
+- [ ] SQLite migration (optional, when JSON contention warrants)
+- [x] Retire the task-facing CLI (`add`, `list`, `done`, `start`, `focus`, `unfocus`,
+  `session-refocus`, `end-day`) — removed 2026-07-04. Humans use the TUI/web, Claude
+  uses MCP (`task_end_day` covers reports/email); the commands only ever wrote the
+  local file, bypassing remote mode. Operational commands stay: interactive TUI,
+  `watch`, `serve`, `login`, `config`.
+
+### Phase 6 — Advanced
 - [ ] Recurring tasks
 - [ ] Focus timer / Pomodoro
 - [ ] Git integration (link tasks to branches/commits)
