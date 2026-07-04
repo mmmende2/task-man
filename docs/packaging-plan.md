@@ -1,9 +1,13 @@
 # Packaging & Distribution Plan — sharing the parts separately
 
 Status: **steps 1–2 executed 2026-07-04** (MCP merged into `cli/src/mcp/`
-as the `task-man-mcp` bin; publish hygiene in place; version 0.2.0).
-Step 3 (publish) awaits the license + name decisions below; step 4
-(npm-based Dockerfile) is gated on the publish existing.
+as the `task-man-mcp` bin; publish hygiene in place; MIT licensed;
+version 0.2.0). **Publishing is ON HOLD per Mario (2026-07-04)** — steps
+3–4 below are parked, not abandoned: the package is publish-ready
+(`npm publish` from `cli/` + `npm login` is all that remains), and the
+npm-based Dockerfile stays gated on that publish. Until then the deploy
+path is the existing build-from-source `cli/Dockerfile`, and the npm name
+`task-man` remains unclaimed (known risk, accepted).
 (Originally proposed same day; revised after Mario challenged the separate
 MCP package — he was right.) Answers: does `npm install task-man` still
 make sense, and how do we share/export the tool's parts?
