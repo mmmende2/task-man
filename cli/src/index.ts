@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import { configCommand } from './commands/config.js';
 import { watchCommand } from './commands/watch.js';
@@ -9,10 +10,14 @@ import { launchInteractive } from './commands/interactive.js';
 
 const program = new Command();
 
+// Single source of truth for the version — dist/index.js sits one level
+// below package.json both in the repo and in the published tarball.
+const { version } = createRequire(import.meta.url)('../package.json');
+
 program
   .name('task-man')
   .description('Personal task manager for developers who live in the terminal')
-  .version('0.1.0');
+  .version(version);
 
 // The task-facing CLI (add/list/done/start/focus/unfocus/session-refocus/
 // end-day) was retired 2026-07: humans work in the TUI/web, Claude works

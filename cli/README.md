@@ -1,8 +1,8 @@
 # task-man (CLI)
 
-The main package: a terminal task manager with subcommands, an Ink-based interactive TUI, and a bundled Hono server that powers the [web SPA](../web/README.md).
+The one published package: an Ink-based interactive TUI, a bundled Hono server that powers the [web SPA](../web/README.md), and the [MCP server](../mcp/README.md) as a second bin (`task-man-mcp`, source in `src/mcp/`).
 
-Also re-exports the `TaskStore` and related modules used by [`mcp/`](../mcp/README.md) and `web/` via the package entries in [`package.json`](./package.json).
+Also re-exports the `TaskStore` and related modules used by `web/` at build time via the package entries in [`package.json`](./package.json).
 
 ## Install
 
