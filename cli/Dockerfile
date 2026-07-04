@@ -16,7 +16,7 @@ WORKDIR /repo
 COPY cli/package.json cli/package-lock.json ./cli/
 RUN npm ci --prefix cli
 
-COPY cli/tsconfig.json ./cli/
+COPY cli/tsconfig*.json ./cli/
 COPY cli/src ./cli/src
 RUN npm run build --prefix cli
 
