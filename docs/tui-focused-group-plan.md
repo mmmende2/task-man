@@ -1,6 +1,11 @@
 # TUI Focused-Group Plan — pin focused tasks atop triage
 
-Status: **planned** (2026-07-05, approach approved). Not yet implemented.
+Status: **shipped** (2026-07-05). Plan mode now pins a `★ focused (N)` group
+at the top; the category tree below holds only the unfocused backlog; the
+hidden-focused strip is gone; the footer reads `spc:focus/unfocus`. Built on
+the merged #14 (id-anchored cursors), so unfocusing rides the cursor from the
+top group down into the category. Deferred still: TUI `~`-scope parity in
+Refine (unrelated).
 
 ## The gap
 

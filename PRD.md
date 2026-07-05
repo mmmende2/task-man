@@ -84,19 +84,21 @@ The task you are working on, large. Other focused tasks as single-line cards und
 
 ### Triage (Plan mode) — what gets done tomorrow
 
-The full task list grouped by first category with tree connectors. A `★` marks focused tasks; `▸` follows the cursor.
+Focused tasks pin to the top in a `★ focused (N)` group, always visible; the unfocused backlog sits below, grouped by first category with tree connectors. `▸` follows the cursor. This mirrors the web Backlog's Focused/Backlog split, and gives you one place to round up and `Space`-unfocus what no longer belongs.
 
 ```
+  ★ focused (2)
+    ● Fix auth token refresh          in_progress
+    ○ Do dishes                       todo
+
   CATEGORY
-    ├─ ★ ● Fix auth token refresh     in_progress
-    └─   ○ Review PR #847             todo
+    └─ ○ Review PR #847               todo
 
   HOUSEWORK
-    ├─ ★ ○ Do dishes                  todo
-    └─   ○ Water plants               todo
+    └─ ○ Water plants                 todo
 ```
 
-**Feel:** a flat review surface. `Space` toggles focus. `j`/`k` skips over category headers. When you try to focus more than the soft cap (default 3), the mode asks — it doesn't block, but it makes you name the choice.
+**Feel:** a flat review surface. `Space` toggles focus — unfocusing a task drops it from the top group into its category below, and the id-anchored cursor rides along. `j`/`k` skips over category headers. When you try to focus more than the soft cap (default 3), the mode asks — it doesn't block, but it makes you name the choice.
 
 ### Write — capture & review
 

@@ -155,9 +155,10 @@ describe('PlanMode vim: dd/p reorder', () => {
       const text = result.text();
       expect(text).toContain('cut:');
       expect(text).toContain('Focused-A');
-      // Focused-A removed, only Focused-B has ★
-      const focusedBLine = result.lines().find(l => l.includes('Focused-B'));
-      expect(focusedBLine).toContain('★');
+      // Focused-A removed — only Focused-B remains in the pinned focused
+      // group, so its header count drops to 1.
+      const header = result.lines().find(l => l.includes('★ focused'));
+      expect(header).toContain('1');
     });
   });
 
