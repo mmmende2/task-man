@@ -192,6 +192,7 @@ straight from a checkout of the repo.
    CF_ACCESS_AUD=<Access → Applications → task-man → Overview → "Application Audience (AUD) Tag">
    TASK_MAN_DEFAULT_OWNER=<your Access login email>
    TASK_MAN_AGENTS=<service token common name>=<your email>
+   TZ=<your IANA timezone, e.g. America/Denver>
    ```
    The `CF_ACCESS_*` pair makes the server verify Cloudflare's Access JWT on
    every API request itself, instead of trusting that only the tunnel can
@@ -204,6 +205,10 @@ straight from a checkout of the repo.
    to you: the common name is the token's "Client ID" name shown at Zero Trust
    → Access → Service Auth → Service Tokens (looks like `<name>.<team>.access`).
    Leave it unmapped and MCP calls get 403.
+
+   `TZ` makes the server's idea of "today" match yours. Containers default
+   to UTC, so without it evening completions fall on tomorrow's date and
+   disappear from the web Metrics page until UTC midnight passes.
 4. `docker compose -f deploy/docker-compose.yml up -d --build`.
 5. `docker compose -f deploy/docker-compose.yml logs -f` — look for `cloudflared`
    logging a successful connection ("Registered tunnel connection") and

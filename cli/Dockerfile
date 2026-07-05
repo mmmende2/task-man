@@ -36,6 +36,13 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
+# zoneinfo for the TZ env var (compose passes the user's timezone so the
+# server's "today" matches theirs) — slim images don't include it, and a
+# TZ that can't resolve silently means UTC date boundaries.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends tzdata \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /repo/cli/package.json ./package.json
 COPY --from=build /repo/cli/node_modules ./node_modules
 COPY --from=build /repo/cli/dist ./dist

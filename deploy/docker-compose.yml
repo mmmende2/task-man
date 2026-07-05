@@ -13,6 +13,11 @@ services:
       # Authorization: legacy-task owner + service-token→person mapping.
       - TASK_MAN_DEFAULT_OWNER=${TASK_MAN_DEFAULT_OWNER}
       - TASK_MAN_AGENTS=${TASK_MAN_AGENTS}
+      # The server computes "today" (metrics, reports) in ITS local time.
+      # Without this the container is UTC and evening completions fall on
+      # tomorrow's date, so server-rendered metrics drop them. Set to the
+      # primary user's IANA timezone.
+      - TZ=${TZ:-UTC}
     volumes:
       - task-man-data:/root/.task-man
     networks:
