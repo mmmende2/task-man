@@ -28,13 +28,13 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
     navContent = '';
     pageContent = `-- cut: ${holdingTitle} -- p:put P:put esc:delete`;
   } else if (mode === 'focus') {
-    navContent = 't:triage w:write m:metrics ~:scope';
+    navContent = 't:triage w:write m:metrics r:refine ~:scope';
     pageContent = 'jk:nav gg/G:top/bot tab:sub x:done S:scope D:date e:desc dd:cut i:edit /:find';
   } else if (mode === 'plan' && planFocus === 'categories') {
-    navContent = 'f:focus w:write m:metrics ~:scope';
+    navContent = 'f:focus w:write m:metrics r:refine ~:scope';
     pageContent = 'jk:nav gg/G:top/bot hl:pane spc:toggle esc:tasks';
   } else if (mode === 'plan') {
-    navContent = 'f:focus w:write m:metrics ~:scope';
+    navContent = 'f:focus w:write m:metrics r:refine ~:scope';
     pageContent = 'jk:nav gg/G:top/bot hl:pane spc:focus dd:cut x:done S:scope i:edit o:new /:find u:undo';
   } else if (mode === 'write' && writeSubMode === 'review') {
     navContent = 'esc:focus  w:capture  T:time';
@@ -43,7 +43,7 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
     navContent = 'esc:review  ~:scope';
     pageContent = 'enter:add  tab:accept  :subtask  -p -c -s flags';
   } else if (mode === 'metrics') {
-    navContent = 'f:focus  t:triage  w:write  ~:scope';
+    navContent = 'f:focus  t:triage  w:write  r:refine  ~:scope';
     pageContent = 'D:date';
   } else if (mode === 'refine') {
     navContent = 'N:skip task  u:undo  q:quit';
