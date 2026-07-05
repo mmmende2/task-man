@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import type { Task, TaskScope } from '../../types.js';
 import type { Store } from '../../store-interface.js';
@@ -17,8 +17,8 @@ interface Props {
   focusedTasks: Task[];
   backlogCount: number;
   subtaskMap: Map<string, Task[]>;
-  selectedIndex: number;
-  onSelectedIndexChange: (index: number) => void;
+  cursorId: string | null;
+  onCursorChange: (id: string | null) => void;
   store: Store;
   reload: () => void;
   vimMode: VimMode;
@@ -47,11 +47,11 @@ function getSubtaskProgress(
 }
 
 export function FocusMode({
-  focusedTasks, backlogCount, subtaskMap, selectedIndex, onSelectedIndexChange,
+  focusedTasks, backlogCount, subtaskMap, cursorId, onCursorChange,
   store, reload, vimMode, setVimMode, scopeFilter, onHoldingChange,
 }: Props) {
   const [navTarget, setNavTarget] = useState<'tasks' | 'subtasks'>('tasks');
-  const [subtaskIndex, setSubtaskIndex] = useState(0);
+  const [subtaskId, setSubtaskId] = useState<string | null>(null);
 
   // Vim feature state
   const [clipboard, setClipboard] = useState<Clipboard | null>(null);
@@ -82,27 +82,50 @@ export function FocusMode({
     return focusedTasks.filter(t => t.title.toLowerCase().includes(q));
   }, [focusedTasks, searchQuery]);
 
-  const selectedTask = filteredTasks[selectedIndex];
+  // Resolve the id-anchored cursor to a position in the *current* filtered
+  // list, fresh every render. selPos falls back to 0 (never -1), so the
+  // selection can never be a dead index — a filtered-out/removed task lands
+  // the cursor on the top row until the re-anchor effect updates the id.
+  const selPos = cursorId ? Math.max(0, filteredTasks.findIndex(t => t.id === cursorId)) : 0;
+  const selectedTask = filteredTasks[selPos] ?? null;
   const currentSubtasks = selectedTask ? (subtaskMap.get(selectedTask.id) ?? []) : [];
+  const subPos = subtaskId ? Math.max(0, currentSubtasks.findIndex(s => s.id === subtaskId)) : 0;
+  const selectedSubtask = currentSubtasks[subPos] ?? null;
+
+  // Keep the cursor anchored to a real task as the list reorders/shrinks
+  // (own edits, background poll, search filter). No index clamp needed.
+  useEffect(() => {
+    if (filteredTasks.length === 0) {
+      if (cursorId !== null) onCursorChange(null);
+    } else if (!cursorId || !filteredTasks.some(t => t.id === cursorId)) {
+      onCursorChange(filteredTasks[selPos]?.id ?? filteredTasks[0].id);
+    }
+  }, [filteredTasks, cursorId, onCursorChange, selPos]);
+
+  // Same for the subtask cursor while browsing subtasks.
+  useEffect(() => {
+    if (navTarget !== 'subtasks' || currentSubtasks.length === 0) return;
+    if (!subtaskId || !currentSubtasks.some(s => s.id === subtaskId)) {
+      setSubtaskId(currentSubtasks[subPos]?.id ?? currentSubtasks[0].id);
+    }
+  }, [navTarget, currentSubtasks, subtaskId, subPos]);
 
   const handleAction = (action: VimAction) => {
     switch (action.type) {
       case 'move': {
         if (filteredTasks.length === 0) return;
         if (navTarget === 'subtasks') {
-          if (action.direction === 'down') {
-            setSubtaskIndex(Math.min(subtaskIndex + 1, currentSubtasks.length - 1));
-          } else {
-            setSubtaskIndex(Math.max(subtaskIndex - 1, 0));
-          }
+          const next = action.direction === 'down'
+            ? Math.min(subPos + 1, currentSubtasks.length - 1)
+            : Math.max(subPos - 1, 0);
+          setSubtaskId(currentSubtasks[next]?.id ?? null);
         } else {
-          if (action.direction === 'down') {
-            onSelectedIndexChange(Math.min(selectedIndex + 1, filteredTasks.length - 1));
-          } else {
-            onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
-          }
+          const next = action.direction === 'down'
+            ? Math.min(selPos + 1, filteredTasks.length - 1)
+            : Math.max(selPos - 1, 0);
+          onCursorChange(filteredTasks[next]?.id ?? null);
           setNavTarget('tasks');
-          setSubtaskIndex(0);
+          setSubtaskId(null);
         }
         break;
       }
@@ -110,7 +133,7 @@ export function FocusMode({
       case 'tab': {
         if (navTarget === 'tasks') {
           setNavTarget('subtasks');
-          setSubtaskIndex(0);
+          setSubtaskId(currentSubtasks[0]?.id ?? null);
           // If no subtasks, immediately start creating one
           if (currentSubtasks.length === 0) {
             setCreatingAt(0);
@@ -125,7 +148,7 @@ export function FocusMode({
 
       case 'mark-done': {
         if (navTarget === 'subtasks') {
-          const sub = currentSubtasks[subtaskIndex];
+          const sub = selectedSubtask;
           if (sub) {
             const prevStatus = sub.status;
             const newStatus = sub.status === 'done' ? 'todo' : 'done';
@@ -137,7 +160,7 @@ export function FocusMode({
             });
           }
         } else {
-          const task = filteredTasks[selectedIndex];
+          const task = selectedTask;
           if (task) {
             const prevStatus = task.status;
             const newStatus = task.status === 'done' ? 'todo' : 'done';
@@ -153,7 +176,7 @@ export function FocusMode({
       }
 
       case 'edit': {
-        const task = navTarget === 'subtasks' ? currentSubtasks[subtaskIndex] : filteredTasks[selectedIndex];
+        const task = navTarget === 'subtasks' ? selectedSubtask : selectedTask;
         if (!task) return;
         setEditingId(task.id);
         // Both 'start' (i) and 'end' (A) place cursor at end in focus mode
@@ -163,7 +186,7 @@ export function FocusMode({
       }
 
       case 'edit-date': {
-        const task = navTarget === 'subtasks' ? currentSubtasks[subtaskIndex] : filteredTasks[selectedIndex];
+        const task = navTarget === 'subtasks' ? selectedSubtask : selectedTask;
         if (!task || task.status !== 'done' || !task.completed_at) return;
         // Show the LOCAL calendar date, not the UTC prefix — an evening
         // completion has tomorrow's date in UTC, and every "done on day X"
@@ -179,7 +202,7 @@ export function FocusMode({
       case 'edit-description': {
         // Description edit is parent-task only for now.
         if (navTarget !== 'tasks') return;
-        const task = filteredTasks[selectedIndex];
+        const task = selectedTask;
         if (!task) return;
         const desc = task.description ?? '';
         setEditingDescriptionId(task.id);
@@ -190,8 +213,8 @@ export function FocusMode({
 
       case 'create': {
         const createIdx = navTarget === 'subtasks' && selectedTask
-          ? (action.above ? subtaskIndex : subtaskIndex + 1)
-          : (action.above ? selectedIndex : selectedIndex + 1);
+          ? (action.above ? subPos : subPos + 1)
+          : (action.above ? selPos : selPos + 1);
         setCreatingAt(createIdx);
         setEditState({ text: '', cursor: 0 });
         setVimMode('insert');
@@ -218,7 +241,7 @@ export function FocusMode({
         // on cut too meant a second `u` after a move re-inserted the task
         // a second time (duplicate id).
         if (navTarget === 'subtasks') {
-          const sub = currentSubtasks[subtaskIndex];
+          const sub = selectedSubtask;
           if (sub) {
             store.remove(sub.id).then(({ index }) => {
               setClipboard({ task: sub, index, isSubtask: true, parentId: sub.parent_id ?? undefined });
@@ -228,7 +251,7 @@ export function FocusMode({
             });
           }
         } else {
-          const task = filteredTasks[selectedIndex];
+          const task = selectedTask;
           if (task) {
             store.remove(task.id).then(({ index }) => {
               setClipboard({ task, index, isSubtask: false });
@@ -247,7 +270,7 @@ export function FocusMode({
           // Determine target position
           let targetIndex: number;
           if (navTarget === 'subtasks') {
-            const anchorSub = currentSubtasks[subtaskIndex];
+            const anchorSub = selectedSubtask;
             if (anchorSub) {
               targetIndex = allTasks.findIndex(t => t.id === anchorSub.id);
               if (!action.above) targetIndex += 1;
@@ -258,7 +281,7 @@ export function FocusMode({
               targetIndex = allTasks.length;
             }
           } else {
-            const anchorTask = filteredTasks[selectedIndex];
+            const anchorTask = selectedTask;
             if (anchorTask) {
               targetIndex = allTasks.findIndex(t => t.id === anchorTask.id);
               if (!action.above) targetIndex += 1;
@@ -314,12 +337,14 @@ export function FocusMode({
       case 'jump': {
         if (navTarget === 'subtasks') {
           if (currentSubtasks.length === 0) return;
-          setSubtaskIndex(action.to === 'top' ? 0 : currentSubtasks.length - 1);
+          const pos = action.to === 'top' ? 0 : currentSubtasks.length - 1;
+          setSubtaskId(currentSubtasks[pos]?.id ?? null);
         } else {
           if (filteredTasks.length === 0) return;
-          onSelectedIndexChange(action.to === 'top' ? 0 : filteredTasks.length - 1);
+          const pos = action.to === 'top' ? 0 : filteredTasks.length - 1;
+          onCursorChange(filteredTasks[pos]?.id ?? null);
           setNavTarget('tasks');
-          setSubtaskIndex(0);
+          setSubtaskId(null);
         }
         break;
       }
@@ -327,7 +352,7 @@ export function FocusMode({
       case 'toggle-scope': {
         // Parent tasks only — subtasks follow their parent conceptually.
         if (navTarget !== 'tasks') return;
-        const task = filteredTasks[selectedIndex];
+        const task = selectedTask;
         if (!task) return;
         const prevScope = task.scope;
         const nextScope = prevScope === 'personal' ? 'professional' : 'personal';
@@ -498,7 +523,7 @@ export function FocusMode({
     if (editingId === task.id) {
       return <InlineEdit key={task.id} text={editText} cursorPos={cursorPos} />;
     }
-    if (selectedIndex === i) {
+    if (selPos === i) {
       return (
         <Box flexDirection="column" key={task.id}>
           <TaskRowExpanded
@@ -506,7 +531,7 @@ export function FocusMode({
             subtasks={subtaskMap.get(task.id) ?? []}
             subtaskProgress={getSubtaskProgress(task.id, subtaskMap)}
             inSubtaskNav={navTarget === 'subtasks'}
-            selectedSubtaskIndex={subtaskIndex}
+            selectedSubtaskIndex={subPos}
             editingSubtaskId={editingId}
             editingDateId={editingDateId}
             editingDescriptionId={editingDescriptionId}

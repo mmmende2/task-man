@@ -25,7 +25,12 @@ function InteractiveAppInner() {
   const [mode, setMode] = useState<AppMode>('focus');
   const [prevMode, setPrevMode] = useState<AppMode>('focus');
   const [scopeFilter, setScopeFilter] = useState<TaskScope | 'all'>('all');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  // The task cursor is anchored by ID, not by numeric index — the shared
+  // task lists are reordered by the user's own edits (focus toggles) and by
+  // the 2s multi-writer poll, so a positional index silently drifts onto a
+  // different task. Each mode resolves this id to a position in its own list
+  // and re-anchors when the id leaves that list.
+  const [cursorId, setCursorId] = useState<string | null>(null);
   const [vimMode, setVimMode] = useState<VimMode>('normal');
   const [holdingTitle, setHoldingTitle] = useState<string | undefined>(undefined);
   const [writeSubMode, setWriteSubMode] = useState<WriteSubMode>('capture');
@@ -75,21 +80,9 @@ function InteractiveAppInner() {
     activeTasks.filter(t => !t.focused),
   [activeTasks]);
 
-  // The navigable list depends on the mode
-  const navigableList = useMemo(() => {
-    if (mode === 'focus') return focusedTasks;
-    if (mode === 'plan') return [...focusedTasks, ...backlogTasks];
-    return [];
-  }, [mode, focusedTasks, backlogTasks]);
-
-  // Clamp selectedIndex when the list shrinks
-  useEffect(() => {
-    if (navigableList.length === 0) {
-      if (selectedIndex !== 0) setSelectedIndex(0);
-    } else if (selectedIndex >= navigableList.length) {
-      setSelectedIndex(navigableList.length - 1);
-    }
-  }, [navigableList.length, selectedIndex]);
+  // No index-clamp effect here anymore: each mode re-anchors the id-based
+  // cursor against its own displayed list (FocusMode/PlanMode), so there is
+  // no shared numeric index to keep in bounds.
 
   // Startup cleanup: unfocus tasks that are done and untouched for 3+ days
   useEffect(() => {
@@ -111,7 +104,7 @@ function InteractiveAppInner() {
       if (prev !== 'refine') setPrevMode(prev);
       return newMode;
     });
-    setSelectedIndex(0);
+    setCursorId(null);
     setVimMode('normal');
     setHoldingTitle(undefined);
     if (newMode === 'write') setWriteSubMode('capture');
@@ -122,7 +115,7 @@ function InteractiveAppInner() {
     const currentIdx = SCOPE_CYCLE.indexOf(scopeFilter);
     const nextIdx = (currentIdx + 1) % SCOPE_CYCLE.length;
     setScopeFilter(SCOPE_CYCLE[nextIdx]);
-    setSelectedIndex(0);
+    setCursorId(null);
   };
 
   // Global keys — disabled during write mode and non-normal vim modes
@@ -161,8 +154,8 @@ function InteractiveAppInner() {
           focusedTasks={focusedTasks}
           backlogCount={backlogTasks.length}
           subtaskMap={subtaskMap}
-          selectedIndex={selectedIndex}
-          onSelectedIndexChange={setSelectedIndex}
+          cursorId={cursorId}
+          onCursorChange={setCursorId}
           store={store}
           reload={reload}
           vimMode={vimMode}
@@ -174,8 +167,8 @@ function InteractiveAppInner() {
         <PlanMode
           focusedTasks={focusedTasks}
           backlogTasks={backlogTasks}
-          selectedIndex={selectedIndex}
-          onSelectedIndexChange={setSelectedIndex}
+          cursorId={cursorId}
+          onCursorChange={setCursorId}
           store={store}
           reload={reload}
           vimMode={vimMode}

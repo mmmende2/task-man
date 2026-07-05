@@ -11,11 +11,11 @@ import { PlanMode } from '../ui/modes/PlanMode.js';
 import { renderWithDimensions } from './helpers/renderWithDimensions.js';
 
 /**
- * Stateful harness wrapping PlanMode with selectedIndex + tasks state.
+ * Stateful harness wrapping PlanMode with an id-anchored cursor + tasks state.
  */
 function PlanModeHarness({ store, initialTasks }: { store: TaskStore; initialTasks: Task[] }) {
   const [tasks, setTasks] = useState(initialTasks);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [cursorId, setCursorId] = useState<string | null>(null);
   const [vimMode, setVimMode] = useState<VimMode>('normal');
   const reload = () => setTasks(store.load());
 
@@ -26,8 +26,8 @@ function PlanModeHarness({ store, initialTasks }: { store: TaskStore; initialTas
   return createElement(PlanMode, {
     focusedTasks,
     backlogTasks,
-    selectedIndex,
-    onSelectedIndexChange: setSelectedIndex,
+    cursorId,
+    onCursorChange: setCursorId,
     store: new LocalStore(store),
     reload,
     vimMode,
@@ -170,6 +170,32 @@ describe('PlanMode interaction', () => {
       // Backlog-A should now have ★
       const backlogALine = result.lines().find(l => l.includes('Backlog-A'));
       expect(backlogALine).toContain('★');
+    });
+  });
+
+  // Regression: the cursor is anchored by task id, so focus-toggling a task
+  // (which reorders the focused-before-backlog list) must keep the cursor on
+  // that same task — not leave it at the old index, now a different task.
+  it('keeps the cursor on the task after a focus toggle reorders the list', async () => {
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    // Jump to the last row (Backlog-B).
+    result.stdin.write('G');
+    await vi.waitFor(() => {
+      const sel = result.lines().find(l => l.includes('▸'));
+      expect(sel).toContain('Backlog-B');
+    });
+
+    // Focus it — Backlog-B jumps up into the focused segment, so its numeric
+    // position changes. The cursor must follow the task, not the index.
+    result.stdin.write(' ');
+    await vi.waitFor(() => {
+      const sel = result.lines().find(l => l.includes('▸'));
+      expect(sel).toContain('Backlog-B');
+      expect(sel).toContain('★');
     });
   });
 });

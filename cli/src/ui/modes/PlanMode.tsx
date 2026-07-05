@@ -17,8 +17,8 @@ import { CURSOR_GLYPH } from '../shared/selection.js';
 interface Props {
   focusedTasks: Task[];
   backlogTasks: Task[];
-  selectedIndex: number;
-  onSelectedIndexChange: (index: number) => void;
+  cursorId: string | null;
+  onCursorChange: (id: string | null) => void;
   store: Store;
   reload: () => void;
   vimMode: VimMode;
@@ -40,7 +40,7 @@ interface CategoryGroup {
 }
 
 export function PlanMode({
-  focusedTasks, backlogTasks, selectedIndex, onSelectedIndexChange,
+  focusedTasks, backlogTasks, cursorId, onCursorChange,
   store, reload, vimMode, setVimMode, scopeFilter, onHoldingChange,
   onPanelFocusChange,
 }: Props) {
@@ -66,7 +66,10 @@ export function PlanMode({
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(
     () => new Set(loadConfig().plan?.hiddenCategories ?? []),
   );
-  const [categoryIndex, setCategoryIndex] = useState(0);
+  // Category panel cursor is anchored by category name (stable identity),
+  // not by index into the alphabetically-sorted list, which reshuffles when
+  // categories appear/disappear.
+  const [categoryCursor, setCategoryCursor] = useState<string | null>(null);
 
   const persistHiddenCategories = (next: Set<string>) => {
     setHiddenCategories(next);
@@ -165,13 +168,30 @@ export function PlanMode({
 
   const totalCount = orderedTasks.length;
 
-  useEffect(() => {
-    if (totalCount > 0 && selectedIndex >= totalCount) {
-      onSelectedIndexChange(totalCount - 1);
-    }
-  }, [totalCount, selectedIndex, onSelectedIndexChange]);
+  // Resolve the id-anchored cursors to positions in the current lists, fresh
+  // every render (never -1). The task list is reordered by focus toggles and
+  // the multi-writer poll; the category list re-sorts as categories come and
+  // go — a numeric index silently lands on the wrong item, so we anchor by id.
+  const selPos = cursorId ? Math.max(0, orderedTasks.findIndex(t => t.id === cursorId)) : 0;
+  const catPos = categoryCursor ? Math.max(0, allCategories.indexOf(categoryCursor)) : 0;
 
-  const getSelectedTask = (): Task | null => orderedTasks[selectedIndex] ?? null;
+  useEffect(() => {
+    if (orderedTasks.length === 0) {
+      if (cursorId !== null) onCursorChange(null);
+    } else if (!cursorId || !orderedTasks.some(t => t.id === cursorId)) {
+      onCursorChange(orderedTasks[selPos]?.id ?? orderedTasks[0].id);
+    }
+  }, [orderedTasks, cursorId, onCursorChange, selPos]);
+
+  useEffect(() => {
+    if (allCategories.length === 0) {
+      if (categoryCursor !== null) setCategoryCursor(null);
+    } else if (!categoryCursor || !allCategories.includes(categoryCursor)) {
+      setCategoryCursor(allCategories[catPos] ?? allCategories[0]);
+    }
+  }, [allCategories, categoryCursor, catPos]);
+
+  const getSelectedTask = (): Task | null => orderedTasks[selPos] ?? null;
 
   const handleAction = (action: VimAction) => {
     // Category panel intercepts navigation/toggle when focused
@@ -183,15 +203,14 @@ export function PlanMode({
         }
         if (action.direction === 'right') return;
         if (allCategories.length === 0) return;
-        if (action.direction === 'down') {
-          setCategoryIndex(i => Math.min(i + 1, allCategories.length - 1));
-        } else {
-          setCategoryIndex(i => Math.max(i - 1, 0));
-        }
+        const next = action.direction === 'down'
+          ? Math.min(catPos + 1, allCategories.length - 1)
+          : Math.max(catPos - 1, 0);
+        setCategoryCursor(allCategories[next] ?? null);
         return;
       }
       if (action.type === 'toggle-focus') {
-        const cat = allCategories[categoryIndex];
+        const cat = allCategories[catPos];
         if (cat === undefined) return;
         const next = new Set(hiddenCategories);
         if (next.has(cat)) next.delete(cat);
@@ -201,7 +220,8 @@ export function PlanMode({
       }
       if (action.type === 'jump') {
         if (allCategories.length === 0) return;
-        setCategoryIndex(action.to === 'top' ? 0 : allCategories.length - 1);
+        const pos = action.to === 'top' ? 0 : allCategories.length - 1;
+        setCategoryCursor(allCategories[pos] ?? null);
         return;
       }
       if (action.type === 'cancel') {
@@ -228,22 +248,25 @@ export function PlanMode({
       case 'move': {
         if (action.direction === 'right') {
           setPanelFocus('categories');
-          setCategoryIndex(i => Math.min(i, Math.max(0, allCategories.length - 1)));
+          // Anchor the category cursor on entry if it isn't already valid.
+          if (!categoryCursor || !allCategories.includes(categoryCursor)) {
+            setCategoryCursor(allCategories[0] ?? null);
+          }
           return;
         }
         if (action.direction === 'left') return;
         if (totalCount === 0) return;
-        if (action.direction === 'down') {
-          onSelectedIndexChange(Math.min(selectedIndex + 1, totalCount - 1));
-        } else {
-          onSelectedIndexChange(Math.max(selectedIndex - 1, 0));
-        }
+        const next = action.direction === 'down'
+          ? Math.min(selPos + 1, totalCount - 1)
+          : Math.max(selPos - 1, 0);
+        onCursorChange(orderedTasks[next]?.id ?? null);
         break;
       }
 
       case 'jump': {
         if (totalCount === 0) return;
-        onSelectedIndexChange(action.to === 'top' ? 0 : totalCount - 1);
+        const pos = action.to === 'top' ? 0 : totalCount - 1;
+        onCursorChange(orderedTasks[pos]?.id ?? null);
         break;
       }
 
@@ -324,7 +347,7 @@ export function PlanMode({
       }
 
       case 'create': {
-        const idx = action.above ? selectedIndex : selectedIndex + 1;
+        const idx = action.above ? selPos : selPos + 1;
         setCreatingAt(idx);
         setEditState({ text: '', cursor: 0 });
         setVimMode('insert');
@@ -491,7 +514,7 @@ export function PlanMode({
       const displayIdx = flatIdx;
       const isLast = i === group.tasks.length - 1;
       const connector = isLast ? '└─' : '├─';
-      const isSelected = selectedIndex === displayIdx;
+      const isSelected = selPos === displayIdx;
 
       taskRowPositions.push(taskRows.length);
 
@@ -557,7 +580,7 @@ export function PlanMode({
   const hiddenFocusedBand = hiddenFocusedTasks.length > 0 ? hiddenFocusedTasks.length + 1 : 0;
   const availableRows = Math.max(1, termHeight - 10 - bannerRows - hiddenFocusedBand);
 
-  const selRow = taskRowPositions[selectedIndex] ?? 0;
+  const selRow = taskRowPositions[selPos] ?? 0;
   const maxScroll = Math.max(0, taskRows.length - availableRows);
   let target = Math.min(Math.max(scrollOffset, 0), maxScroll);
   if (selRow < target) target = selRow;
@@ -629,7 +652,7 @@ export function PlanMode({
         {allCategories.map((cat, i) => {
           const label = cat || 'uncategorized';
           const hidden = hiddenCategories.has(cat);
-          const selected = panelFocus === 'categories' && categoryIndex === i;
+          const selected = panelFocus === 'categories' && catPos === i;
           const count = categoryCounts.get(cat) ?? 0;
           const focusedCount = focusedCountByCategory.get(cat) ?? 0;
           const mark = hidden ? '○' : '●';

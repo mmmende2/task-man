@@ -95,9 +95,11 @@ export function BacklogPage() {
     };
   }, [tasks, categoryFilter, scopeFilter]);
 
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 1800);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 1800);
   };
 
   const withAction = async (id: string, op: () => Promise<unknown>) => {

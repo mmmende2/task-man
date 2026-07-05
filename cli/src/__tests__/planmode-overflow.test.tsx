@@ -26,7 +26,7 @@ function FullAppHarness({ store, initialTasks, termHeight }: {
   termHeight: number;
 }) {
   const [tasks, setTasks] = useState(initialTasks);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [cursorId, setCursorId] = useState<string | null>(null);
   const [vimMode, setVimMode] = useState<VimMode>('normal');
   const reload = () => setTasks(store.load());
 
@@ -44,8 +44,8 @@ function FullAppHarness({ store, initialTasks, termHeight }: {
       createElement(PlanMode, {
         focusedTasks,
         backlogTasks,
-        selectedIndex,
-        onSelectedIndexChange: setSelectedIndex,
+        cursorId,
+        onCursorChange: setCursorId,
         store: new LocalStore(store),
         reload,
         vimMode,

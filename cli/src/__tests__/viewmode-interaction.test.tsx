@@ -11,12 +11,13 @@ import { FocusMode } from '../ui/modes/FocusMode.js';
 import { renderWithDimensions } from './helpers/renderWithDimensions.js';
 
 /**
- * Stateful harness that wraps FocusMode with selectedIndex + tasks state,
+ * Stateful harness that wraps FocusMode with an id-anchored cursor + tasks state,
  * matching how InteractiveApp manages these.
  */
 function FocusModeHarness({ store, initialTasks }: { store: TaskStore; initialTasks: Task[] }) {
   const [tasks, setTasks] = useState(initialTasks);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const firstFocusedId = initialTasks.find(t => t.focused && t.status !== 'done' && !t.parent_id)?.id ?? null;
+  const [cursorId, setCursorId] = useState<string | null>(firstFocusedId);
   const [vimMode, setVimMode] = useState<VimMode>('normal');
   const reload = () => setTasks(store.load());
 
@@ -37,8 +38,8 @@ function FocusModeHarness({ store, initialTasks }: { store: TaskStore; initialTa
     focusedTasks,
     backlogCount,
     subtaskMap,
-    selectedIndex,
-    onSelectedIndexChange: setSelectedIndex,
+    cursorId,
+    onCursorChange: setCursorId,
     store: new LocalStore(store),
     reload,
     vimMode,
