@@ -162,7 +162,7 @@ interface RowProps {
   subtasks: Task[];
   expanded: boolean;
   busy: boolean;
-  /** Render a dim per/pro tag — set when the scope filter is 'all'. */
+  /** Render a dim personal/professional tag — set when the scope filter is 'all'. */
   showScope?: boolean;
   onToggle: () => void;
   onComplete: () => void;
@@ -217,7 +217,7 @@ function FocusRow({ task, subtasks, expanded, busy, showScope, onToggle, onCompl
           {isDone && <div className="row-status done-stamp">done today</div>}
         </div>
         <div className="row-side">
-          {showScope && <span className="chip scope-tag">{task.scope === 'professional' ? 'pro' : 'per'}</span>}
+          {showScope && <span className="chip scope-tag">{task.scope}</span>}
           {task.categories.slice(0, 2).map((c) => (
             <span key={c} className="chip">{c}</span>
           ))}

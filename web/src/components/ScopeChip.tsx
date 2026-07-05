@@ -39,7 +39,7 @@ export function matchesScope(taskScope: TaskScope, filter: ScopeFilter): boolean
 const LABELS: Record<ScopeFilter, string> = {
   all: 'all',
   personal: 'personal',
-  professional: 'work',
+  professional: 'professional',
 };
 
 export function ScopeChip({ value, onChange }: { value: ScopeFilter; onChange: (v: ScopeFilter) => void }) {

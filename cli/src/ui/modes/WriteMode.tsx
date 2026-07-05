@@ -19,7 +19,7 @@ import {
 import { EntryList, orderedTaskIds, type EntryListEditing, type CategoryEditAssist, type CaptureAnchor } from './write/EntryList.js';
 import { CapturePane } from './write/CapturePane.js';
 
-export type TimeFilter = 'session' | 'today' | 'all';
+export type TimeFilter = 'today' | 'all';
 
 interface Props {
   store: Store;
@@ -55,7 +55,7 @@ function toggleScope(s: TaskScope): TaskScope {
 }
 
 function cycleTimeFilter(f: TimeFilter): TimeFilter {
-  return f === 'session' ? 'today' : f === 'today' ? 'all' : 'session';
+  return f === 'today' ? 'all' : 'today';
 }
 
 function TimeFilterChip({ active }: { active: TimeFilter }) {
@@ -67,8 +67,6 @@ function TimeFilterChip({ active }: { active: TimeFilter }) {
   return (
     <Box>
       <Text dimColor>{'  ['}</Text>
-      {opt('session', 'session')}
-      <Text dimColor>{' · '}</Text>
       {opt('today', 'today')}
       <Text dimColor>{' · '}</Text>
       {opt('all', 'all')}
@@ -111,7 +109,7 @@ export function WriteMode({
   };
 
   const [inputText, setInputText] = useState('');
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('session');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [cursorId, setCursorId] = useState<string | null>(null);
   const [navTarget, setNavTarget] = useState<'tasks' | 'subtasks'>('tasks');
   const [subtaskIndex, setSubtaskIndex] = useState(0);
@@ -164,16 +162,14 @@ export function WriteMode({
   const filteredParents = useMemo(() => {
     let list = parents;
     if (scopeFilter !== 'all') list = list.filter(t => t.scope === scopeFilter);
-    if (timeFilter === 'session') {
-      list = list.filter(t => t.session_id === currentSessionId);
-    } else if (timeFilter === 'today') {
+    if (timeFilter === 'today') {
       // Local-time today — see cli/src/local-date.ts for why.
       list = list.filter(t => isLocalToday(t.created_at));
     } else {
       list = list.filter(t => t.status !== 'done').slice(0, 100);
     }
     return list;
-  }, [parents, scopeFilter, timeFilter, currentSessionId]);
+  }, [parents, scopeFilter, timeFilter]);
 
   const orderedIds = useMemo(() => orderedTaskIds(filteredParents), [filteredParents]);
 
@@ -719,7 +715,7 @@ export function WriteMode({
           editing={editing ?? undefined}
           categoryAssist={reviewCategoryAssist}
           currentSessionId={currentSessionId}
-          emptyMessage={timeFilter === 'session' ? 'No tasks in this session yet.' : 'No tasks.'}
+          emptyMessage={timeFilter === 'today' ? 'Nothing captured today yet.' : 'No tasks.'}
           maxRows={entryListMaxRows}
           cursorTone={subMode === 'capture' ? 'magenta' : 'cyan'}
           captureAnchor={captureAnchor}

@@ -1,8 +1,12 @@
 # Web Refine Plan — the card-flip triage, on the phone
 
-Status: **proposed, not started** (2026-07-04). Companion TUI fix (footers
-never advertised `r:refine` in any mode — the mode was effectively hidden)
-shipped separately.
+Status: **shipped** (2026-07-05). All five steps landed: the question brain
+is extracted to `cli/src/refine-questions.ts` (`task-man/refine-questions`,
+unit-tested), the focus card is offered with no hard cap, `web/src/api.ts`
+gained `deleteTask`, `web/src/pages/Refine.tsx` drives the card loop, and the
+NavMenu/route + docs are wired. Companion TUI fix (footers never advertised
+`r:refine`) shipped earlier. Deferred: the NavMenu `Refine (N)` count badge
+and TUI `~`-scope parity in Refine.
 
 ## Why this fits the web
 

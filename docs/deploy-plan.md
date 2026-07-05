@@ -119,7 +119,7 @@ Wire it in:
 1. Move the chosen domain to Cloudflare (update registrar nameservers).
 2. Zero Trust dashboard → create a Tunnel; copy the token into `.env`.
 3. Add a public hostname on the tunnel: `tasks.yourdomain.com` → `http://task-man:3030`.
-4. Zero Trust → Access → Applications → Self-hosted → cover `tasks.yourdomain.com` with policy "Emails include `mariomendezmusic@gmail.com`". Session duration ≥ 24h to reduce reauth friction for the TUI.
+4. Zero Trust → Access → Applications → Self-hosted → cover `tasks.yourdomain.com` with policy "Emails include `you@example.com`". Session duration ≥ 24h to reduce reauth friction for the TUI.
 5. Leave the orange cloud / proxy on (CDN + DDoS).
 
 ### 2d. Backups

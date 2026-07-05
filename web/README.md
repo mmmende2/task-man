@@ -7,10 +7,11 @@ Mobile-first React SPA for capturing and checking tasks from a phone or second d
 - **Focus view** — your current focused tasks; tap to complete, swipe-friendly.
 - **Quick Capture** — drop a task in without leaving the keyboard.
 - **Backlog** — browse and pull unfocused tasks, filter by category.
+- **Refine** — the card-flip triage loop: one tap-sized question at a time (scope, time, vibe, priority, focus, category), one-step undo. Shares the exact question logic with the TUI (`task-man/refine-questions`).
 - **Metrics** — the day's progress, with date navigation.
 - **PWA shell** — installable via "Add to Home Screen" on iOS Safari and Android Chrome. The shell caches via a service worker; `/api/*` is never cached.
 
-Plan and Refine stay TUI-only.
+Plan stays TUI-only.
 
 ## How it talks to the server
 

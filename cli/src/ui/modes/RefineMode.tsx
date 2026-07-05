@@ -5,8 +5,9 @@ import type { Store } from '../../store-interface.js';
 import type { AppMode } from '../types.js';
 import { loadConfig } from '../../config.js';
 import { buildRefineQueue } from '../../refine-queue.js';
+import { buildQuestions, type QuestionDef } from '../../refine-questions.js';
 import { usePulse, CYAN_PULSE } from '../hooks/usePulse.js';
-import { RefineQuestion, type QuestionDef } from './RefineQuestion.js';
+import { RefineQuestion } from './RefineQuestion.js';
 
 interface Props {
   store: Store;
@@ -22,171 +23,9 @@ interface UndoSnapshot {
 
 type Phase = 'asking' | 'between' | 'complete' | 'empty';
 
-const MAX_QUESTIONS_PER_TASK = 3;
 const FLASH_MS = 400;
 const BETWEEN_MS = 150;
 const COMPLETE_MS = 1500;
-
-const COMMON_TYPOS: [RegExp, string][] = [
-  [/\bteh\b/gi, 'the'],
-  [/\brecieve\b/gi, 'receive'],
-  [/\bUdpate\b/g, 'Update'],
-  [/\budpate\b/g, 'update'],
-  [/\badress\b/gi, 'address'],
-  [/\bfreind\b/gi, 'friend'],
-  [/\bocurr/gi, 'occurr'],
-  [/\bseperate\b/gi, 'separate'],
-  [/\bdefinately\b/gi, 'definitely'],
-];
-
-function suggestTitleFix(title: string): string | null {
-  let fixed = title;
-
-  // Trailing/leading space
-  const trimmed = fixed.trim();
-  if (trimmed !== fixed) fixed = trimmed;
-
-  // All-caps (longer than one word)
-  if (fixed.length > 3 && fixed === fixed.toUpperCase() && /[A-Z]/.test(fixed)) {
-    fixed = fixed.charAt(0) + fixed.slice(1).toLowerCase();
-  }
-
-  // Common transpositions
-  for (const [pattern, replacement] of COMMON_TYPOS) {
-    fixed = fixed.replace(pattern, replacement);
-  }
-
-  return fixed !== title ? fixed : null;
-}
-
-function daysSince(iso: string): number {
-  const then = new Date(iso).getTime();
-  const now = Date.now();
-  return Math.floor((now - then) / (1000 * 60 * 60 * 24));
-}
-
-function buildQuestions(
-  task: Task,
-  allTasks: Task[],
-  currentFocusedCount: number,
-  maxFocused: number | null,
-  knownCategories: string[],
-): QuestionDef[] {
-  const list: QuestionDef[] = [];
-
-  // 1. Spelling/title correction
-  const suggestion = suggestTitleFix(task.title);
-  if (suggestion) {
-    list.push({
-      type: 'correction',
-      prompt: 'Quick fix — does this look right?',
-      original: task.title,
-      suggestion,
-    });
-  }
-
-  // 2. Scope check. `scope` is never null in practice (TaskStore defaults it
-  // to 'personal'), so the old `!task.scope` condition made this card
-  // unreachable. Instead, ask on unrefined Claude-created tasks: Claude
-  // rarely sets scope deliberately, and "no time_estimate + no vibe yet"
-  // is the proxy for "first refine pass" — once refined, this stops firing.
-  const unrefinedClaudeTask =
-    task.created_by === 'claude' && task.time_estimate == null && task.vibe == null;
-  if (!task.scope || unrefinedClaudeTask) {
-    list.push({
-      type: 'number',
-      prompt: 'Work thing or personal thing?',
-      options: [
-        { label: 'personal', value: 'personal' },
-        { label: 'professional', value: 'professional' },
-        { label: 'skip', value: '__skip' },
-      ],
-    });
-  }
-
-  // 2b. Missing time estimate
-  if (task.time_estimate == null) {
-    list.push({
-      type: 'number',
-      prompt: 'How long will this take?',
-      options: [
-        { label: '<5m', value: '<5m' },
-        { label: '20m', value: '20m' },
-        { label: '45m', value: '45m' },
-        { label: '>1h', value: '>1h' },
-        { label: '>3h', value: '>3h' },
-      ],
-    });
-  }
-
-  // 2c. Missing vibe
-  if (task.vibe == null) {
-    list.push({
-      type: 'number',
-      prompt: 'Vibe check?',
-      options: [
-        { label: 'love', value: 'love' },
-        { label: 'ok', value: 'ok' },
-        { label: 'dread', value: 'dread' },
-      ],
-    });
-  }
-
-  // 3. Priority review
-  const stale = task.status === 'todo' && daysSince(task.created_at) > 7 && task.priority !== 'high';
-  if (task.created_by === 'claude' || stale) {
-    list.push({
-      type: 'list',
-      prompt: 'How urgent is this, really?',
-      options: [
-        { label: 'high', value: 'high' },
-        { label: 'medium', value: 'medium' },
-        { label: 'low', value: 'low' },
-      ],
-    });
-  }
-
-  // 4. Focus nomination
-  const focusCap = maxFocused ?? Infinity;
-  if (!task.focused && currentFocusedCount < focusCap) {
-    list.push({
-      type: 'yesno',
-      prompt: 'Pull this into tomorrow\'s focus?',
-    });
-  }
-
-  // 5. AI task review — skip if user has already set any metadata on this task,
-  // or if it has subtasks (a parent with children is clearly relevant).
-  // NOTE: scope is deliberately absent here — it defaults to 'personal' on
-  // every task, so `scope != null` was always true and made this check
-  // (and the "does it belong?" card below) permanently dead.
-  const hasEngagement =
-    task.time_estimate != null ||
-    task.vibe != null ||
-    task.categories.length > 0 ||
-    task.focused ||
-    allTasks.some(t => t.parent_id === task.id);
-
-  if (task.created_by === 'claude' && !task.description && !hasEngagement) {
-    list.push({
-      type: 'confirm',
-      prompt: 'Claude added this — does it belong?',
-    });
-  }
-
-  // 6. Category assignment
-  if (task.categories.length === 0 && knownCategories.length > 0) {
-    const options = knownCategories.slice(0, 5).map(c => ({ label: c, value: c }));
-    options.push({ label: 'skip', value: '__skip' });
-    list.push({
-      type: 'number',
-      prompt: 'File this under...?',
-      options,
-    });
-  }
-
-  return list.slice(0, MAX_QUESTIONS_PER_TASK);
-}
 
 export function RefineMode({ store, reload, onExit, previousMode }: Props) {
   const pulseColor = usePulse({ colors: CYAN_PULSE, intervalMs: 350 });
@@ -237,35 +76,20 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
     setPhase(initialQueue.length === 0 ? 'empty' : 'asking');
   }, [tasksLoaded, allTasks]);
 
-  const knownCategories = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of allTasks) {
-      for (const c of t.categories) set.add(c);
-    }
-    return Array.from(set);
-  }, [allTasks]);
+  // Latest loaded tasks, read by the freeze effect below so it captures fresh
+  // context (category set, focused count) without listing `allTasks` in its
+  // deps — which would rebuild the frozen list mid-task on a background reload.
+  const allTasksRef = useRef(allTasks);
+  useEffect(() => { allTasksRef.current = allTasks; }, [allTasks]);
 
-  const focusedCount = useMemo(() =>
-    allTasks.filter(t => t.focused && t.status !== 'done').length,
-  [allTasks]);
-
-  const questions = useMemo<QuestionDef[]>(() => {
-    if (!currentTask) return [];
-    return buildQuestions(currentTask, allTasks, focusedCount, config.focus.maxFocused, knownCategories);
-  }, [currentTask, allTasks, focusedCount, config.focus.maxFocused, knownCategories]);
-
-  const currentQuestion = questions[questionIndex];
-
-  // If current task has no applicable questions, advance silently
-  useEffect(() => {
-    if (phase !== 'asking') return;
-    if (!currentTask) return;
-    if (questions.length === 0) {
-      advanceTask();
-    } else if (questionIndex >= questions.length) {
-      advanceTask();
-    }
-  }, [phase, currentTask?.id, questions.length, questionIndex]);
+  // The frozen question list for the current task. Built ONCE when a task
+  // becomes current (keyed on task identity) and walked by index — never
+  // rebuilt as answers mutate the task. Rebuilding-on-answer would drop the
+  // just-answered card and shift the survivors down while the flash timer
+  // still bumps questionIndex, skipping the next card. Mirrors the web
+  // (web/src/pages/Refine.tsx).
+  const [activeQuestions, setActiveQuestions] = useState<QuestionDef[]>([]);
+  const currentQuestion = activeQuestions[questionIndex];
 
   const flashAndAdvance = useCallback((label: string) => {
     setFlash(label);
@@ -277,6 +101,11 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
   }, []);
 
   const advanceTask = useCallback(() => {
+    // Cancel any pending flash-advance so a stale timer can't bump the index
+    // on the next task after we've moved on.
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlash(null);
+    setActiveQuestions([]);
     setReviewedCount(c => c + 1);
     setQuestionIndex(0);
     setListCursor(0);
@@ -298,6 +127,29 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
       });
     }, BETWEEN_MS);
   }, [queue.length, onExit, previousMode]);
+
+  // Freeze the question list when a task becomes current. Keyed on task
+  // identity + phase, so it does NOT re-run as the current task's own fields
+  // change under applyChange — that's what keeps the list stable while you
+  // answer it. Reads the freshest allTasks via ref for gating context.
+  useEffect(() => {
+    if (phase !== 'asking' || !currentTask) return;
+    const all = allTasksRef.current;
+    const focused = all.filter(t => t.focused && t.status !== 'done').length;
+    const cats = Array.from(new Set(all.flatMap(t => t.categories)));
+    const qs = buildQuestions(currentTask, all, focused, config.focus.maxFocused, cats);
+    setActiveQuestions(qs);
+    setQuestionIndex(0);
+    setListCursor(0);
+    if (qs.length === 0) advanceTask();
+  }, [currentTask?.id, phase, config.focus.maxFocused, advanceTask]);
+
+  // Walked past the end of a task's frozen list → next task. (The empty-list
+  // case is handled at freeze time above.)
+  useEffect(() => {
+    if (phase !== 'asking') return;
+    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) advanceTask();
+  }, [phase, questionIndex, activeQuestions.length, advanceTask]);
 
   const applyChange = useCallback(async (changes: Partial<Task>, flashLabel: string) => {
     if (!currentTask) return;

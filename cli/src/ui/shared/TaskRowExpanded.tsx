@@ -20,7 +20,7 @@ interface Props {
   editText?: string;
   cursorPos?: number;
   terminalColor?: string | null;
-  /** Append a per/pro tag to the card's corner label (scope filter = 'all'). */
+  /** Append a personal/professional tag to the card's corner label (scope filter = 'all'). */
   showScope?: boolean;
 }
 

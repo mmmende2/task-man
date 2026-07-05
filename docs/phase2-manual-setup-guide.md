@@ -152,7 +152,7 @@ This is the actual auth for your app — it replaces the old PIN entirely.
 6. Next → **Policies** → **Add a policy**:
    - Policy name: `owner-only`
    - Action: **Allow**
-   - Include rule: **Emails** → enter your email (`mariomendezmusic@gmail.com`)
+   - Include rule: **Emails** → enter your email (`you@example.com`)
 7. Save. Skip the optional "App Launcher" toggle — not needed for a single personal app.
 
 **What this buys you**: hitting `https://tasks.yourdomain.com` from a browser now

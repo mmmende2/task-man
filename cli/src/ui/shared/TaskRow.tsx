@@ -11,7 +11,7 @@ interface Props {
   subtaskProgress?: { done: number; total: number };
   terminalColor?: string | null;
   sessionActive?: boolean;
-  /** Show a dim per/pro tag — passed when the scope filter is 'all', where rows are otherwise indistinguishable. */
+  /** Show a dim personal/professional tag — passed when the scope filter is 'all', where rows are otherwise indistinguishable. */
   showScope?: boolean;
 }
 

@@ -39,6 +39,7 @@
     "./sessions": "./dist/sessions.js",
     "./constants": "./dist/constants.js",
     "./refine-queue": "./dist/refine-queue.js",
+    "./refine-questions": "./dist/refine-questions.js",
     "./handlers": "./dist/handlers/index.js",
     "./parse-entry": "./dist/parse-entry.js",
     "./local-date": "./dist/local-date.js",

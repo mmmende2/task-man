@@ -57,6 +57,6 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
 };
 
 export const SCOPE_LABELS: Record<TaskScope, string> = {
-  personal: 'per',
-  professional: 'pro',
+  personal: 'personal',
+  professional: 'professional',
 };
