@@ -206,7 +206,7 @@ function InteractiveAppInner() {
           previousMode={prevMode}
         />
       ) : (
-        <MetricsMode store={store} />
+        <MetricsMode store={store} scopeFilter={scopeFilter} />
       )}
       <Box flexGrow={1} />
       </Box>

@@ -52,9 +52,15 @@ handler), `RefineMode.tsx` (own handler), `MetricsMode.tsx` (own handler),
 
 1. **`q` in Refine exits the mode, not the app** (footer says `q:quit`).
    Defensible mid-card-flip; cosmetic.
-2. **`~` in Metrics** updates the header but the report ignores scope — the
-   day report is a whole-day artifact. Revisit only if scoped metrics become
-   a real want.
+
+(Resolved 2026-07-04: **Metrics is scope-aware everywhere** — `~` in TUI
+Metrics rebuilds the report scoped, and the web page has the scope chip,
+both through `buildDayReport(..., { scope })` / `/api/metrics?scope=…`.
+Scope filtering uses parent-scope semantics (`filterByScope` in
+task-filters.ts): a subtask counts under its parent's scope, since the
+subtask's own field can lag behind a parent `S`-toggle. Scoped reports
+carry no insight line — the insight is a whole-day artifact with persisted
+dedupe state.)
 
 (Resolved 2026-07-04: focused-toggle unified on `Space` — Plan and Write
 review both use it; Write review's `f` binding is gone, so `f` means exactly

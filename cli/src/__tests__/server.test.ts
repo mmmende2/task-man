@@ -79,6 +79,30 @@ describe('server', () => {
     expect(await second.json()).toEqual(await first.json());
   });
 
+  it('filters /api/metrics by scope and rejects a bogus one', async () => {
+    const work = await app.request('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Work', scope: 'professional' }),
+    });
+    const workTask = (await work.json()) as { id: string };
+    await app.request(`/api/tasks/${workTask.id}/complete`, { method: 'POST' });
+    await app.request('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Home', scope: 'personal' }),
+    });
+
+    const pro = await app.request('/api/metrics?scope=professional');
+    expect(pro.status).toBe(200);
+    const proBody = (await pro.json()) as { stats: { completed: number }; insight: string | null };
+    expect(proBody.stats.completed).toBe(1);
+    expect(proBody.insight).toBeNull();
+
+    const bogus = await app.request('/api/metrics?scope=work');
+    expect(bogus.status).toBe(400);
+  });
+
   it('completes a top-level task from the web (no MCP guard)', async () => {
     const created = await app.request('/api/tasks', {
       method: 'POST',

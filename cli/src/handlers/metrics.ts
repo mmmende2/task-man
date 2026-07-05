@@ -1,6 +1,7 @@
 import type { Store } from '../store-interface.js';
-import type { MetricsResponse, Task } from '../types.js';
+import type { MetricsResponse, Task, TaskScope } from '../types.js';
 import { buildDayReport } from '../report.js';
+import { filterByScope } from '../task-filters.js';
 import { localDateString } from '../local-date.js';
 
 // Re-export so callers can `import { MetricsResponse } from 'task-man/handlers'`.
@@ -8,9 +9,17 @@ import { localDateString } from '../local-date.js';
 // can import the type without pulling this module's server-only deps.
 export type { MetricsResponse } from '../types.js';
 
-export async function buildMetrics(store: Store, date: string): Promise<MetricsResponse> {
-  const report = await buildDayReport(store, date);
-  const all = await store.load();
+export async function buildMetrics(
+  store: Store,
+  date: string,
+  scope?: TaskScope,
+): Promise<MetricsResponse> {
+  const report = await buildDayReport(store, date, { scope });
+  const loaded = await store.load();
+  // Same slice the report was built from — keeps subtask trees, lastWorkDay
+  // ("last day with a completion IN THIS SCOPE"), and earliestDate coherent
+  // with the scoped numbers.
+  const all = filterByScope(loaded, scope);
 
   // Parents with activity on `date`: parent done that day OR any of its
   // subtasks completed that day. Mirrors the TUI MetricsMode logic and the

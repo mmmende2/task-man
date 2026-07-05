@@ -1,5 +1,5 @@
 import { isOnLocalDate } from './local-date.js';
-import type { Task, TaskFilter } from './types.js';
+import type { Task, TaskFilter, TaskScope } from './types.js';
 
 export function applyFilter(tasks: Task[], filters: TaskFilter = {}): Task[] {
   let filtered = tasks;
@@ -52,4 +52,21 @@ export function createdOn(tasks: Task[], date: string): Task[] {
 
 export function inProgressUpdatedOn(tasks: Task[], date: string): Task[] {
   return tasks.filter(t => t.status === 'in_progress' && isOnLocalDate(t.updated_at, date));
+}
+
+// Scope filtering with parent-scope semantics: a subtask belongs to its
+// parent's scope, not its own stored one. Subtasks inherit scope at creation
+// but do NOT follow later S-toggles on the parent, so their own field can
+// drift — and Focus/Plan already render subtasks under their parent
+// regardless of the subtask's field. Orphaned subtasks fall back to their
+// own scope.
+export function filterByScope(tasks: Task[], scope: TaskScope | undefined): Task[] {
+  if (!scope) return tasks;
+  const parentScope = new Map(
+    tasks.filter(t => t.parent_id === null).map(t => [t.id, t.scope]),
+  );
+  return tasks.filter(t => {
+    const effective = t.parent_id ? parentScope.get(t.parent_id) ?? t.scope : t.scope;
+    return effective === scope;
+  });
 }
