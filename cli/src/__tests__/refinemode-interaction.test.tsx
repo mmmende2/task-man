@@ -52,15 +52,21 @@ describe('RefineMode interaction', () => {
 
     await vi.waitFor(() => expect(result.text()).toContain('Vibe check?'), { timeout: 2000 });
 
-    // Pick "ok" (option 2 of love/ok/dread).
-    result.stdin.write('2');
-
-    // The focus card must actually appear — the bug skipped straight past it
-    // (and, with one task, jumped to REFINE COMPLETE).
+    // Pick "ok" (option 2 of love/ok/dread) and confirm the focus card lands.
+    // On the CI runner the first synchronous keystroke can race ink's
+    // raw-mode input subscription and get dropped, so keep offering "2" until
+    // the vibe answer registers. Re-sending is safe: "2" selects on the
+    // number-type vibe card but is a no-op on the yes/no focus card (and is
+    // ignored during the answer flash), so it can't over-advance.
     await vi.waitFor(
-      () => expect(result.text()).toContain("Pull this into tomorrow's focus?"),
-      { timeout: 2000 },
+      () => {
+        result.stdin.write('2');
+        expect(result.text()).toContain("Pull this into tomorrow's focus?");
+      },
+      { timeout: 3000, interval: 60 },
     );
+    // The focus card must actually appear — the bug this guards against
+    // skipped straight past it (and, with one task, jumped to REFINE COMPLETE).
     expect(result.text()).not.toContain('REFINE COMPLETE');
   });
 
