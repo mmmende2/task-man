@@ -21,6 +21,7 @@ const FLASH_MS = 240;
 // exact same prefix routing the TUI uses (RefineMode.tsx), kept identical so
 // the two surfaces can't drift on what a card means.
 function answerToChange(prompt: string, value: string, task: Task): Partial<Task> | null {
+  if (prompt.startsWith('Quick fix')) return { title: value };
   if (prompt.startsWith('Work thing')) return { scope: value as TaskScope };
   if (prompt.startsWith('How long')) return { time_estimate: value as Task['time_estimate'] };
   if (prompt.startsWith('Vibe check')) return { vibe: value as Task['vibe'] };
@@ -78,9 +79,17 @@ export function RefinePage() {
     return () => { alive = false; };
   }, []);
 
-  // Build (and rebuild on scope change) the frozen queue from the snapshot.
+  // Build the review queue ONCE per (load, scope). It must NOT rebuild on the
+  // per-answer snapshot mutations: re-filtering candidates mid-review would
+  // yank the queue out from under you — answering a task's last gap drops it
+  // from the candidate set, collapsing the queue and resetting progress.
+  // `snapshot` stays in deps so the first non-null load triggers a build; the
+  // ref guard suppresses every subsequent same-scope run.
+  const queueBuiltForScope = useRef<ScopeFilter | null>(null);
   useEffect(() => {
     if (!snapshot) return;
+    if (queueBuiltForScope.current === scopeFilter) return;
+    queueBuiltForScope.current = scopeFilter;
     const candidates = snapshot.filter((t) => matchesScope(t.scope, scopeFilter));
     const ids = buildRefineQueue(candidates).map((t) => t.id);
     setQueueIds(ids);
@@ -97,29 +106,26 @@ export function RefinePage() {
     return m;
   }, [snapshot]);
 
-  const knownCategories = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of snapshot ?? []) for (const c of t.categories) set.add(c);
-    return Array.from(set);
-  }, [snapshot]);
+  const currentTaskId = queueIds[taskIndex];
+  const currentTask: Task | undefined = tasksById.get(currentTaskId);
 
-  const focusedCount = useMemo(
-    () => (snapshot ?? []).filter((t) => t.focused && t.status !== 'done').length,
-    [snapshot],
-  );
-
-  const currentTask: Task | undefined = tasksById.get(queueIds[taskIndex]);
-
-  const questions = useMemo<QuestionDef[]>(() => {
-    if (!currentTask || !snapshot) return [];
-    // No local focus cap on the web (see the plan's "no focus limit" ruling):
-    // threshold null means the focus card is offered with no warning note.
-    return buildQuestions(currentTask, snapshot, focusedCount, null, knownCategories);
-  }, [currentTask, snapshot, focusedCount, knownCategories]);
-
-  const currentQuestion = questions[questionIndex];
+  // The frozen question list for the current task. Built ONCE when a task
+  // becomes current and walked by index — never rebuilt as answers mutate
+  // the snapshot. Rebuilding-on-answer would drop the just-answered card and
+  // shift the survivors down while the flash timer still bumps the index,
+  // skipping the next card; and when the list emptied it raced the
+  // task-advance, skipping into the following task. Freezing removes that
+  // whole class of skips.
+  const [activeQuestions, setActiveQuestions] = useState<QuestionDef[]>([]);
+  const snapshotRef = useRef<Task[] | null>(snapshot);
+  useEffect(() => { snapshotRef.current = snapshot; }, [snapshot]);
 
   const advanceTask = useCallback(() => {
+    // Cancel any pending flash-advance so a stale timer can't bump the index
+    // on the *next* task after we've moved on.
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlash(null);
+    setActiveQuestions([]);
     setReviewedCount((c) => c + 1);
     setQuestionIndex(0);
     setEditing(false);
@@ -131,12 +137,32 @@ export function RefinePage() {
     });
   }, [queueIds.length]);
 
-  // A task whose applicable questions are exhausted (or that had none) moves
-  // the queue forward on its own.
+  // Freeze the list when a task becomes current. Reads the live snapshot via
+  // ref (so prior-task edits show through) but is keyed only on task identity,
+  // so it does not re-run as the current task's own fields change.
   useEffect(() => {
-    if (phase !== 'asking' || !currentTask) return;
-    if (questions.length === 0 || questionIndex >= questions.length) advanceTask();
-  }, [phase, currentTask, questions.length, questionIndex, advanceTask]);
+    if (phase !== 'asking' || !currentTaskId) return;
+    const snap = snapshotRef.current ?? [];
+    const task = snap.find((t) => t.id === currentTaskId);
+    if (!task) { advanceTask(); return; }
+    const focused = snap.filter((t) => t.focused && t.status !== 'done').length;
+    const cats = Array.from(new Set(snap.flatMap((t) => t.categories)));
+    // No local focus cap on the web (see the plan's "no focus limit" ruling):
+    // threshold null means the focus card is offered with no warning note.
+    const qs = buildQuestions(task, snap, focused, null, cats);
+    setActiveQuestions(qs);
+    setQuestionIndex(0);
+    if (qs.length === 0) advanceTask();
+  }, [currentTaskId, phase, advanceTask]);
+
+  const currentQuestion = activeQuestions[questionIndex];
+
+  // Walked past the end of a task's frozen list → next task. (The empty-list
+  // case is handled at freeze time above.)
+  useEffect(() => {
+    if (phase !== 'asking') return;
+    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) advanceTask();
+  }, [phase, questionIndex, activeQuestions.length, advanceTask]);
 
   const flashAndAdvance = useCallback((label: string) => {
     setFlash(label);
@@ -283,7 +309,7 @@ export function RefinePage() {
     <Shell scope={scopeFilter} onScope={changeScopeFilter} nav={nav}>
       <div className="refine-card">
         <div className="refine-progress mono">
-          task {taskIndex + 1} / {queueIds.length} · question {questionIndex + 1} / {questions.length}
+          task {taskIndex + 1} / {queueIds.length} · question {questionIndex + 1} / {activeQuestions.length}
         </div>
         <div className="refine-task">
           <PriorityDot priority={currentTask.priority} />
