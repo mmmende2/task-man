@@ -67,25 +67,33 @@ with Focus/Backlog/Metrics) by filtering queue *candidates* through
 `matchesScope` before building. Note: the TUI's Refine currently ignores
 `~` — TUI parity is a cheap follow-up once this decision proves out.
 
-## Two wrinkles to decide
+## Decided: no focus limit (Mario, 2026-07-04)
 
-1. **`maxFocused` lives in server-side config** (`focus.maxFocused`,
-   `~/.task-man/config.json`) and gates the "pull into focus?" card. The web
-   has no config endpoint. v1: hardcode the default (3) client-side and ask
-   the question only when the snapshot shows fewer than 3 focused — worst
-   case the guardrail is slightly conservative for a nonstandard config.
-   Proper fix (a tiny read-only `/api/config` exposing `focus.maxFocused`)
-   only if the default ever diverges for real.
-2. **Refine count badge in NavMenu** (`Refine (7)`) would make the mode
-   discoverable exactly when it has work — but computing it on other pages
-   means running the queue builder on every poll. Cheap (it's pure over an
-   already-fetched list on Focus/Backlog), but deferred to keep v1 tight.
+`focus.maxFocused` is a *soft* guardrail everywhere it exists — Plan mode's
+Space prompt warns and lets you proceed; nothing blocks. But the TUI's
+`buildQuestions` currently **suppresses** the "pull into focus?" card
+entirely once the cap is reached — a silent hard limit that contradicts the
+product rule. So:
+
+- The focus-nomination card is **always offered** for unfocused tasks, on
+  both surfaces. At/over the cap it becomes advisory copy in the card
+  itself ("already 3 focused — add anyway?"), same spirit as Plan's prompt.
+- This deletes the config problem entirely: the web needs no `/api/config`,
+  no hardcoded cap, and `buildQuestions` drops its `maxFocused` gate
+  (keeping `focusedCount` only for the advisory copy).
+- The TUI behavior change (card no longer suppressed at cap) lands with the
+  step-1 extraction, deliberately.
+
+Remaining wrinkle, still deferred: a **Refine count badge in NavMenu**
+(`Refine (7)`) — cheap (pure queue builder over an already-fetched list)
+but out of v1 to keep it tight.
 
 ## Steps
 
 1. Extract `cli/src/refine-questions.ts` (+ `QuestionDef`), re-point TUI,
-   add exports-map entry, unit tests. **No behavior change — safe to ship
-   alone.**
+   add exports-map entry, unit tests. **One deliberate behavior change**:
+   the focus card is no longer suppressed at the cap (see above) — it gains
+   advisory copy instead. Ships alone.
 2. `web/src/api.ts`: add `deleteTask`.
 3. `web/src/pages/Refine.tsx` + CSS: snapshot/queue state machine, the five
    card renderers, apply/undo/skip plumbing, flash + completion states.
