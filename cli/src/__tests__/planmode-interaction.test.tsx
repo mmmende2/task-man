@@ -78,18 +78,34 @@ describe('PlanMode interaction', () => {
     expect(text).toContain('└─');
   });
 
-  it('shows focused indicator on focused tasks', () => {
+  it('pins focused tasks under a ★ focused header', () => {
     const result = renderWithDimensions(
       createElement(PlanModeHarness, { store, initialTasks: tasks }),
     );
     cleanup = result.cleanup;
     const text = result.text();
 
-    // Focused tasks have ★ indicator
-    const focusedALine = result.lines().find(l => l.includes('Focused-A'));
-    expect(focusedALine).toContain('★');
+    // Focused tasks live in a pinned group whose header carries the count and
+    // the star (rows inside no longer repeat a per-row ★).
+    const header = result.lines().find(l => l.includes('★ focused'));
+    expect(header).toBeTruthy();
+    expect(header).toContain('2');
+    expect(text).toContain('Focused-A');
     const backlogALine = result.lines().find(l => l.includes('Backlog-A'));
     expect(backlogALine).not.toContain('★');
+  });
+
+  it('renders the focused group above the category tree', () => {
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+    const lines = result.lines();
+
+    const focusedHeaderIdx = lines.findIndex(l => l.includes('★ focused'));
+    const uncategorizedIdx = lines.findIndex(l => l.includes('uncategorized'));
+    expect(focusedHeaderIdx).toBeGreaterThanOrEqual(0);
+    expect(uncategorizedIdx).toBeGreaterThan(focusedHeaderIdx);
   });
 
   it('j moves selection down', () => {
@@ -171,9 +187,9 @@ describe('PlanMode interaction', () => {
     result.stdin.write(' ');
 
     await vi.waitFor(() => {
-      // Backlog-A should now have ★
-      const backlogALine = result.lines().find(l => l.includes('Backlog-A'));
-      expect(backlogALine).toContain('★');
+      // Backlog-A joined the pinned focused group — its header count ticks 2→3.
+      const header = result.lines().find(l => l.includes('★ focused'));
+      expect(header).toContain('3');
     });
   });
 
@@ -199,7 +215,10 @@ describe('PlanMode interaction', () => {
     await vi.waitFor(() => {
       const sel = result.lines().find(l => l.includes('▸'));
       expect(sel).toContain('Backlog-B');
-      expect(sel).toContain('★');
+      // It moved into the pinned focused group (header count 2→3), and the
+      // id-anchored cursor rode along with it.
+      const header = result.lines().find(l => l.includes('★ focused'));
+      expect(header).toContain('3');
     });
   });
 

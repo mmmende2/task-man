@@ -100,11 +100,12 @@ export function PlanMode({
     return backlogTasks.filter(t => t.title.toLowerCase().includes(q));
   }, [backlogTasks, searchQuery]);
 
-  // Group all tasks by category for tree view (excludes hidden categories)
-  const { orderedTasks, groups } = useMemo(() => {
-    const all = [...filteredFocused, ...filteredBacklog];
+  // Focused tasks pin to the top in their own group — always visible, even
+  // when their category is hidden (this subsumes the old hidden-focused
+  // strip). The category tree below holds only the unfocused backlog.
+  const { orderedTasks, focusedGroup, groups } = useMemo(() => {
     const groupMap = new Map<string, Task[]>();
-    for (const task of all) {
+    for (const task of filteredBacklog) {
       const cat = task.categories?.[0] ?? '';
       if (hiddenCategories.has(cat)) continue;
       if (!groupMap.has(cat)) groupMap.set(cat, []);
@@ -117,13 +118,16 @@ export function PlanMode({
       return a.localeCompare(b);
     });
     const grps: CategoryGroup[] = [];
-    const flat: Task[] = [];
+    // Flat order = focused group first, then each category group. The cursor
+    // walks this, so unfocusing a task (which drops it from the top group
+    // into its category below) keeps the id-anchored cursor riding along.
+    const flat: Task[] = [...filteredFocused];
     for (const key of sortedKeys) {
       const tasks = groupMap.get(key)!;
       grps.push({ category: key, tasks });
       flat.push(...tasks);
     }
-    return { orderedTasks: flat, groups: grps };
+    return { orderedTasks: flat, focusedGroup: filteredFocused, groups: grps };
   }, [filteredFocused, filteredBacklog, hiddenCategories]);
 
   // All categories present in the current scope (for the panel — ignores search/hidden)
@@ -138,20 +142,19 @@ export function PlanMode({
     });
   }, [focusedTasks, backlogTasks]);
 
+  // Panel parenthetical counts the unfocused tasks in each category — what the
+  // tree below actually shows now that focused tasks live in the top group.
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const t of focusedTasks) {
-      const c = t.categories?.[0] ?? '';
-      counts.set(c, (counts.get(c) ?? 0) + 1);
-    }
     for (const t of backlogTasks) {
       const c = t.categories?.[0] ?? '';
       counts.set(c, (counts.get(c) ?? 0) + 1);
     }
     return counts;
-  }, [focusedTasks, backlogTasks]);
+  }, [backlogTasks]);
 
-  // Focused tasks per category (for panel indicator)
+  // Focused tasks per category (for panel ★ indicator — "N of these are
+  // promoted up top").
   const focusedCountByCategory = useMemo(() => {
     const counts = new Map<string, number>();
     for (const t of focusedTasks) {
@@ -160,11 +163,6 @@ export function PlanMode({
     }
     return counts;
   }, [focusedTasks]);
-
-  // Focused tasks that are hidden (their category is toggled off) — shown as a dim strip at bottom
-  const hiddenFocusedTasks = useMemo(() => {
-    return filteredFocused.filter(t => hiddenCategories.has(t.categories?.[0] ?? ''));
-  }, [filteredFocused, hiddenCategories]);
 
   const totalCount = orderedTasks.length;
 
@@ -509,6 +507,44 @@ export function PlanMode({
   const taskRowPositions: number[] = []; // maps flat task index → position in taskRows
   let flatIdx = 0;
 
+  // Pinned focused group at the very top — flat (no tree connectors) and no
+  // per-row ★ (the header carries it). These are first in orderedTasks, so
+  // flatIdx starts here.
+  if (focusedGroup.length > 0) {
+    taskRows.push(
+      <Box key="__focused-header">
+        <Text color="yellow">{'  ★ focused'}</Text>
+        <Text dimColor>{' ('}{focusedGroup.length}{')'}</Text>
+      </Box>
+    );
+    for (const task of focusedGroup) {
+      const isSelected = selPos === flatIdx;
+      taskRowPositions.push(taskRows.length);
+      if (editingId === task.id) {
+        taskRows.push(
+          <Box key={task.id}>
+            <Text dimColor>{'   '}</Text>
+            <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
+          </Box>
+        );
+      } else {
+        const terminalColor = getSessionHexColor(task.session_id, config);
+        const activeSel = isSelected && panelFocus === 'tasks';
+        taskRows.push(
+          <Box key={task.id}>
+            <Text color={activeSel ? 'cyan' : undefined} dimColor={!activeSel}>{isSelected ? ` ${CURSOR_GLYPH} ` : '   '}</Text>
+            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
+            <Text color={activeSel ? 'cyan' : undefined}>{' '}{task.title}</Text>
+            {scopeFilter === 'all' && <Text dimColor>{' ·'}{SCOPE_LABELS[task.scope]}</Text>}
+            {task.status === 'done' && <Text dimColor>{' ✓'}</Text>}
+          </Box>
+        );
+      }
+      flatIdx++;
+    }
+    taskRows.push(<Text key="__focused-spacer">{' '}</Text>);
+  }
+
   for (const group of groups) {
     const label = group.category || 'uncategorized';
     taskRows.push(
@@ -577,14 +613,13 @@ export function PlanMode({
 
   // Windowed scrolling: clip taskRows to a visible window that follows the selection.
   // Reserved: Header(3) + Footer(4) + leading blank(1) + 2 rows for optional scroll hints
-  // + any visible banner rows + hidden focused strip.
+  // + any visible banner rows.
   const bannerRows =
     (isSearching ? 1 : 0) +
     (!isSearching && searchQuery ? 1 : 0) +
     (pendingFocusTask ? 1 : 0) +
     (vimMode === 'holding' && clipboard ? 1 : 0);
-  const hiddenFocusedBand = hiddenFocusedTasks.length > 0 ? hiddenFocusedTasks.length + 1 : 0;
-  const availableRows = Math.max(1, termHeight - 10 - bannerRows - hiddenFocusedBand);
+  const availableRows = Math.max(1, termHeight - 10 - bannerRows);
 
   const selRow = taskRowPositions[selPos] ?? 0;
   const maxScroll = Math.max(0, taskRows.length - availableRows);
@@ -628,16 +663,6 @@ export function PlanMode({
         {hasAbove && <Text dimColor>  ↑ {target} more above</Text>}
         {visibleRows}
         {hasBelow && <Text dimColor>  ↓ {taskRows.length - target - availableRows} more below</Text>}
-        {hiddenFocusedTasks.length > 0 && (
-          <Box flexDirection="column">
-            <Text dimColor>  {'─'.repeat(24)}</Text>
-            {hiddenFocusedTasks.map(t => (
-              <Box key={t.id}>
-                <Text dimColor>  ★ {t.title}</Text>
-              </Box>
-            ))}
-          </Box>
-        )}
       </Box>
       <Box
         flexDirection="column"

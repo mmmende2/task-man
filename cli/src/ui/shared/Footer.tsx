@@ -35,7 +35,7 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
     pageContent = 'jk:nav gg/G:top/bot hl:pane spc:toggle esc:tasks';
   } else if (mode === 'plan') {
     navContent = 'f:focus w:write m:metrics r:refine ~:scope';
-    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:focus dd:cut x:done S:scope i:edit o:new /:find u:undo';
+    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:focus/unfocus dd:cut x:done S:scope i:edit o:new /:find u:undo';
   } else if (mode === 'write' && writeSubMode === 'review') {
     navContent = 'esc:focus  w:capture  T:time';
     pageContent = 'jk:nav gg/G:top/bot tab:sub cc:title c:cat P:pri S:scope spc:focus dd:cut u:undo';

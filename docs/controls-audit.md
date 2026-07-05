@@ -67,6 +67,12 @@ review both use it; Write review's `f` binding is gone, so `f` means exactly
 one thing everywhere: go to Focus mode. Mario's original ask — `f` to toggle
 focus in Plan — was declined to keep that guarantee.)
 
+(Resolved 2026-07-05: **unfocusing has a home** — Plan (triage) pins a
+`★ focused (N)` group at the top so focused tasks can be rounded up and
+`Space`-unfocused in one place, mirroring the web Backlog. Unfocusing drops
+the task into its category below with the id-anchored cursor following.
+Footer now reads `spc:focus/unfocus`. See docs/tui-focused-group-plan.md.)
+
 ## CLI retirement — done 2026-07-04
 
 `add`, `list`, `done`, `start`, `focus`/`unfocus`, `session-refocus`, and
