@@ -7,7 +7,11 @@ export function useTaskStore(filter?: TaskFilter, pollInterval?: number) {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   const reload = useCallback(() => {
-    storeRef.current.query(filter).then(setTasks);
+    // Swallow poll failures and keep the last-known list — in remote mode a
+    // deploy answers 502 for a few seconds, and an unhandled rejection here
+    // crashed the whole TUI. The next 2s tick retries; the footer's server
+    // indicator (useServerStatus) is the visible "unreachable" signal.
+    storeRef.current.query(filter).then(setTasks).catch(() => {});
   }, [filter]);
 
   useEffect(() => {

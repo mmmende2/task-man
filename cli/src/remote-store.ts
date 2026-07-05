@@ -110,6 +110,21 @@ export class RemoteStore implements Store {
         }
         return this.req<T>(path, init, { ...retried, auth: true });
       }
+      // Cloudflare fronts the origin, so while the droplet container is
+      // restarting (a deploy) the edge answers 502/503/504 for a few
+      // seconds. Treat it like a network blip: pause, retry once, and if
+      // it persists throw a clean actionable error instead of letting a
+      // gateway hiccup surface as a crash. Retries replay the same
+      // Idempotency-Key, so writes can't double-apply.
+      if (status === 502 || status === 503 || status === 504) {
+        if (retried.network) {
+          throw new Error(
+            `${this.baseUrl} is unreachable (HTTP ${status}) — the server may be restarting. Try again in a moment.`,
+          );
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+        return this.req<T>(path, init, { ...retried, network: true });
+      }
       if (err instanceof TypeError) {
         // fetch() throws TypeError on network failure (DNS, refused, offline).
         if (retried.network) {

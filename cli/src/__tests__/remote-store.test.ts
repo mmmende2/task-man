@@ -80,6 +80,38 @@ describe('RemoteStore (against a real in-process server)', () => {
     await expect(remote.update('nonexistent', { status: 'done' })).rejects.toBeInstanceOf(ApiError);
   });
 
+  it('rides through a transient 502 (Cloudflare while the origin restarts)', async () => {
+    let calls = 0;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = ((...args: Parameters<typeof fetch>) => {
+      calls++;
+      if (calls === 1) {
+        return Promise.resolve(new Response('Bad Gateway', { status: 502 }));
+      }
+      return realFetch(...args);
+    }) as typeof fetch;
+
+    try {
+      const result = await remote.load();
+      expect(result).toEqual([]);
+      expect(calls).toBe(2);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }, 10_000);
+
+  it('gives a clean actionable error when the gateway stays down', async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (() =>
+      Promise.resolve(new Response('Bad Gateway', { status: 502 }))) as typeof fetch;
+
+    try {
+      await expect(remote.load()).rejects.toThrow(/restarting|unreachable/i);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }, 10_000);
+
   it('retries once on a transient network failure', async () => {
     const added = await remote.add({ title: 'Retry me' });
 
