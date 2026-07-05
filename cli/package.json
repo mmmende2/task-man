@@ -49,7 +49,7 @@
     "./get-store": "./dist/get-store.js"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/index.js dist/mcp/index.js",
     "build:web": "cd ../web && npm run build",
     "build:all": "npm run build && npm run build:web",
     "prepublishOnly": "npm run build && npm run build:web && vitest run",
