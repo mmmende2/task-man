@@ -76,35 +76,20 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
     setPhase(initialQueue.length === 0 ? 'empty' : 'asking');
   }, [tasksLoaded, allTasks]);
 
-  const knownCategories = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of allTasks) {
-      for (const c of t.categories) set.add(c);
-    }
-    return Array.from(set);
-  }, [allTasks]);
+  // Latest loaded tasks, read by the freeze effect below so it captures fresh
+  // context (category set, focused count) without listing `allTasks` in its
+  // deps — which would rebuild the frozen list mid-task on a background reload.
+  const allTasksRef = useRef(allTasks);
+  useEffect(() => { allTasksRef.current = allTasks; }, [allTasks]);
 
-  const focusedCount = useMemo(() =>
-    allTasks.filter(t => t.focused && t.status !== 'done').length,
-  [allTasks]);
-
-  const questions = useMemo<QuestionDef[]>(() => {
-    if (!currentTask) return [];
-    return buildQuestions(currentTask, allTasks, focusedCount, config.focus.maxFocused, knownCategories);
-  }, [currentTask, allTasks, focusedCount, config.focus.maxFocused, knownCategories]);
-
-  const currentQuestion = questions[questionIndex];
-
-  // If current task has no applicable questions, advance silently
-  useEffect(() => {
-    if (phase !== 'asking') return;
-    if (!currentTask) return;
-    if (questions.length === 0) {
-      advanceTask();
-    } else if (questionIndex >= questions.length) {
-      advanceTask();
-    }
-  }, [phase, currentTask?.id, questions.length, questionIndex]);
+  // The frozen question list for the current task. Built ONCE when a task
+  // becomes current (keyed on task identity) and walked by index — never
+  // rebuilt as answers mutate the task. Rebuilding-on-answer would drop the
+  // just-answered card and shift the survivors down while the flash timer
+  // still bumps questionIndex, skipping the next card. Mirrors the web
+  // (web/src/pages/Refine.tsx).
+  const [activeQuestions, setActiveQuestions] = useState<QuestionDef[]>([]);
+  const currentQuestion = activeQuestions[questionIndex];
 
   const flashAndAdvance = useCallback((label: string) => {
     setFlash(label);
@@ -116,6 +101,11 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
   }, []);
 
   const advanceTask = useCallback(() => {
+    // Cancel any pending flash-advance so a stale timer can't bump the index
+    // on the next task after we've moved on.
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    setFlash(null);
+    setActiveQuestions([]);
     setReviewedCount(c => c + 1);
     setQuestionIndex(0);
     setListCursor(0);
@@ -137,6 +127,29 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
       });
     }, BETWEEN_MS);
   }, [queue.length, onExit, previousMode]);
+
+  // Freeze the question list when a task becomes current. Keyed on task
+  // identity + phase, so it does NOT re-run as the current task's own fields
+  // change under applyChange — that's what keeps the list stable while you
+  // answer it. Reads the freshest allTasks via ref for gating context.
+  useEffect(() => {
+    if (phase !== 'asking' || !currentTask) return;
+    const all = allTasksRef.current;
+    const focused = all.filter(t => t.focused && t.status !== 'done').length;
+    const cats = Array.from(new Set(all.flatMap(t => t.categories)));
+    const qs = buildQuestions(currentTask, all, focused, config.focus.maxFocused, cats);
+    setActiveQuestions(qs);
+    setQuestionIndex(0);
+    setListCursor(0);
+    if (qs.length === 0) advanceTask();
+  }, [currentTask?.id, phase, config.focus.maxFocused, advanceTask]);
+
+  // Walked past the end of a task's frozen list → next task. (The empty-list
+  // case is handled at freeze time above.)
+  useEffect(() => {
+    if (phase !== 'asking') return;
+    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) advanceTask();
+  }, [phase, questionIndex, activeQuestions.length, advanceTask]);
 
   const applyChange = useCallback(async (changes: Partial<Task>, flashLabel: string) => {
     if (!currentTask) return;
