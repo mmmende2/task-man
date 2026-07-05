@@ -43,7 +43,7 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
     navContent = 'esc:review  ~:scope';
     pageContent = 'enter:add  tab:accept  :subtask  -p -c -s flags';
   } else if (mode === 'metrics') {
-    navContent = 'f:focus  t:triage  w:write';
+    navContent = 'f:focus  t:triage  w:write  ~:scope';
     pageContent = 'D:date';
   } else if (mode === 'refine') {
     navContent = 'N:skip task  u:undo  q:quit';

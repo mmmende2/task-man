@@ -133,6 +133,22 @@ describe('buildMetrics', () => {
       const pro = await buildMetrics(store, TODAY, 'professional');
       expect(pro.insight).toBeNull();
     });
+
+    it('counts subtasks under their PARENT scope, not their own drifted field', async () => {
+      // Subtask created while parent was personal, then parent S-toggled to
+      // professional — the subtask's own scope field lags behind.
+      const parent = await store.add({ title: 'Flipped parent', scope: 'personal' });
+      const sub = await store.add({ title: 'Lagging sub', parent_id: parent.id });
+      await store.update(parent.id, { scope: 'professional' });
+      await store.update(sub.id, { status: 'done' });
+
+      const pro = await buildMetrics(store, TODAY, 'professional');
+      expect(pro.subtasksByParent[parent.id]?.map((s) => s.title)).toEqual(['Lagging sub']);
+      expect(pro.stats.subtasksCompleted).toBe(1);
+
+      const per = await buildMetrics(store, TODAY, 'personal');
+      expect(per.subtasksByParent[parent.id]).toBeUndefined();
+    });
   });
 
   it('treats a parent as active when a subtask was completed that day (parent itself untouched)', async () => {

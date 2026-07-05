@@ -1,6 +1,7 @@
 import type { Store } from '../store-interface.js';
 import type { MetricsResponse, Task, TaskScope } from '../types.js';
 import { buildDayReport } from '../report.js';
+import { filterByScope } from '../task-filters.js';
 import { localDateString } from '../local-date.js';
 
 // Re-export so callers can `import { MetricsResponse } from 'task-man/handlers'`.
@@ -18,7 +19,7 @@ export async function buildMetrics(
   // Same slice the report was built from — keeps subtask trees, lastWorkDay
   // ("last day with a completion IN THIS SCOPE"), and earliestDate coherent
   // with the scoped numbers.
-  const all = scope ? loaded.filter(t => t.scope === scope) : loaded;
+  const all = filterByScope(loaded, scope);
 
   // Parents with activity on `date`: parent done that day OR any of its
   // subtasks completed that day. Mirrors the TUI MetricsMode logic and the

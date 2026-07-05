@@ -1,7 +1,7 @@
 import { generateInsight } from './insights.js';
 import { getEndOfDayMessage } from './messages.js';
 import type { Store } from './store-interface.js';
-import { completedOn, createdOn, inProgressUpdatedOn } from './task-filters.js';
+import { completedOn, createdOn, filterByScope, inProgressUpdatedOn } from './task-filters.js';
 import { isOnLocalDate } from './local-date.js';
 import type { DayReport, TaskScope } from './types.js';
 
@@ -20,7 +20,7 @@ export async function buildDayReport(
   opts: DayReportOptions = {},
 ): Promise<DayReport> {
   const loaded = await store.load();
-  const allTasks = opts.scope ? loaded.filter(t => t.scope === opts.scope) : loaded;
+  const allTasks = filterByScope(loaded, opts.scope);
 
   const allCompletedOn = completedOn(allTasks, date);
   const completedTasks = allCompletedOn.filter(t => t.parent_id === null);

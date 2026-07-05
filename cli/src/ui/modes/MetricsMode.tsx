@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import type { DayReport, Task } from '../../types.js';
+import type { DayReport, Task, TaskScope } from '../../types.js';
 import type { Store } from '../../store-interface.js';
 import { buildDayReport } from '../../report.js';
+import { filterByScope } from '../../task-filters.js';
 import { EMPTY_DAY_REPORT } from '../shared/emptyDayReport.js';
 import { getMidDayMessage } from '../../messages.js';
 import { ProgressBar } from '../shared/ProgressBar.js';
@@ -13,6 +14,8 @@ import { isOnLocalDate, localDateString } from '../../local-date.js';
 
 interface Props {
   store: Store;
+  /** The global `~` scope filter — Metrics respects it like every other mode. */
+  scopeFilter?: TaskScope | 'all';
 }
 
 interface SubtaskInfo {
@@ -22,7 +25,8 @@ interface SubtaskInfo {
   total: number;
 }
 
-export function MetricsMode({ store }: Props) {
+export function MetricsMode({ store, scopeFilter = 'all' }: Props) {
+  const scope = scopeFilter === 'all' ? undefined : scopeFilter;
   const realToday = localDateString();
   const [viewDate, setViewDate] = useState(realToday);
   const [editingDate, setEditingDate] = useState(false);
@@ -35,16 +39,18 @@ export function MetricsMode({ store }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([buildDayReport(store, today), store.load()]).then(([r, tasks]) => {
+    Promise.all([buildDayReport(store, today, { scope }), store.load()]).then(([r, tasks]) => {
       if (!cancelled) {
         setReport(r);
-        setAllTasks(tasks);
+        // Same parent-scope slice the report was built from, so the task
+        // list below matches the numbers above.
+        setAllTasks(filterByScope(tasks, scope));
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [store, today]);
+  }, [store, today, scope]);
 
   const { stats } = report;
 
