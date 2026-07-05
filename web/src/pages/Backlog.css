@@ -413,7 +413,9 @@
 
 .toast {
   position: fixed;
-  top: env(safe-area-inset-top, 12px);
+  /* Sit ~1/6 down the screen rather than jammed under the notch/status
+     bar, where it's easy to miss and collides with the dynamic island. */
+  top: 18vh;
   left: 50%;
   transform: translateX(-50%);
   padding: 10px 16px;

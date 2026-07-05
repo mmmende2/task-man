@@ -98,3 +98,20 @@
   color: var(--fg-muted);
 }
 
+/* Refine candidate count — a quiet accent pill pushed to the row's edge. */
+.nav-menu-item-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(255, 121, 198, 0.16);
+  border: 1px solid rgba(255, 121, 198, 0.4);
+  color: var(--accent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
