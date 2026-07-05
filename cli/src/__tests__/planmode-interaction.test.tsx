@@ -54,8 +54,12 @@ describe('PlanMode interaction', () => {
     tasks = store.load();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup?.();
+    // Let any in-flight store I/O (e.g. the load→insert→reload chain a paste
+    // kicks off) settle before we delete the temp dir, so a late file read
+    // doesn't reject with ENOENT against a directory that's already gone.
+    await new Promise(r => setTimeout(r, 50));
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -196,6 +200,70 @@ describe('PlanMode interaction', () => {
       const sel = result.lines().find(l => l.includes('▸'));
       expect(sel).toContain('Backlog-B');
       expect(sel).toContain('★');
+    });
+  });
+
+  // Regression: cutting a task lands the cursor on the row directly above it,
+  // not at the top of the list. Order is Focused-A, Focused-B, Backlog-A,
+  // Backlog-B; cutting Backlog-A should leave the cursor on Focused-B.
+  it('cut moves the cursor to the task above, not the top', async () => {
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    result.stdin.write('j');
+    await vi.waitFor(() => {
+      expect(result.lines().find(l => l.includes('▸'))).toContain('Focused-B');
+    });
+    result.stdin.write('j');
+    await vi.waitFor(() => {
+      expect(result.lines().find(l => l.includes('▸'))).toContain('Backlog-A');
+    });
+
+    // dd — cut Backlog-A.
+    result.stdin.write('d');
+    result.stdin.write('d');
+
+    await vi.waitFor(() => {
+      const sel = result.lines().find(l => l.includes('▸'));
+      expect(sel).toContain('Focused-B');
+      // Not the top row — that was the pre-fix behavior.
+      expect(sel).not.toContain('Focused-A');
+    });
+  });
+
+  // Pasting back lands the cut task in its original slot, with the cursor
+  // still on the row directly above it (the anchor), not snapped to the top.
+  it('paste after cut keeps the cursor right above the restored task', async () => {
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    result.stdin.write('j');
+    await vi.waitFor(() => {
+      expect(result.lines().find(l => l.includes('▸'))).toContain('Focused-B');
+    });
+    result.stdin.write('j');
+    await vi.waitFor(() => {
+      expect(result.lines().find(l => l.includes('▸'))).toContain('Backlog-A');
+    });
+
+    result.stdin.write('d');
+    result.stdin.write('d');
+    await vi.waitFor(() => {
+      expect(result.lines().find(l => l.includes('▸'))).toContain('Focused-B');
+    });
+
+    // p — paste below the cursor (Focused-B), restoring Backlog-A's slot.
+    result.stdin.write('p');
+    await vi.waitFor(() => {
+      // Backlog-A is back as a real row and the cursor stayed on Focused-B,
+      // which now sits directly above it.
+      const backlogRow = result.lines().find(l => l.includes('Backlog-A'));
+      expect(backlogRow).toBeTruthy();
+      expect(result.lines().find(l => l.includes('▸'))).toContain('Focused-B');
     });
   });
 });

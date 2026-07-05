@@ -273,10 +273,16 @@ export function PlanMode({
       case 'cut': {
         const task = getSelectedTask();
         if (!task) return;
+        // Land the cursor on the task directly above the one being cut, so
+        // a reorder feels like "lift and drop back down" instead of snapping
+        // to the top. Null (cutting the first row) lets the re-anchor effect
+        // fall to the new first task.
+        const aboveId = orderedTasks[selPos - 1]?.id ?? null;
         store.remove(task.id).then(({ index }) => {
           setClipboard({ task, index, wasFocused: task.focused });
           setVimMode('holding');
           onHoldingChange?.(task.title);
+          onCursorChange(aboveId);
           // No undo entry yet — holding mode always ends in paste or Esc,
           // and each of those pushes exactly one entry for the whole
           // operation. Pushing here too meant a second `u` after a move

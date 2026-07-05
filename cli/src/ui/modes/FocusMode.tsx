@@ -243,20 +243,28 @@ export function FocusMode({
         if (navTarget === 'subtasks') {
           const sub = selectedSubtask;
           if (sub) {
+            // Cursor to the subtask above the one being cut (see below).
+            const aboveSubId = currentSubtasks[subPos - 1]?.id ?? null;
             store.remove(sub.id).then(({ index }) => {
               setClipboard({ task: sub, index, isSubtask: true, parentId: sub.parent_id ?? undefined });
               setVimMode('holding');
               onHoldingChange?.(sub.title);
+              setSubtaskId(aboveSubId);
               reload();
             });
           }
         } else {
           const task = selectedTask;
           if (task) {
+            // Land the cursor on the task directly above the one being cut, so
+            // a reorder feels like "lift and drop back down" instead of
+            // snapping to the top. Null (first row) falls to the new first.
+            const aboveId = filteredTasks[selPos - 1]?.id ?? null;
             store.remove(task.id).then(({ index }) => {
               setClipboard({ task, index, isSubtask: false });
               setVimMode('holding');
               onHoldingChange?.(task.title);
+              onCursorChange(aboveId);
               reload();
             });
           }
