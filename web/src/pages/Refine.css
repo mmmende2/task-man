@@ -246,7 +246,8 @@
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  /* Match Focus/Backlog: notifications land ~1/6 down the screen. */
+  top: 18vh;
   transform: translateX(-50%);
   background: var(--bg-elev);
   border: 1px solid var(--border);

@@ -5,8 +5,9 @@ is extracted to `cli/src/refine-questions.ts` (`task-man/refine-questions`,
 unit-tested), the focus card is offered with no hard cap, `web/src/api.ts`
 gained `deleteTask`, `web/src/pages/Refine.tsx` drives the card loop, and the
 NavMenu/route + docs are wired. Companion TUI fix (footers never advertised
-`r:refine`) shipped earlier. Deferred: the NavMenu `Refine (N)` count badge
-and TUI `~`-scope parity in Refine.
+`r:refine`) shipped earlier. The NavMenu `Refine (N)` count badge landed
+2026-07-05 (scoped, computed on menu-open). Still deferred: TUI `~`-scope
+parity in Refine.
 
 ## Why this fits the web
 
@@ -88,9 +89,9 @@ product rule. So:
 - The TUI behavior change (card no longer suppressed at cap) lands with the
   step-1 extraction, deliberately.
 
-Remaining wrinkle, still deferred: a **Refine count badge in NavMenu**
-(`Refine (7)`) — cheap (pure queue builder over an already-fetched list)
-but out of v1 to keep it tight.
+Shipped 2026-07-05: the **Refine count badge in NavMenu** (`Refine (7)`) —
+NavMenu fetches the task list once on menu-open, scopes it to the active
+scope chip, and shows `buildRefineQueue(...).length` as a quiet accent pill.
 
 ## Steps
 

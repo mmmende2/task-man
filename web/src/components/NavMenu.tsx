@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../api';
+import { buildRefineQueue } from 'task-man/refine-queue';
+import { loadScopeFilter, matchesScope } from './ScopeChip';
 import './NavMenu.css';
 
 type Current = 'focus' | 'backlog' | 'capture' | 'refine' | 'metrics';
@@ -26,6 +29,7 @@ const NAV_ITEMS: Item[] = [
 export function NavMenu({ current }: Props) {
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
+  const [refineCount, setRefineCount] = useState<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,6 +39,26 @@ export function NavMenu({ current }: Props) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  // Refine candidate count, computed only while the menu is open so it costs
+  // one list fetch per open — not a poll on every page. Scoped to the active
+  // scope chip, mirroring what the Refine page itself will queue.
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    const scope = loadScopeFilter();
+    api
+      .listTasks()
+      .then((tasks) => {
+        if (!live) return;
+        const candidates = tasks.filter((t) => matchesScope(t.scope, scope));
+        setRefineCount(buildRefineQueue(candidates).length);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
   }, [open]);
 
   const go = (to: string) => {
@@ -70,6 +94,9 @@ export function NavMenu({ current }: Props) {
                   role="menuitem"
                 >
                   <span>{it.label}</span>
+                  {it.key === 'refine' && refineCount != null && refineCount > 0 && (
+                    <span className="nav-menu-item-count">{refineCount}</span>
+                  )}
                   {it.soon && <span className="nav-menu-item-soon">soon</span>}
                 </button>
               );
