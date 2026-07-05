@@ -14,7 +14,7 @@ import { renderWithDimensions } from './helpers/renderWithDimensions.js';
 // --- PlanMode harness ---
 function PlanModeHarness({ store, initialTasks }: { store: TaskStore; initialTasks: Task[] }) {
   const [tasks, setTasks] = useState(initialTasks);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [cursorId, setCursorId] = useState<string | null>(null);
   const [vimMode, setVimMode] = useState<VimMode>('normal');
   const reload = () => setTasks(store.load());
 
@@ -25,8 +25,8 @@ function PlanModeHarness({ store, initialTasks }: { store: TaskStore; initialTas
   return createElement(PlanMode, {
     focusedTasks,
     backlogTasks,
-    selectedIndex,
-    onSelectedIndexChange: setSelectedIndex,
+    cursorId,
+    onCursorChange: setCursorId,
     store: new LocalStore(store),
     reload,
     vimMode,
@@ -38,7 +38,8 @@ function PlanModeHarness({ store, initialTasks }: { store: TaskStore; initialTas
 // --- FocusMode harness ---
 function FocusModeHarness({ store, initialTasks }: { store: TaskStore; initialTasks: Task[] }) {
   const [tasks, setTasks] = useState(initialTasks);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const firstFocusedId = initialTasks.find(t => t.focused && t.status !== 'done' && !t.parent_id)?.id ?? null;
+  const [cursorId, setCursorId] = useState<string | null>(firstFocusedId);
   const [vimMode, setVimMode] = useState<VimMode>('normal');
   const reload = () => setTasks(store.load());
 
@@ -58,8 +59,8 @@ function FocusModeHarness({ store, initialTasks }: { store: TaskStore; initialTa
     focusedTasks,
     backlogCount,
     subtaskMap,
-    selectedIndex,
-    onSelectedIndexChange: setSelectedIndex,
+    cursorId,
+    onCursorChange: setCursorId,
     store: new LocalStore(store),
     reload,
     vimMode,

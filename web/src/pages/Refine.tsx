@@ -55,11 +55,16 @@ export function RefinePage() {
   const [errMsg, setErrMsg] = useState('');
 
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
 
   const flashToast = useCallback((msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 1800);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 1800);
   }, []);
 
   const changeScopeFilter = (v: ScopeFilter) => {
