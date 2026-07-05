@@ -231,7 +231,7 @@ interface RowProps {
   subtasks: Task[];
   expanded: boolean;
   busy: boolean;
-  /** Render a dim per/pro tag — set when the scope filter is 'all'. */
+  /** Render a dim personal/professional tag — set when the scope filter is 'all'. */
   showScope?: boolean;
   onToggleExpand: () => void;
   onToggleFocus: () => void;
@@ -287,7 +287,7 @@ function BacklogRow({
           <div className="row-title-block">
             <div className="row-title mono">{task.title}</div>
             <div className="row-meta">
-              {showScope && <span className="chip scope-tag">{task.scope === 'professional' ? 'pro' : 'per'}</span>}
+              {showScope && <span className="chip scope-tag">{task.scope}</span>}
               {task.categories.slice(0, 2).map((c) => (
                 <span key={c} className="chip">{c}</span>
               ))}

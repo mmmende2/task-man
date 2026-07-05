@@ -88,8 +88,8 @@ describe('Mode switching', () => {
     instance.stdin.write('~');
 
     await vi.waitFor(() => {
-      // Scope should cycle from 'all' to 'personal' (label: 'per')
-      expect(text(instance)).toContain('per');
+      // Scope should cycle from 'all' to 'personal' (SCOPE_LABELS.personal)
+      expect(text(instance)).toContain('personal');
     });
   });
 

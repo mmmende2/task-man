@@ -1,21 +1,10 @@
 import { Box, Text } from 'ink';
 import { usePulse, CYAN_PULSE } from '../hooks/usePulse.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
+import type { QuestionDef } from '../../refine-questions.js';
 
-export type QuestionType = 'yesno' | 'list' | 'number' | 'correction' | 'confirm';
-
-export interface QuestionOption {
-  label: string;
-  value: string;
-}
-
-export interface QuestionDef {
-  type: QuestionType;
-  prompt: string;
-  options?: QuestionOption[];
-  original?: string;
-  suggestion?: string;
-}
+// Re-exported so existing importers (RefineMode) keep their one import site.
+export type { QuestionType, QuestionOption, QuestionDef } from '../../refine-questions.js';
 
 interface Props {
   question: QuestionDef;
@@ -55,6 +44,11 @@ export function RefineQuestion({
         <Text color={pulseColor}>  ▶ </Text>
         <Text bold>{question.prompt}</Text>
       </Box>
+      {question.note && (
+        <Box>
+          <Text color="yellow" dimColor>    ⚠ {question.note}</Text>
+        </Box>
+      )}
       <Text> </Text>
       {renderBody(question, listCursor, editing, editText, editCursor)}
       <Text> </Text>
@@ -75,9 +69,7 @@ function renderBody(
         <Text dimColor>    </Text>
         <Text color="cyan">[y]</Text><Text> Yes  </Text>
         <Text dimColor>·  </Text>
-        <Text color="cyan">[n]</Text><Text> No  </Text>
-        <Text dimColor>·  </Text>
-        <Text color="cyan">[s]</Text><Text dimColor> Skip  </Text>
+        <Text color="cyan">[n]</Text><Text> No / skip  </Text>
         <Text dimColor>·  </Text>
         <Text color="cyan">[esc]</Text><Text dimColor> Quit</Text>
       </Box>
@@ -94,7 +86,7 @@ function renderBody(
         <Text dimColor>·  </Text>
         <Text color="cyan">[e]</Text><Text> Edit title  </Text>
         <Text dimColor>·  </Text>
-        <Text color="cyan">[s]</Text><Text dimColor> Skip</Text>
+        <Text color="cyan">[n]</Text><Text dimColor> Skip</Text>
       </Box>
     );
   }

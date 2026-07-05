@@ -150,7 +150,7 @@ Everything the TUI does is also available as:
 
 - **Operational CLI only** — `task-man watch`, `config`, `serve`, `login` (plus the default interactive TUI). The task-facing CRUD/report subcommands were retired 2026-07 (humans → TUI/web, Claude → MCP; see Phase 5). Reference in [`cli/README.md`](cli/README.md).
 - **MCP server** — exposes the same actions to Claude as tools: add, list, get, subtasks, update, delete, complete, start, focus, unfocus, stats, categories, refine-queue, prioritize, end-day, search, session-color. Stdio transport, same JSON store, all mutations attributed as `created_by: claude`. Full reference in [`mcp/README.md`](mcp/README.md).
-- **Web** — `task-man serve` starts a Hono server with a mobile-first React SPA. Local-only by default; `--bind 0.0.0.0` exposes it on the LAN (no auth of its own — in production Cloudflare Access gates the hostname). Scope: Focus, Quick Capture, Backlog, and Metrics. Plan/Refine stay TUI-only. See [`web/README.md`](web/README.md).
+- **Web** — `task-man serve` starts a Hono server with a mobile-first React SPA. Local-only by default; `--bind 0.0.0.0` exposes it on the LAN (no auth of its own — in production Cloudflare Access gates the hostname). Scope: Focus, Quick Capture, Backlog, Refine, and Metrics. Plan stays TUI-only. See [`web/README.md`](web/README.md).
 
 All paths write to the same file. Focus mode reflects AI and web progress in real time.
 
@@ -233,7 +233,7 @@ Data model, JSON storage, non-interactive CLI, MCP server, interactive TUI (focu
 
 ### Phase 4 — LAN Web ✓
 - [x] Hono REST API server (`task-man serve`)
-- [x] Vite/React mobile-first web UI (Focus + Quick Capture)
+- [x] Vite/React mobile-first web UI (Focus, Quick Capture, Backlog, Refine, Metrics)
 - [x] 4-digit PIN auth + signed session cookie *(removed in Phase 5 — Cloudflare Access replaces it)*
 - [x] PWA shell (Add to Home Screen)
 

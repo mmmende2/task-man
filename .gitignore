@@ -9,3 +9,10 @@ build/
 *.swp
 todo*.md
 .DS_Store
+
+# Secrets — never commit the real env/config (deploy/.env holds the tunnel
+# token + CF service-token secret). The .example templates are safe.
+.env
+.env.*
+!.env.example
+.task-man/

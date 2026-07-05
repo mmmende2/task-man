@@ -43,6 +43,9 @@ export const api = {
   async patchTask(id: string, patch: Record<string, unknown>): Promise<Task> {
     return client.req<Task>(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
   },
+  async deleteTask(id: string): Promise<void> {
+    await client.req(`/api/tasks/${id}`, { method: 'DELETE' });
+  },
   async complete(id: string): Promise<Task> {
     return client.req<Task>(`/api/tasks/${id}/complete`, { method: 'POST' });
   },

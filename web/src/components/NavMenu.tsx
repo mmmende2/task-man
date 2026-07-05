@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './NavMenu.css';
 
-type Current = 'focus' | 'backlog' | 'capture' | 'metrics';
+type Current = 'focus' | 'backlog' | 'capture' | 'refine' | 'metrics';
 
 interface Props {
   current: Current;
@@ -19,6 +19,7 @@ const NAV_ITEMS: Item[] = [
   { key: 'focus', label: 'Focus', to: '/' },
   { key: 'backlog', label: 'Backlog', to: '/backlog' },
   { key: 'capture', label: 'Capture', to: '/capture' },
+  { key: 'refine', label: 'Refine', to: '/refine' },
   { key: 'metrics', label: 'Metrics', to: '/metrics' },
 ];
 

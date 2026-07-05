@@ -30,7 +30,7 @@ For the critique of this design, see [`critical-review-2026-07.md`](./critical-r
 │ handlers/{tasks,      │  │ routes.ts — Hono app:                     │
 │ stats,metrics}.ts     │◀─│  /api/store/*  faithful primitives        │
 │ report.ts, insights.ts│  │  /api/tasks…   handler-level convenience  │
-│ refine-queue.ts       │  │  /api/{search,stats,metrics,categories}   │
+│ refine-queue/-questions│ │  /api/{search,stats,metrics,categories}   │
 │ (Store-typed, async)  │  │ schemas.ts — zod validation (400s)        │
 └───────────────────────┘  │ access-auth.ts — CF JWT → identity (401/3)│
         ▲                  │ scoped-store.ts — per-identity Store view │
@@ -42,8 +42,8 @@ For the critique of this design, see [`critical-review-2026-07.md`](./critical-r
 │ TUI (cli/ui)  │ MCP (cli/mcp) │ WEB (web/)                            │
 │ getStore() via│ getStore() in │ api.ts → createHttpClient (same-      │
 │ useTaskStore; │ tools.ts;     │ origin /api/*); pages: Focus, Capture,│
-│ modes call    │ 17 tools wrap │ Backlog, Metrics; usePoll (pauses on  │
-│ Store async   │ handlers      │ document.hidden); PWA shell + sw.js   │
+│ modes call    │ 17 tools wrap │ Backlog, Refine, Metrics; usePoll     │
+│ Store async   │ handlers      │ (pauses on hidden); PWA shell + sw.js  │
 └───────────────┴───────────────┴───────────────────────────────────────┘
 ```
 
