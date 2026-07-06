@@ -228,12 +228,18 @@ Deploys are pinned to immutable tags named after the app version — one new tag
 per release, **never moved, never reused**. This keeps a permanent record of
 what shipped and makes rollback trivial.
 
-**Cut a release (laptop):**
+**Cut a release (laptop):** use `npm version`, which bumps the version in
+**both** `cli/package.json` and `cli/package-lock.json`, commits them together,
+and creates the matching `vX.Y.Z` tag — all in one step, so the two files can't
+drift (hand-editing just `package.json` leaves the lock file stale).
 ```bash
-# bump "version" in cli/package.json to match (e.g. 0.2.0 → 0.2.1), commit it
-git tag v0.2.1 main
-git push origin main v0.2.1
+cd cli
+npm version patch      # 0.2.0 → 0.2.1  (use `minor`/`major` as appropriate)
+cd ..
+git push origin main --follow-tags   # pushes the release commit + the new tag
 ```
+`npm version` needs a clean working tree — commit or stash other changes first.
+`--follow-tags` pushes the annotated tag it created alongside the commit.
 
 **Redeploy on the droplet** — check out the specific version:
 ```bash
