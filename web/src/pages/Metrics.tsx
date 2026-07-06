@@ -97,29 +97,8 @@ export function MetricsPage() {
 
   const goToday = () => setViewDate(today);
 
-  const dateInputRef = useRef<HTMLInputElement | null>(null);
-
   const onPickDate = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) setViewDate(e.target.value);
-  };
-
-  // Desktop browsers don't reliably open the native picker when the click
-  // lands on an overlaying label — the input has to be interacted with
-  // directly. showPicker() sidesteps that on Chrome/Safari/Firefox; we
-  // fall back to focus+click for older engines.
-  const openDatePicker = () => {
-    const el = dateInputRef.current;
-    if (!el) return;
-    if (typeof el.showPicker === 'function') {
-      try {
-        el.showPicker();
-        return;
-      } catch {
-        /* fallthrough */
-      }
-    }
-    el.focus();
-    el.click();
   };
 
   return (
@@ -144,11 +123,8 @@ export function MetricsPage() {
           ‹ Last work day
         </button>
         <div className="metrics-datepick-wrap">
-          <button
-            type="button"
-            className="metrics-datepick"
-            onClick={openDatePicker}
-          >
+          {/* Visual only — the real <input> on top receives the tap. */}
+          <span className="metrics-datepick" aria-hidden="true">
             <span className="metrics-datepick-label">{isPast ? viewDate : 'Today'}</span>
             <svg className="metrics-datepick-icon" viewBox="0 0 16 16" aria-hidden="true">
               <rect x="2" y="3.5" width="12" height="10" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
@@ -156,21 +132,23 @@ export function MetricsPage() {
               <line x1="5" y1="2" x2="5" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
               <line x1="11" y1="2" x2="11" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
-          </button>
-          {/* The real <input type="date"> is a sibling — never a child of
-              the button. Nesting form controls inside <button> is invalid
-              HTML and silently breaks the input in some browsers, which
-              is why showPicker() was doing nothing on desktop. */}
+          </span>
+          {/* The real <input type="date"> sits transparently on top and is
+              the actual tap target — a direct tap is what opens the native
+              picker on iOS Safari. showPicker() is a nicety for desktop
+              (Chrome doesn't pop the calendar on a bare click), guarded
+              because iOS <16.4 and older engines lack it. */}
           <input
-            ref={dateInputRef}
             type="date"
             className="metrics-datepick-input"
+            aria-label={`Change date — currently ${isPast ? viewDate : 'today'}`}
             value={viewDate}
             min={metrics?.earliestDate ?? undefined}
             max={today}
             onChange={onPickDate}
-            tabIndex={-1}
-            aria-hidden="true"
+            onClick={(e) => {
+              try { e.currentTarget.showPicker?.(); } catch { /* iOS opens on tap anyway */ }
+            }}
           />
         </div>
         {isPast ? (
