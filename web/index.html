@@ -7,9 +7,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="task-man" />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <!-- Icons + manifest live under /icons/ so a single Cloudflare Access
+         bypass (icons/*) makes them publicly fetchable — iOS grabs the
+         home-screen icon in a separate process without the Access cookie. -->
+    <link rel="manifest" href="/icons/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
     <title>task-man</title>
   </head>
   <body>

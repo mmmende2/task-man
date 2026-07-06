@@ -2,8 +2,8 @@
 // on flaky cellular, but NEVER caches /api/* (task data must be fresh).
 // Bump CACHE_NAME on every deploy to invalidate the old shell.
 
-const CACHE_NAME = 'task-man-shell-v1';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
+const CACHE_NAME = 'task-man-shell-v2';
+const APP_SHELL = ['/', '/index.html', '/icons/manifest.webmanifest', '/icons/icon.svg'];
 
 // Re-used across every fetch so we don't reopen the cache on each request.
 const cacheP = caches.open(CACHE_NAME);
