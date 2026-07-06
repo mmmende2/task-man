@@ -69,7 +69,12 @@ export function NavMenu({ current }: Props) {
     let live = true;
     api
       .getHealth()
-      .then((h) => { if (live) setVersion(h.version); })
+      // Append the build SHA (unless it's an un-stamped 'dev' build) so the
+      // footer pins the exact deployed commit, e.g. "v0.2.3+e7d4e7d".
+      .then((h) => {
+        if (!live) return;
+        setVersion(h.sha && h.sha !== 'dev' ? `${h.version}+${h.sha}` : h.version);
+      })
       .catch(() => {});
     return () => { live = false; };
   }, [open, version]);
