@@ -5,6 +5,7 @@ import { configCommand } from './commands/config.js';
 import { watchCommand } from './commands/watch.js';
 import { serveCommand } from './commands/serve.js';
 import { loginCommand } from './commands/login.js';
+import { migrateCommand } from './commands/migrate.js';
 import { launchInteractive } from './commands/interactive.js';
 import { VERSION } from './version.js';
 
@@ -24,6 +25,7 @@ program.addCommand(configCommand);
 program.addCommand(watchCommand);
 program.addCommand(serveCommand);
 program.addCommand(loginCommand);
+program.addCommand(migrateCommand);
 
 program.action(() => launchInteractive());
 

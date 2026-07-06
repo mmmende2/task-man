@@ -269,6 +269,33 @@ scp ~/.task-man/tasks.json mario@<droplet-ip>:/tmp/tasks.json
 ssh mario@<droplet-ip> "docker compose -f /opt/task-man/src/deploy/docker-compose.yml cp /tmp/tasks.json task-man:/root/.task-man/tasks.json"
 ```
 
+That `cp` **overwrites** the server's store — use it only to seed an empty server. To *merge* an existing local store into a server that already has tasks, use `task-man migrate` (next).
+
+### 3b. Migrate an existing local store into the hosted server
+
+For a machine that already has its own `~/.task-man/tasks.json` — a second laptop, a locked-down work machine — `task-man migrate` imports those tasks **into** the hosted store over the authenticated connection. Nothing leaves the machine except into your own server; the file is never copied anywhere else.
+
+It's **additive and safe to re-run**: each task goes up via `/api/store/insertAt`, which preserves its id, timestamps, `completed_at`, and `created_by`, and the server stamps ownership to your identity. Tasks whose id is already on the server are skipped. Older/sparser schemas are normalized on the way (missing `scope`, `time_estimate`, etc. get defaults).
+
+On that machine, once it can reach the server:
+
+```bash
+task-man config client.remote_url https://tasks.<your-domain>
+task-man login                       # Cloudflare Access — authenticates as you
+
+task-man migrate --dry-run           # preview: what would import vs. already-there
+task-man migrate --default-scope professional   # do it
+```
+
+Then flip that machine to remote and retire its local file so you don't edit two diverging stores:
+
+```bash
+task-man config client.mode remote
+mv ~/.task-man/tasks.json ~/.task-man/tasks.json.migrated-$(date +%F)
+```
+
+(Back up the server's store first — see §4 — before any bulk import.)
+
 ---
 
 ## 4. DO Spaces backups
