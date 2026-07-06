@@ -98,6 +98,34 @@
   color: var(--fg-muted);
 }
 
+/* Version footer — quiet, separated from the nav items, links to /status. */
+.nav-menu-version {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.nav-menu-version.current {
+  color: var(--accent);
+}
+
+.nav-menu-version-arrow {
+  margin-left: auto;
+  font-size: 15px;
+}
+
 /* Refine candidate count — a quiet accent pill pushed to the row's edge. */
 .nav-menu-item-count {
   margin-left: auto;

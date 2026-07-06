@@ -4,6 +4,7 @@ import { CapturePage } from './pages/Capture';
 import { BacklogPage } from './pages/Backlog';
 import { RefinePage } from './pages/Refine';
 import { MetricsPage } from './pages/Metrics';
+import { StatusPage } from './pages/Status';
 
 export function App() {
   return (
@@ -14,6 +15,7 @@ export function App() {
         <Route path="/backlog" element={<BacklogPage />} />
         <Route path="/refine" element={<RefinePage />} />
         <Route path="/metrics" element={<MetricsPage />} />
+        <Route path="/status" element={<StatusPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -2,6 +2,7 @@ import { Box, Text } from 'ink';
 import type { AppMode, WriteSubMode } from '../types.js';
 import type { VimMode } from '../hooks/useVimKeys.js';
 import { useServerStatus } from '../hooks/useServerStatus.js';
+import { VERSION } from '../../version.js';
 
 interface Props {
   mode?: AppMode;
@@ -57,9 +58,12 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
     <Box borderStyle="double" borderColor="magenta" flexShrink={0} flexDirection="column">
       <Box justifyContent="space-between">
         <Text dimColor>  {navContent || ' '}</Text>
-        {server.running && (
-          <Text color="#ff79c6" dimColor>● {server.remoteUrl ? 'remote' : `web :${server.port}`}  </Text>
-        )}
+        <Box>
+          {server.running && (
+            <Text color="#ff79c6" dimColor>● {server.remoteUrl ? 'remote' : `web :${server.port}`}  </Text>
+          )}
+          <Text dimColor>v{VERSION}  </Text>
+        </Box>
       </Box>
       <Text color="#00a5a5">  {pageContent || ' '}</Text>
     </Box>

@@ -59,4 +59,15 @@ export const api = {
     const s = qs.toString();
     return client.req<MetricsResponse>(`/api/metrics${s ? `?${s}` : ''}`);
   },
+  // Unauthenticated on the origin (see routes.ts), so this reflects the
+  // deployed server version — the source of truth for "what's live".
+  async getHealth(): Promise<HealthResponse> {
+    return client.req<HealthResponse>('/healthz');
+  },
 };
+
+export interface HealthResponse {
+  ok: boolean;
+  version: string;
+  time: string;
+}

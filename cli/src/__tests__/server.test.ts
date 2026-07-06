@@ -22,10 +22,14 @@ describe('server', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('healthz is open', async () => {
+  it('healthz is open and reports the version', async () => {
     const res = await app.request('/healthz');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(typeof body.version).toBe('string');
+    expect(body.version.length).toBeGreaterThan(0);
+    expect(typeof body.time).toBe('string');
   });
 
   it('creates a task (created_by human) and lists it', async () => {
