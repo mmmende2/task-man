@@ -277,7 +277,16 @@ For a machine that already has its own `~/.task-man/tasks.json` — a second lap
 
 It's **additive and safe to re-run**: each task goes up via `/api/store/insertAt`, which preserves its id, timestamps, `completed_at`, and `created_by`, and the server stamps ownership to your identity. Tasks whose id is already on the server are skipped. Older/sparser schemas are normalized on the way (missing `scope`, `time_estimate`, etc. get defaults).
 
-On that machine, once it can reach the server:
+First, update task-man on that machine so it has the `migrate` command (this also fixes an older install):
+
+```bash
+cd /path/to/task-man && git pull && cd cli && npm install && npm run build
+task-man migrate --help              # confirm the command exists
+```
+
+(If it was installed with `npm link`, the rebuild is enough — the global `task-man` points at `dist/`.)
+
+Then, once it can reach the server:
 
 ```bash
 task-man config client.remote_url https://tasks.<your-domain>
