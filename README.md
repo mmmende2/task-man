@@ -24,6 +24,16 @@ On the hosted path all three read and write the **same** tasks through your serv
 - **Refine** — rapid-fire triage: one card per unfinished detail (scope, time estimate, vibe, priority, category), answered with a tap. Skip anything, undo the last.
 - **Metrics** — the day report: what got done, you-vs-Claude split, subtasks, and a short insight ("Nice balance! 4 professional and 1 personal…").
 
+### In the terminal
+
+The same working set, keyboard-driven — vim keys, no mouse.
+
+<p align="center"><img src="docs/images/tui-focus.png" width="760" alt="task-man Focus mode in the terminal" /></p>
+<p align="center"><em>Focus mode — your working set, subtask progress, the version + connection state in the footer.</em></p>
+
+<p align="center"><img src="docs/images/tui-triage.png" width="760" alt="task-man Triage (Plan) mode in the terminal" /></p>
+<p align="center"><em>Triage — focused tasks pinned on top, the unfocused backlog grouped by category, with a live category panel. <code>Space</code> promotes/demotes; the cursor rides the task as it moves.</em></p>
+
 ## Run it — the hosted path (recommended)
 
 This is the real experience: phone + terminal + Claude, in sync from anywhere.
