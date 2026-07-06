@@ -72,21 +72,34 @@ export interface MigrateReport {
 /**
  * Push local tasks into a destination store via insertAt (which preserves
  * ids + timestamps), skipping any id already present so it's safe to re-run.
- * Parents are inserted before children so a child's parent_id resolves.
+ * Roots are inserted before children so children trail their parents in the
+ * list; the id-skip is what makes a re-run additive rather than duplicative.
  */
 export async function migrateTasks(
   rawTasks: Record<string, unknown>[],
   dest: Store,
   opts: { defaultScope: TaskScope; dryRun?: boolean },
 ): Promise<MigrateReport> {
-  const normalized = rawTasks.map((t) => normalizeTask(t, opts.defaultScope));
+  const report: MigrateReport = { read: rawTasks.length, imported: [], skipped: 0, failed: [] };
+
+  // Re-run safety hinges on a stable id: the skip-by-id guard below only
+  // works if the same task carries the same id every run. A task with no
+  // usable id can't satisfy that (normalizeTask would mint a fresh UUID each
+  // run and re-import it), so reject it rather than silently duplicating.
+  const normalized: Task[] = [];
+  for (const raw of rawTasks) {
+    if (typeof raw.id !== 'string' || raw.id.length === 0) {
+      report.failed.push({ title: asString(raw.title, '(untitled)'), error: 'missing id — skipped to stay re-run-safe' });
+      continue;
+    }
+    normalized.push(normalizeTask(raw, opts.defaultScope));
+  }
   normalized.sort((a, b) => Number(a.parent_id !== null) - Number(b.parent_id !== null));
 
   // First load doubles as the auth gate — a 401/403 here throws out to the
   // caller instead of being swallowed per-task.
   const existing = await dest.load();
   const seen = new Set(existing.map((t) => t.id));
-  const report: MigrateReport = { read: rawTasks.length, imported: [], skipped: 0, failed: [] };
 
   for (const task of normalized) {
     if (seen.has(task.id)) { report.skipped++; continue; }
@@ -126,7 +139,15 @@ export const migrateCommand = new Command('migrate')
       process.exitCode = 1;
       return;
     }
-    const defaultScope: TaskScope = opts.defaultScope === 'professional' ? 'professional' : 'personal';
+    if (!SCOPES.includes(opts.defaultScope as TaskScope)) {
+      console.log(
+        chalk.red('✗') + ` Invalid --default-scope ${chalk.bold(opts.defaultScope)}. ` +
+        `Expected one of: ${SCOPES.join(', ')}.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const defaultScope = opts.defaultScope as TaskScope;
 
     if (!existsSync(opts.from)) {
       console.log(chalk.red('✗') + ` No local store found at ${opts.from}`);

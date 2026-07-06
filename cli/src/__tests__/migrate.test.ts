@@ -96,4 +96,13 @@ describe('migrateTasks', () => {
     expect(report.imported).toHaveLength(3);
     expect((await dest.load())).toHaveLength(0);
   });
+
+  it('rejects id-less tasks instead of minting a UUID (stays re-run-safe)', async () => {
+    const withNoId = [{ title: 'no id here' }, { id: 'ok1', title: 'has id' }];
+    const report = await migrateTasks(withNoId, dest, { defaultScope: 'personal' });
+    expect(report.imported).toEqual(['has id']);
+    expect(report.failed).toHaveLength(1);
+    expect(report.failed[0].title).toBe('no id here');
+    expect((await dest.load())).toHaveLength(1);
+  });
 });
