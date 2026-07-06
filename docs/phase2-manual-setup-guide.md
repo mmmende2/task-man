@@ -181,10 +181,17 @@ straight from a checkout of the repo.
    git clone https://github.com/mmmende2/task-man.git /opt/task-man/src
    cd /opt/task-man/src
    ```
-2. Pin to a specific commit/tag rather than tracking a branch — this is the
-   "never `@latest`" guardrail from the deploy plan, adapted to a build-from-source
-   setup: `git checkout <tag-or-commit>` (tag it from your laptop first, e.g.
-   `git tag deploy-v1 && git push origin deploy-v1`, then checkout `deploy-v1` here).
+2. Pin to a specific **immutable version tag** rather than tracking a branch —
+   this is the "never `@latest`" guardrail from the deploy plan, adapted to a
+   build-from-source setup. The tag names track the app version in
+   `cli/package.json` (`v0.2.0`, `v0.2.1`, …) and are **never moved or reused** —
+   each release gets its own, so `git tag` is a permanent record of what shipped
+   and rollback is just checking out an older one. From your laptop, cut the tag
+   first (see "Release tagging" below), then on the droplet:
+   ```bash
+   git fetch --tags
+   git checkout v0.2.0   # the version you want live
+   ```
 3. `cp deploy/.env.example deploy/.env` and fill in:
    ```
    TUNNEL_TOKEN=<the token from step 2b>
@@ -215,7 +222,37 @@ straight from a checkout of the repo.
    `task-man` logging that it's listening on port 3030. Ctrl-C to stop tailing
    (containers keep running).
 
-**Redeploying a new version later**: `git fetch && git checkout <new-tag> && docker compose -f deploy/docker-compose.yml up -d --build`.
+### Release tagging (immutable, versioned)
+
+Deploys are pinned to immutable tags named after the app version — one new tag
+per release, **never moved, never reused**. This keeps a permanent record of
+what shipped and makes rollback trivial.
+
+**Cut a release (laptop):**
+```bash
+# bump "version" in cli/package.json to match (e.g. 0.2.0 → 0.2.1), commit it
+git tag v0.2.1 main
+git push origin main v0.2.1
+```
+
+**Redeploy on the droplet** — check out the specific version:
+```bash
+git fetch --tags
+git checkout v0.2.1
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+Prefer one command without remembering the name? Check out the highest version
+tag automatically:
+```bash
+git fetch --tags
+git checkout "$(git tag -l 'v*' --sort=-v:refname | head -1)"
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+**Roll back** to a previous release the same way — the old code is still there
+under its own tag, so `git checkout v0.2.0 && docker compose … up -d --build`
+puts it back. No `--force` anywhere: immutable tags are only ever *added* on
+`git fetch --tags`, never rewritten.
 
 ### 3a. Seed the droplet with your current data
 
