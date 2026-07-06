@@ -1,0 +1,111 @@
+.status-page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad-top) 16px var(--pad-bottom);
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.back-btn {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.status-title {
+  font-size: 20px;
+  font-weight: 600;
+  flex-grow: 1;
+}
+
+.status-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 480px;
+  width: 100%;
+}
+
+/* Big up/down badge. */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  align-self: flex-start;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.status-badge .status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+
+.status-badge.up {
+  border-color: var(--status-done);
+  color: var(--status-done);
+}
+.status-badge.up .status-dot {
+  background: var(--status-done);
+  box-shadow: 0 0 8px var(--status-done);
+}
+
+.status-badge.down {
+  border-color: var(--priority-high);
+  color: var(--priority-high);
+}
+.status-badge.down .status-dot {
+  background: var(--priority-high);
+}
+
+.status-badge.pending {
+  color: var(--fg-dim);
+}
+
+/* Key/value detail grid. */
+.status-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px 20px;
+  margin: 0;
+  align-items: baseline;
+}
+
+.status-grid dt {
+  color: var(--fg-dim);
+  font-size: 14px;
+}
+
+.status-grid dd {
+  margin: 0;
+  color: var(--fg);
+  font-size: 15px;
+  text-align: right;
+  word-break: break-word;
+}
+
+.status-grid .status-err {
+  color: var(--priority-high);
+}
+
+.status-refresh {
+  align-self: flex-start;
+  border-color: var(--accent);
+  color: var(--accent);
+}

@@ -5,7 +5,7 @@ import { buildRefineQueue } from 'task-man/refine-queue';
 import { loadScopeFilter, matchesScope } from './ScopeChip';
 import './NavMenu.css';
 
-type Current = 'focus' | 'backlog' | 'capture' | 'refine' | 'metrics';
+type Current = 'focus' | 'backlog' | 'capture' | 'refine' | 'metrics' | 'status';
 
 interface Props {
   current: Current;
@@ -30,6 +30,7 @@ export function NavMenu({ current }: Props) {
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
   const [refineCount, setRefineCount] = useState<number | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,6 +61,18 @@ export function NavMenu({ current }: Props) {
       live = false;
     };
   }, [open]);
+
+  // Deployed server version, shown at the bottom of the menu. Fetched on open
+  // (once fetched, kept — the version only changes on redeploy + reload).
+  useEffect(() => {
+    if (!open || version !== null) return;
+    let live = true;
+    api
+      .getHealth()
+      .then((h) => { if (live) setVersion(h.version); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [open, version]);
 
   const go = (to: string) => {
     setOpen(false);
@@ -101,6 +114,16 @@ export function NavMenu({ current }: Props) {
                 </button>
               );
             })}
+            {/* Version footer doubles as the entry to the status page. */}
+            <button
+              className={`nav-menu-version${current === 'status' ? ' current' : ''}`}
+              onClick={() => go('/status')}
+              type="button"
+              role="menuitem"
+            >
+              <span>task-man {version ? `v${version}` : ''}</span>
+              <span className="nav-menu-version-arrow" aria-hidden="true">›</span>
+            </button>
           </div>
         </>
       )}
