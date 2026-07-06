@@ -34,6 +34,15 @@ The same working set, keyboard-driven — vim keys, no mouse.
 <p align="center"><img src="docs/images/tui-triage.png" width="760" alt="task-man Triage (Plan) mode in the terminal" /></p>
 <p align="center"><em>Triage — focused tasks pinned on top, the unfocused backlog grouped by category, with a live category panel. <code>Space</code> promotes/demotes; the cursor rides the task as it moves.</em></p>
 
+<p align="center"><img src="docs/images/tui-write.png" width="760" alt="task-man Capture mode in the terminal" /></p>
+<p align="center"><em>Capture — jot tasks fast with inline flags (<code>-p</code> priority, <code>-c</code> category, <code>-s</code> scope); <code>:</code> attaches a subtask to the last thing you added.</em></p>
+
+<p align="center"><img src="docs/images/tui-refine.png" width="760" alt="task-man Refine mode in the terminal" /></p>
+<p align="center"><em>Refine — the same rapid card-flip triage as the phone, one keystroke per answer.</em></p>
+
+<p align="center"><img src="docs/images/tui-metrics.png" width="760" alt="task-man Metrics mode in the terminal" /></p>
+<p align="center"><em>Metrics — the end-of-day report: what got done, the you-vs-Claude split, subtasks, and an insight line.</em></p>
+
 ## Run it — the hosted path (recommended)
 
 This is the real experience: phone + terminal + Claude, in sync from anywhere.
