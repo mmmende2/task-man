@@ -1,6 +1,37 @@
 # task-man
 
-**A focus-first task manager you run from three places at once — your phone, your terminal, and Claude.** Pull a few things into a tight working set, triage the rest, and let Claude capture and refine tasks over MCP. One store, synced live through a small server you host behind Cloudflare Access, so every surface sees the same tasks and each person sees only their own.
+**A focus-first task manager you run from three places at once — your terminal, your phone, and Claude.** Pull a few things into a tight working set, triage the rest, and let Claude capture and refine tasks over MCP. One store, synced live through a small server you host behind Cloudflare Access, so every surface sees the same tasks and each person sees only their own.
+
+<p align="center"><img src="docs/images/tui-focus.png" width="840" alt="task-man Focus mode in the terminal" /></p>
+<p align="center"><em>The terminal UI — your working set, keyboard-driven.</em></p>
+
+## Three surfaces, one working set
+
+- **⌨️ Terminal** — a vim-keyed TUI for planning and doing the work where you already live: a focus list, a triage/plan view, capture, refine, and metrics — all keyboard-driven.
+- **📱 Phone** — a fast, installable web app. Add it to your home screen and it feels native: swipe your focus list, triage the backlog, refine with a card-flip flow, and see your end-of-day metrics.
+- **🤖 Claude** — an MCP server so Claude can add, prioritize, and refine tasks, and email you a wrap-up report at day's end.
+
+On the hosted path all three read and write the **same** tasks through your server, and authorization is per-identity — you see your tasks, Claude's agents see theirs.
+
+## In the terminal
+
+The full keyboard workflow — vim keys, no mouse.
+
+<p align="center"><img src="docs/images/tui-triage.png" width="760" alt="task-man Triage (Plan) mode in the terminal" /></p>
+<p align="center"><em>Triage — focused tasks pinned on top, the unfocused backlog grouped by category, with a live category panel. <code>Space</code> promotes/demotes; the cursor rides the task as it moves.</em></p>
+
+<p align="center"><img src="docs/images/tui-write.png" width="760" alt="task-man Capture mode in the terminal" /></p>
+<p align="center"><em>Capture — jot tasks fast with inline flags (<code>-p</code> priority, <code>-c</code> category, <code>-s</code> scope); <code>:</code> attaches a subtask to the last thing you added.</em></p>
+
+<p align="center"><img src="docs/images/tui-refine.png" width="760" alt="task-man Refine mode in the terminal" /></p>
+<p align="center"><em>Refine — rapid card-flip triage, one keystroke per answer.</em></p>
+
+<p align="center"><img src="docs/images/tui-metrics.png" width="760" alt="task-man Metrics mode in the terminal" /></p>
+<p align="center"><em>Metrics — the end-of-day report: what got done, the you-vs-Claude split, subtasks, and an insight line.</em></p>
+
+## On your phone
+
+The same working set as a tap-driven web app — add it to your home screen and it feels native.
 
 <p align="center">
   <img src="docs/images/focus.png"   width="220" alt="Focus — your working set" />
@@ -10,42 +41,15 @@
 </p>
 <p align="center"><em>The phone web app — Focus · Backlog · Refine · Metrics.</em></p>
 
-## Three surfaces, one working set
-
-- **📱 Phone** — a fast, installable web app. Add it to your home screen and it feels native: swipe through your focus list, triage the backlog, refine tasks with a card-flip flow, and see your end-of-day metrics.
-- **⌨️ Terminal** — a vim-keyed TUI for planning and doing the work where you already live. Focus mode, a triage/plan view, capture, and metrics — all keyboard-driven.
-- **🤖 Claude** — an MCP server so Claude can add, prioritize, and refine tasks, and email you a wrap-up report at day's end.
-
-On the hosted path all three read and write the **same** tasks through your server, and authorization is per-identity — you see your tasks, Claude's agents see theirs.
-
-### What each screen does
+**What each screen does**
 - **Focus** — the small set you've committed to. Priority dots, categories, subtask progress, one tap to capture.
 - **Backlog** — everything else, with your **focused tasks pinned on top** so you can promote and demote the working set in one place. Done-today items stay visible with a strikethrough.
 - **Refine** — rapid-fire triage: one card per unfinished detail (scope, time estimate, vibe, priority, category), answered with a tap. Skip anything, undo the last.
 - **Metrics** — the day report: what got done, you-vs-Claude split, subtasks, and a short insight ("Nice balance! 4 professional and 1 personal…").
 
-### In the terminal
-
-The same working set, keyboard-driven — vim keys, no mouse.
-
-<p align="center"><img src="docs/images/tui-focus.png" width="760" alt="task-man Focus mode in the terminal" /></p>
-<p align="center"><em>Focus mode — your working set, subtask progress, the version + connection state in the footer.</em></p>
-
-<p align="center"><img src="docs/images/tui-triage.png" width="760" alt="task-man Triage (Plan) mode in the terminal" /></p>
-<p align="center"><em>Triage — focused tasks pinned on top, the unfocused backlog grouped by category, with a live category panel. <code>Space</code> promotes/demotes; the cursor rides the task as it moves.</em></p>
-
-<p align="center"><img src="docs/images/tui-write.png" width="760" alt="task-man Capture mode in the terminal" /></p>
-<p align="center"><em>Capture — jot tasks fast with inline flags (<code>-p</code> priority, <code>-c</code> category, <code>-s</code> scope); <code>:</code> attaches a subtask to the last thing you added.</em></p>
-
-<p align="center"><img src="docs/images/tui-refine.png" width="760" alt="task-man Refine mode in the terminal" /></p>
-<p align="center"><em>Refine — the same rapid card-flip triage as the phone, one keystroke per answer.</em></p>
-
-<p align="center"><img src="docs/images/tui-metrics.png" width="760" alt="task-man Metrics mode in the terminal" /></p>
-<p align="center"><em>Metrics — the end-of-day report: what got done, the you-vs-Claude split, subtasks, and an insight line.</em></p>
-
 ## Run it — the hosted path (recommended)
 
-This is the real experience: phone + terminal + Claude, in sync from anywhere.
+This is the real experience: terminal + phone + Claude, in sync from anywhere.
 
 1. **Deploy the server.** `cli/Dockerfile` + `deploy/docker-compose.yml` build the Hono API + web app straight from a checkout — no npm registry involved. A $6 droplet is plenty.
 2. **Put it behind Cloudflare Access.** A Cloudflare Tunnel exposes it with no open ports, and Access gates the hostname; the server *also* verifies Access's signed JWT on every API request, so nothing is reachable unauthenticated.
