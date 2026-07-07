@@ -69,11 +69,12 @@ export function NavMenu({ current }: Props) {
     let live = true;
     api
       .getHealth()
-      // Append the build SHA (unless it's an un-stamped 'dev' build) so the
-      // footer pins the exact deployed commit, e.g. "v0.2.3+e7d4e7d".
+      // Prefer the `git describe` build string (e.g. "v0.3.1-2-ge7d4e7d") — it
+      // pins the exact deployed commit. Fall back to bare version for an
+      // un-stamped 'dev' build.
       .then((h) => {
         if (!live) return;
-        setVersion(h.sha && h.sha !== 'dev' ? `${h.version}+${h.sha}` : h.version);
+        setVersion(h.build && h.build !== 'dev' ? h.build : `v${h.version}`);
       })
       .catch(() => {});
     return () => { live = false; };
@@ -126,7 +127,7 @@ export function NavMenu({ current }: Props) {
               type="button"
               role="menuitem"
             >
-              <span>task-man {version ? `v${version}` : ''}</span>
+              <span>task-man {version ?? ''}</span>
               <span className="nav-menu-version-arrow" aria-hidden="true">›</span>
             </button>
           </div>

@@ -7,7 +7,7 @@ import './Status.css';
 interface Check {
   ok: boolean;
   version?: string;
-  sha?: string;
+  build?: string;
   serverTime?: string;
   latencyMs: number;
   error?: string;
@@ -30,7 +30,7 @@ export function StatusPage() {
       setCheck({
         ok: h.ok,
         version: h.version,
-        sha: h.sha,
+        build: h.build,
         serverTime: h.time,
         latencyMs: Math.round(performance.now() - t0),
         at: Date.now(),
@@ -74,7 +74,7 @@ export function StatusPage() {
 
         <dl className="status-grid">
           <dt>Version</dt>
-          <dd className="mono">{check?.version ? `v${check.version}${check.sha && check.sha !== 'dev' ? `+${check.sha}` : ''}` : '—'}</dd>
+          <dd className="mono">{check?.build && check.build !== 'dev' ? check.build : check?.version ? `v${check.version}` : '—'}</dd>
 
           <dt>Server time</dt>
           <dd className="mono">{check?.serverTime ? new Date(check.serverTime).toLocaleString() : '—'}</dd>
