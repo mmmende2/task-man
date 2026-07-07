@@ -216,11 +216,11 @@ straight from a checkout of the repo.
    `TZ` makes the server's idea of "today" match yours. Containers default
    to UTC, so without it evening completions fall on tomorrow's date and
    disappear from the web Metrics page until UTC midnight passes.
-4. `GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/docker-compose.yml up -d --build`.
-   The `GIT_SHA` stamps the running build so `/healthz` and the web menu footer
-   report the exact commit that's live (e.g. `v0.3.0+e7d4e7d`) — that's how you
-   confirm a redeploy landed instead of guessing about browser cache. Omit it and
-   the stamp falls back to `dev`.
+4. `GIT_DESCRIBE=$(git describe --tags --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build`.
+   `GIT_DESCRIBE` stamps the running build so `/healthz` and the web menu footer
+   report exactly what's live (e.g. `v0.3.1-2-ge7d4e7d`, or `v0.3.1` right on a
+   tag) — that's how you confirm a redeploy landed instead of guessing about
+   browser cache. Omit it and the stamp falls back to `dev`.
 5. `docker compose -f deploy/docker-compose.yml logs -f` — look for `cloudflared`
    logging a successful connection ("Registered tunnel connection") and
    `task-man` logging that it's listening on port 3030. Ctrl-C to stop tailing
@@ -249,14 +249,14 @@ git push origin main --follow-tags   # pushes the release commit + the new tag
 ```bash
 git fetch --tags
 git checkout v0.2.1
-GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/docker-compose.yml up -d --build
+GIT_DESCRIBE=$(git describe --tags --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
 ```
 Prefer one command without remembering the name? Check out the highest version
 tag automatically:
 ```bash
 git fetch --tags
 git checkout "$(git tag -l 'v*' --sort=-v:refname | head -1)"
-GIT_SHA=$(git rev-parse --short HEAD) docker compose -f deploy/docker-compose.yml up -d --build
+GIT_DESCRIBE=$(git describe --tags --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
 **Roll back** to a previous release the same way — the old code is still there

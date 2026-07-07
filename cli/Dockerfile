@@ -36,12 +36,12 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Short git SHA of the source this image was built from, passed by the
-# deploy (`--build-arg GIT_SHA=$(git rev-parse --short HEAD)`). Surfaced at
-# /healthz and in the web footer so you can confirm which commit is live.
+# `git describe` of the source this image was built from, passed by the
+# deploy (`--build-arg GIT_DESCRIBE=$(git describe --tags --always --dirty)`).
+# Surfaced at /healthz and in the web footer so you can confirm what's live.
 # Defaults to 'dev' for an un-stamped local build.
-ARG GIT_SHA=dev
-ENV TASK_MAN_BUILD_SHA=${GIT_SHA}
+ARG GIT_DESCRIBE=dev
+ENV TASK_MAN_BUILD=${GIT_DESCRIBE}
 
 # zoneinfo for the TZ env var (compose passes the user's timezone so the
 # server's "today" matches theirs) — slim images don't include it, and a

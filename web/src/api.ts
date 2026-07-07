@@ -69,8 +69,8 @@ export const api = {
 export interface HealthResponse {
   ok: boolean;
   version: string;
-  // Short git SHA of the deployed build, or 'dev' for a non-Docker build.
-  // Combined with version it pins exactly which commit is live.
-  sha?: string;
+  // `git describe` of the deployed build (e.g. "v0.3.1-2-ge7d4e7d"), or 'dev'
+  // for a non-Docker build. One string that pins the exact live commit.
+  build?: string;
   time: string;
 }
