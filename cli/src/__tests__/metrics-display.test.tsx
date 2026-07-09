@@ -14,12 +14,21 @@ describe('MetricsMode display', () => {
   let asyncStore: LocalStore;
   let cleanup: () => void;
 
+  // The default metrics day now depends on the time of day, so pin the clock
+  // to an afternoon (→ opens on today) for these display tests. Fake only Date
+  // so ink's real timers keep driving the async render.
+  const AFTERNOON = new Date(2026, 6, 9, 14, 0, 0); // 2026-07-09 14:00 local
+  const YESTERDAY = '2026-07-08';
+
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(AFTERNOON);
+
     tmpDir = mkdtempSync(join(tmpdir(), 'task-man-metrics-'));
     store = new TaskStore(join(tmpDir, 'tasks.json'));
     asyncStore = new LocalStore(store);
 
-    // Create some tasks for metrics
+    // Create some tasks for metrics (completed "today" = the pinned date).
     const t1 = await store.add({ title: 'Done Task', focused: true });
     await store.update(t1.id, { status: 'done' });
     await store.add({ title: 'Active Task', focused: true });
@@ -28,6 +37,7 @@ describe('MetricsMode display', () => {
 
   afterEach(() => {
     cleanup?.();
+    vi.useRealTimers();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -113,5 +123,56 @@ describe('MetricsMode display', () => {
 
     await vi.waitFor(() => expect(result.text()).toContain('Done Task'));
     expect(result.text()).toContain('Done today: 1');
+  });
+
+  it('h steps back a day (clamped at the earliest task date), l clamps at today', async () => {
+    // A task created "yesterday" makes yesterday the earliest date, so h can
+    // step back exactly one day and no further — which makes spamming h
+    // idempotent at the floor (tolerates dropped keystrokes).
+    vi.setSystemTime(new Date(2026, 6, 8, 10, 0, 0));
+    await store.add({ title: 'Old Task', focused: true });
+    vi.setSystemTime(AFTERNOON);
+
+    const result = renderWithDimensions(
+      createElement(MetricsMode, { store: asyncStore }),
+    );
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('Done today: 1'));
+
+    // h: step back, clamped at yesterday (the earliest task date).
+    await vi.waitFor(() => {
+      result.stdin.write('h');
+      expect(result.text()).toContain(`Done on ${YESTERDAY}`);
+    }, { timeout: 2000, interval: 60 });
+    expect(result.text()).toContain(`Progress — ${YESTERDAY}`);
+
+    // l: step forward, clamped at today.
+    await vi.waitFor(() => {
+      result.stdin.write('l');
+      expect(result.text()).toContain('Done today');
+    }, { timeout: 2000, interval: 60 });
+  });
+
+  it('does not step the day while editing the date, and D opens the editor', async () => {
+    const result = renderWithDimensions(
+      createElement(MetricsMode, { store: asyncStore }),
+    );
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('Done today: 1'));
+
+    // D opens the date editor.
+    await vi.waitFor(() => {
+      result.stdin.write('D');
+      expect(result.text()).toContain('Go to date:');
+    }, { timeout: 2000, interval: 60 });
+
+    // h while editing is treated as text input, never a day-step: the editor
+    // stays open and no past-day view ("Done on …") appears.
+    result.stdin.write('h');
+    await new Promise((r) => setTimeout(r, 100));
+    expect(result.text()).toContain('Go to date:');
+    expect(result.text()).not.toContain('Done on');
   });
 });
