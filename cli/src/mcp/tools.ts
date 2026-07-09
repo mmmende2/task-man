@@ -1,6 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { getStore } from '../get-store.js';
 import { buildDayReport } from '../report.js';
 import { loadConfig, saveConfig } from '../config.js';
 import { renderDayReportHtml } from '../render-html.js';
@@ -21,7 +20,10 @@ import {
   searchTasks,
   getStats,
 } from '../handlers/index.js';
+import type { Store } from '../store-interface.js';
 import type { SessionColor, Task } from '../types.js';
+import { VERSION } from '../version.js';
+import { whoami } from '../whoami.js';
 
 const TIME_ESTIMATES = ['<5m', '20m', '45m', '>1h', '>3h'] as const;
 const VIBES = ['love', 'ok', 'dread'] as const;
@@ -52,8 +54,27 @@ function summarizeTasks(tasks: Task[]): string {
   return `Found ${tasks.length} tasks (${focused} focused, ${inProgress} in_progress, ${todo} todo, ${done} done)`;
 }
 
-export function registerTools(server: McpServer): void {
-  const store = getStore();
+export interface RegisterToolsOptions {
+  /**
+   * Resolved per tool call, not once at registration — a long-lived stdio
+   * process re-reads config so a client.mode flip applies on the next call
+   * (the 2026-07 "0 tasks" incident was a store bound once at boot).
+   */
+  resolveStore: () => Store;
+  /**
+   * 'stdio': local process launched by Claude Code — session detection
+   * walks the local process tree. 'http': hosted /mcp endpoint — there is
+   * no local Claude Code session to detect, and session-bound tools are
+   * not registered.
+   */
+  context: 'stdio' | 'http';
+  /** Verified identity ('http' context) — reported by task_whoami. */
+  identity?: string;
+}
+
+export function registerTools(server: McpServer, opts: RegisterToolsOptions): void {
+  const { resolveStore, context } = opts;
+  const sessionId = (): string | null => (context === 'http' ? null : getCurrentSessionId());
 
   // ── task_add ──────────────────────────────────────────────
   server.registerTool(
@@ -73,7 +94,8 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ title, priority, scope, categories, parent_id, description, focused, time_estimate, vibe }) => {
-      const currentSessionId = getCurrentSessionId();
+      const store = resolveStore();
+      const currentSessionId = sessionId();
       const task = await createTask(store, {
         title,
         priority,
@@ -108,7 +130,8 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ scope, status, focused, category, parent_id, include_done, sort, limit }) => {
-      const currentSessionId = getCurrentSessionId();
+      const store = resolveStore();
+      const currentSessionId = sessionId();
       const tasks = await listTasks(store, {
         scope, status, focused, category, parent_id,
         include_done, sort, limit,
@@ -132,6 +155,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
+      const store = resolveStore();
       const result = await getTask(store, id);
       if (!result) {
         return { content: [{ type: 'text', text: `Task ${id} not found` }] };
@@ -150,6 +174,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: { parent_id: z.string().describe('Parent task ID (prefix OK)') },
     },
     async ({ parent_id }) => {
+      const store = resolveStore();
       const resolvedId = await store.resolveId(parent_id);
       const subtasks = await store.query({ parent_id: resolvedId });
       return { content: [{ type: 'text', text: JSON.stringify(subtasks, null, 2) }] };
@@ -178,6 +203,7 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ id, title, status, priority, scope, categories, description, focused, time_estimate, vibe, parent_id, completed_at, session_id }) => {
+      const store = resolveStore();
       const resolvedId = await store.resolveId(id);
       const before = (await store.load()).find(t => t.id === resolvedId);
       if (!before) {
@@ -224,7 +250,7 @@ export function registerTools(server: McpServer): void {
       if (!confirm) {
         return { content: [{ type: 'text', text: 'Delete refused: confirm must be true.' }] };
       }
-      const { task, danglingSubtasks } = await deleteTask(store, id);
+      const { task, danglingSubtasks } = await deleteTask(resolveStore(), id);
       const extra = danglingSubtasks > 0
         ? `\nNote: ${danglingSubtasks} subtask(s) now have a dangling parent_id.`
         : '';
@@ -242,6 +268,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
+      const store = resolveStore();
       const resolvedId = await store.resolveId(id);
       const existing = (await store.load()).find(t => t.id === resolvedId);
       if (!existing) {
@@ -264,8 +291,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
-      const currentSessionId = getCurrentSessionId();
-      const task = await startTask(store, id, { session_id: currentSessionId });
+      const task = await startTask(resolveStore(), id, { session_id: sessionId() });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -278,8 +304,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
-      const currentSessionId = getCurrentSessionId();
-      const task = await focusTask(store, id, { session_id: currentSessionId });
+      const task = await focusTask(resolveStore(), id, { session_id: sessionId() });
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -292,7 +317,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: { id: z.string().describe('Task ID (prefix OK)') },
     },
     async ({ id }) => {
-      const task = await unfocusTask(store, id);
+      const task = await unfocusTask(resolveStore(), id);
       return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] };
     },
   );
@@ -305,7 +330,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {},
     },
     async () => {
-      const stats = await getStats(store);
+      const stats = await getStats(resolveStore());
       return { content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }] };
     },
   );
@@ -318,7 +343,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {},
     },
     async () => {
-      const all = await store.load();
+      const all = await resolveStore().load();
       const counts = new Map<string, number>();
       for (const t of all) {
         for (const c of t.categories) {
@@ -340,7 +365,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {},
     },
     async () => {
-      const candidates = buildRefineQueueWithReasons(await store.load());
+      const candidates = buildRefineQueueWithReasons(await resolveStore().load());
       return { content: [{ type: 'text', text: JSON.stringify(candidates, null, 2) }] };
     },
   );
@@ -355,8 +380,8 @@ export function registerTools(server: McpServer): void {
         context: z.string().optional().describe('User context (e.g. "demo on Friday, need auth working")'),
       },
     },
-    async ({ scope, context }) => {
-      const all = await store.load();
+    async ({ scope, context: userContext }) => {
+      const all = await resolveStore().load();
       const active = all.filter(t =>
         t.parent_id === null &&
         t.status !== 'done' &&
@@ -391,7 +416,7 @@ export function registerTools(server: McpServer): void {
 
       const payload = {
         instruction,
-        user_context: context ?? null,
+        user_context: userContext ?? null,
         scope: scope ?? 'all',
         task_count: compact.length,
         tasks: compact,
@@ -414,7 +439,7 @@ export function registerTools(server: McpServer): void {
     async ({ date, email, format }) => {
       const reportDate = parseReportDate(date);
 
-      const report = await buildDayReport(store, reportDate);
+      const report = await buildDayReport(resolveStore(), reportDate);
 
       if (email) {
         const config = loadConfig();
@@ -484,7 +509,7 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ query, scope, status, include_done }) => {
-      const matches = await searchTasks(store, { query, scope, status, include_done });
+      const matches = await searchTasks(resolveStore(), { query, scope, status, include_done });
 
       if (matches.length === 0) {
         return { content: [{ type: 'text', text: `No tasks found matching "${query}"` }] };
@@ -494,25 +519,46 @@ export function registerTools(server: McpServer): void {
     },
   );
 
-  // ── task_session_color ───────────────────────────────────
-  server.registerTool(
-    'task_session_color',
-    {
-      description: 'Set the terminal color for the current Claude Code session. Valid colors: cyan, magenta, purple, yellow',
-      inputSchema: {
-        color: z.enum(['cyan', 'magenta', 'purple', 'yellow']).describe('Session color'),
+  // ── task_session_color (stdio only) ──────────────────────
+  // Colors the local Claude Code session and writes local config — on the
+  // hosted /mcp endpoint there is no session and no terminal to color.
+  if (context === 'stdio') {
+    server.registerTool(
+      'task_session_color',
+      {
+        description: 'Set the terminal color for the current Claude Code session. Valid colors: cyan, magenta, purple, yellow',
+        inputSchema: {
+          color: z.enum(['cyan', 'magenta', 'purple', 'yellow']).describe('Session color'),
+        },
       },
+      async ({ color }) => {
+        const currentSessionId = getCurrentSessionId();
+        if (!currentSessionId) {
+          return { content: [{ type: 'text', text: 'No active Claude Code session detected' }] };
+        }
+        const config = loadConfig();
+        if (!config.sessions) config.sessions = {};
+        config.sessions[currentSessionId] = color as SessionColor;
+        saveConfig(config);
+        return { content: [{ type: 'text', text: `Session color set to ${color} (session ${currentSessionId.slice(0, 8)}...). Run /color ${color} to match your Claude Code prompt bar.` }] };
+      },
+    );
+  }
+
+  // ── task_whoami ───────────────────────────────────────────
+  server.registerTool(
+    'task_whoami',
+    {
+      description: 'Diagnostic: report which store this MCP server uses — mode (local/remote/server), remote URL, reachability, authenticated identity',
+      inputSchema: {},
     },
-    async ({ color }) => {
-      const currentSessionId = getCurrentSessionId();
-      if (!currentSessionId) {
-        return { content: [{ type: 'text', text: 'No active Claude Code session detected' }] };
-      }
-      const config = loadConfig();
-      if (!config.sessions) config.sessions = {};
-      config.sessions[currentSessionId] = color as SessionColor;
-      saveConfig(config);
-      return { content: [{ type: 'text', text: `Session color set to ${color} (session ${currentSessionId.slice(0, 8)}...). Run /color ${color} to match your Claude Code prompt bar.` }] };
+    async () => {
+      // On the hosted endpoint the answer is static: this process IS the
+      // server, and identity was verified by the Access JWT this request.
+      const info = context === 'http'
+        ? { mode: 'server', server_version: VERSION, identity: opts.identity ?? null }
+        : await whoami();
+      return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) }] };
     },
   );
 }

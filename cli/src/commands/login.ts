@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { spawn } from 'node:child_process';
+import { resolveCloudflared } from '../cloudflared.js';
 import { loadConfig } from '../config.js';
 
 export const loginCommand = new Command('login')
@@ -18,7 +19,8 @@ export const loginCommand = new Command('login')
     }
 
     await new Promise<void>((resolve) => {
-      const child = spawn('cloudflared', ['access', 'login', remoteUrl], { stdio: 'inherit' });
+      const cloudflared = resolveCloudflared(config.client?.cloudflared_path);
+      const child = spawn(cloudflared, ['access', 'login', remoteUrl], { stdio: 'inherit' });
       child.on('error', (err: NodeJS.ErrnoException) => {
         if (err.code === 'ENOENT') {
           console.log(chalk.red('✗') + ' cloudflared not found. Install it: ' + chalk.cyan('brew install cloudflared'));

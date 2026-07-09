@@ -82,6 +82,10 @@ export interface TaskManConfig {
     // `cloudflared access login` JWT flow (used by the TUI).
     service_token_id?: string;
     service_token_secret?: string;
+    // Absolute path to the cloudflared binary. Rarely needed: when unset,
+    // resolution falls back to $CLOUDFLARED, well-known install dirs, then
+    // bare `cloudflared` (see cloudflared.ts).
+    cloudflared_path?: string;
   };
 }
 

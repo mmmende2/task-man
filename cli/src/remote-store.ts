@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHttpClient, idempotencyKey } from './api-client.js';
+import { resolveCloudflared } from './cloudflared.js';
 import { applyFilter, completedOn, createdOn, inProgressUpdatedOn, resolvePrefix } from './task-filters.js';
 import type { Store, TaskChanges } from './store-interface.js';
 import type { CreateTaskInput, Task, TaskFilter, TaskManConfig } from './types.js';
@@ -28,13 +29,13 @@ export function serviceTokenAuth(clientId: string, clientSecret: string): AuthHe
 
 // Interactive `cloudflared access login` JWT flow, for the TUI. Caches
 // the token until shortly before it expires.
-export function cloudflaredJwtAuth(baseUrl: string): AuthHeadersProvider {
+export function cloudflaredJwtAuth(baseUrl: string, cloudflaredPath?: string): AuthHeadersProvider {
   let cached: { token: string; expiresAt: number } | null = null;
 
   async function fetchToken(): Promise<string> {
     let stdout: string;
     try {
-      ({ stdout } = await execFileAsync('cloudflared', ['access', 'token', '--app', baseUrl]));
+      ({ stdout } = await execFileAsync(resolveCloudflared(cloudflaredPath), ['access', 'token', '--app', baseUrl]));
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') {
@@ -72,10 +73,10 @@ export function cloudflaredJwtAuth(baseUrl: string): AuthHeadersProvider {
 // back to the interactive cloudflared JWT flow (TUI). Shared by get-store.ts
 // and useServerStatus.ts so the two auth paths can't drift.
 export function authFromConfig(client: NonNullable<TaskManConfig['client']>): AuthHeadersProvider {
-  const { remote_url, service_token_id, service_token_secret } = client;
+  const { remote_url, service_token_id, service_token_secret, cloudflared_path } = client;
   return service_token_id && service_token_secret
     ? serviceTokenAuth(service_token_id, service_token_secret)
-    : cloudflaredJwtAuth(remote_url!);
+    : cloudflaredJwtAuth(remote_url!, cloudflared_path);
 }
 
 export interface RemoteStoreOptions {
