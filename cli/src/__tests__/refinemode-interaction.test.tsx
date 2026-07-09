@@ -23,13 +23,14 @@ describe('RefineMode interaction', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  const render = () =>
+  const render = (props: Partial<Parameters<typeof RefineMode>[0]> = {}) =>
     renderWithDimensions(
       createElement(RefineMode, {
         store: new LocalStore(store),
         reload: vi.fn(),
         onExit: vi.fn(),
         previousMode: 'focus',
+        ...props,
       }),
     );
 
@@ -68,6 +69,72 @@ describe('RefineMode interaction', () => {
     // The focus card must actually appear — the bug this guards against
     // skipped straight past it (and, with one task, jumped to REFINE COMPLETE).
     expect(result.text()).not.toContain('REFINE COMPLETE');
+  });
+
+  it('queues only tasks matching the scopeFilter prop', async () => {
+    // Both are refine candidates (missing vibe). Only the professional one
+    // should be queued when the filter is professional.
+    await store.add({ title: 'work-item', scope: 'professional', time_estimate: '20m', categories: ['work'], focused: true });
+    await store.add({ title: 'home-item', scope: 'personal', time_estimate: '20m', categories: ['home'], focused: true });
+
+    const result = render({ scopeFilter: 'professional' });
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('work-item'), { timeout: 2000 });
+    expect(result.text()).not.toContain('home-item');
+  });
+
+  it('offers the focus card at most twice per session (cap of 2)', async () => {
+    // Three tasks, each missing only vibe and unfocused → each yields
+    // [vibe, focus]. The focus card is charged per task visited, so tasks 1
+    // and 2 get it and task 3 must not — answering task 3's vibe should end
+    // the session rather than surface a third focus card.
+    for (const title of ['refine-one', 'refine-two', 'refine-three']) {
+      await store.add({ title, scope: 'personal', time_estimate: '20m', categories: ['home'], focused: false });
+    }
+
+    const result = render();
+    cleanup = result.cleanup;
+
+    // Each stage spams a key that is a no-op once the target state is reached,
+    // so a dropped first keystroke retries without over-advancing:
+    //   '2' answers the number-type vibe card, no-op on the yes/no focus card.
+    //   'f' skips the focus card, no-op (NaN) on the vibe card.
+
+    // Task 1: answer vibe → focus card 1.
+    await vi.waitFor(() => {
+      result.stdin.write('2');
+      expect(result.text()).toContain("Pull this into tomorrow's focus?");
+    }, { timeout: 3000, interval: 60 });
+
+    // Skip focus 1 → task 2's vibe card.
+    await vi.waitFor(() => {
+      result.stdin.write('f');
+      expect(result.text()).toContain('refine-two');
+      expect(result.text()).toContain('Vibe check?');
+    }, { timeout: 3000, interval: 60 });
+
+    // Task 2: answer vibe → focus card 2.
+    await vi.waitFor(() => {
+      result.stdin.write('2');
+      expect(result.text()).toContain("Pull this into tomorrow's focus?");
+    }, { timeout: 3000, interval: 60 });
+
+    // Skip focus 2 → task 3's vibe card.
+    await vi.waitFor(() => {
+      result.stdin.write('f');
+      expect(result.text()).toContain('refine-three');
+      expect(result.text()).toContain('Vibe check?');
+    }, { timeout: 3000, interval: 60 });
+
+    // Task 3: answering vibe must complete the session — no third focus card.
+    // If the cap were broken, a focus card would appear here and '2' (a no-op
+    // on it) would never reach REFINE COMPLETE, timing the test out.
+    await vi.waitFor(() => {
+      result.stdin.write('2');
+      expect(result.text()).toContain('REFINE COMPLETE');
+    }, { timeout: 3000, interval: 60 });
+    expect(result.text()).not.toContain("Pull this into tomorrow's focus?");
   });
 
   it('shows the empty state when nothing needs refine', async () => {

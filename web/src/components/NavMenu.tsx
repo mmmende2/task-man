@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { buildRefineQueue } from 'task-man/refine-queue';
+import { countUnrefined } from 'task-man/refine-queue';
 import { loadScopeFilter, matchesScope } from './ScopeChip';
 import './NavMenu.css';
 
@@ -54,7 +54,7 @@ export function NavMenu({ current }: Props) {
       .then((tasks) => {
         if (!live) return;
         const candidates = tasks.filter((t) => matchesScope(t.scope, scope));
-        setRefineCount(buildRefineQueue(candidates).length);
+        setRefineCount(countUnrefined(candidates));
       })
       .catch(() => {});
     return () => {

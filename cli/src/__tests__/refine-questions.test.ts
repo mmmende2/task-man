@@ -101,6 +101,19 @@ describe('buildQuestions', () => {
     expect(prompts(makeTask({ categories: [] }), 0, null, ['work', 'home'])).toContain('File this under...?');
   });
 
+  it('omits the focus card when suppressFocusQuestion is set, leaving other cards intact', () => {
+    // Unfocused + missing vibe → normally [vibe, focus]. Suppressing drops
+    // only the focus card; the vibe card and the slice are undisturbed.
+    const task = makeTask({ focused: false, vibe: null });
+    const normal = buildQuestions(task, [task], 0, null, []).map((q) => q.prompt);
+    expect(normal).toContain('Vibe check?');
+    expect(normal).toContain("Pull this into tomorrow's focus?");
+
+    const suppressed = buildQuestions(task, [task], 0, null, [], true).map((q) => q.prompt);
+    expect(suppressed).toContain('Vibe check?');
+    expect(suppressed).not.toContain("Pull this into tomorrow's focus?");
+  });
+
   it('leads a blank Claude task with scope, time, and vibe (cap keeps later cards out)', () => {
     // The "does it belong?" confirm card only fires for a no-engagement
     // Claude task — but such a task already trips scope + time + vibe, which

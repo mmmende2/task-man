@@ -71,6 +71,11 @@ function daysSince(iso: string): number {
  * count has reached the threshold the card gains a warning note ("already N
  * focused — add anyway?"). Pass `null` to offer the card with no warning
  * (the web does this — it has no local config).
+ *
+ * `suppressFocusQuestion` omits the focus card entirely. The "ask at most 2
+ * focus questions per refine session" cap is caller-enforced (the pure
+ * function has no session state) — the caller passes true once its budget is
+ * spent.
  */
 export function buildQuestions(
   task: Task,
@@ -78,6 +83,7 @@ export function buildQuestions(
   focusedCount: number,
   focusWarnThreshold: number | null,
   knownCategories: string[],
+  suppressFocusQuestion = false,
 ): QuestionDef[] {
   const list: QuestionDef[] = [];
 
@@ -156,7 +162,7 @@ export function buildQuestions(
   // 4. Focus nomination. There is no focus *limit* — the card is always
   // offered for unfocused tasks. When the soft threshold is reached it only
   // warns (see focusWarnThreshold above); it never suppresses the card.
-  if (!task.focused) {
+  if (!task.focused && !suppressFocusQuestion) {
     const overThreshold = focusWarnThreshold != null && focusedCount >= focusWarnThreshold;
     list.push({
       type: 'yesno',

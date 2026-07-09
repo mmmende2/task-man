@@ -78,6 +78,37 @@ describe('/mcp streamable HTTP endpoint', () => {
     expect((await store.load())[0].title).toBe('From remote MCP');
   });
 
+  it('task_refine_queue returns { total, queue } and honors scope', async () => {
+    const app = createApp({ store });
+    // A professional and a personal task, each needing refinement (no vibe).
+    await callTool(app, 'task_add', { title: 'Work item', scope: 'professional' });
+    await callTool(app, 'task_add', { title: 'Home item', scope: 'personal' });
+
+    const all = JSON.parse((await callTool(app, 'task_refine_queue')).content[0].text);
+    expect(all).toHaveProperty('total');
+    expect(all).toHaveProperty('queue');
+    expect(all.total).toBe(2);
+    expect(all.queue).toHaveLength(2);
+
+    const pro = JSON.parse(
+      (await callTool(app, 'task_refine_queue', { scope: 'professional' })).content[0].text,
+    );
+    expect(pro.total).toBe(1);
+    expect(pro.queue).toHaveLength(1);
+    expect(pro.queue[0].task.title).toBe('Work item');
+  });
+
+  it('task_categories honors scope', async () => {
+    const app = createApp({ store });
+    await callTool(app, 'task_add', { title: 'Work', scope: 'professional', categories: ['work'] });
+    await callTool(app, 'task_add', { title: 'Home', scope: 'personal', categories: ['home'] });
+
+    const pro = JSON.parse(
+      (await callTool(app, 'task_categories', { scope: 'professional' })).content[0].text,
+    );
+    expect(pro).toEqual([{ name: 'work', count: 1 }]);
+  });
+
   it('rejects GET and DELETE (stateless mode has no session stream)', async () => {
     const app = createApp({ store });
     expect((await app.request('/mcp')).status).toBe(405);

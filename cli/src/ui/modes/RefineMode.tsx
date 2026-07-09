@@ -5,6 +5,7 @@ import type { Store } from '../../store-interface.js';
 import type { AppMode } from '../types.js';
 import { loadConfig } from '../../config.js';
 import { buildRefineQueue } from '../../refine-queue.js';
+import { filterByScope } from '../../task-filters.js';
 import { buildQuestions, type QuestionDef } from '../../refine-questions.js';
 import { usePulse, CYAN_PULSE } from '../hooks/usePulse.js';
 import { RefineQuestion } from './RefineQuestion.js';
@@ -14,6 +15,9 @@ interface Props {
   reload: () => void;
   onExit: (target: AppMode) => void;
   previousMode: AppMode;
+  /** Active global scope filter. The refine session queues only tasks matching
+      it ('all' → no filter). Mirrors the web (Refine.tsx). */
+  scopeFilter?: TaskScope | 'all';
 }
 
 interface UndoSnapshot {
@@ -27,7 +31,7 @@ const FLASH_MS = 400;
 const BETWEEN_MS = 150;
 const COMPLETE_MS = 1500;
 
-export function RefineMode({ store, reload, onExit, previousMode }: Props) {
+export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 'all' }: Props) {
   const pulseColor = usePulse({ colors: CYAN_PULSE, intervalMs: 350 });
 
   const config = useMemo(() => loadConfig(), []);
@@ -47,6 +51,9 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
 
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Focus questions shown this session, capped at 2 (queue is priority-sorted,
+  // so the highest-priority tasks get the asks). Never reset — one session.
+  const focusAsksUsed = useRef(0);
 
   useEffect(() => () => {
     if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -67,14 +74,18 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
   // Seed the queue once, from the first load — later reloads (triggered by
   // reviewedCount) refresh allTasks/focusedCount context but must not reset
   // the in-progress queue.
+  // Scope can't change mid-session: global keys (incl. `~`) are disabled while
+  // refining (InteractiveApp guards them), and the queue seeds exactly once
+  // via queueInitialized — so there is no rebuild-on-scope-change to handle.
   const queueInitialized = useRef(false);
   useEffect(() => {
     if (queueInitialized.current || !tasksLoaded) return;
     queueInitialized.current = true;
-    const initialQueue = buildRefineQueue(allTasks);
+    const scoped = filterByScope(allTasks, scopeFilter === 'all' ? undefined : scopeFilter);
+    const initialQueue = buildRefineQueue(scoped);
     setQueue(initialQueue);
     setPhase(initialQueue.length === 0 ? 'empty' : 'asking');
-  }, [tasksLoaded, allTasks]);
+  }, [tasksLoaded, allTasks, scopeFilter]);
 
   // Latest loaded tasks, read by the freeze effect below so it captures fresh
   // context (category set, focused count) without listing `allTasks` in its
@@ -137,7 +148,10 @@ export function RefineMode({ store, reload, onExit, previousMode }: Props) {
     const all = allTasksRef.current;
     const focused = all.filter(t => t.focused && t.status !== 'done').length;
     const cats = Array.from(new Set(all.flatMap(t => t.categories)));
-    const qs = buildQuestions(currentTask, all, focused, config.focus.maxFocused, cats);
+    const qs = buildQuestions(currentTask, all, focused, config.focus.maxFocused, cats, focusAsksUsed.current >= 2);
+    // Charge an ask only for a focus card that survived the question slice
+    // (see the web's matching note in Refine.tsx). Undo doesn't refund it.
+    if (qs.some(q => q.prompt.startsWith('Pull this into'))) focusAsksUsed.current += 1;
     setActiveQuestions(qs);
     setQuestionIndex(0);
     setListCursor(0);

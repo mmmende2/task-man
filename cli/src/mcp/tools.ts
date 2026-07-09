@@ -5,7 +5,8 @@ import { loadConfig, saveConfig } from '../config.js';
 import { renderDayReportHtml } from '../render-html.js';
 import { sendEndOfDayEmail } from '../email.js';
 import { getCurrentSessionId } from '../sessions.js';
-import { buildRefineQueueWithReasons } from '../refine-queue.js';
+import { buildRefineQueueWithReasons, countUnrefined } from '../refine-queue.js';
+import { filterByScope } from '../task-filters.js';
 import { parseReportDate } from '../local-date.js';
 import {
   createTask,
@@ -355,12 +356,18 @@ export function registerTools(server: McpServer, opts: RegisterToolsOptions): vo
   server.registerTool(
     'task_refine_queue',
     {
-      description: 'List tasks that need refinement: missing scope/time/vibe, created by Claude, or stuck in todo >7 days. Mirrors the TUI Refine mode queue.',
-      inputSchema: {},
+      description: 'List tasks that need refinement: missing scope/time/vibe/category, created by Claude, or stuck in todo >7 days. Returns { total, queue }: `total` is the uncapped count of tasks needing refinement; `queue` is the priority-sorted list capped at 20 (mirrors the TUI Refine session). Pass scope to restrict both to personal or professional tasks.',
+      inputSchema: {
+        scope: z.enum(['personal', 'professional']).optional().describe('Restrict to tasks of this scope'),
+      },
     },
-    async () => {
-      const candidates = buildRefineQueueWithReasons(await resolveStore().load());
-      return { content: [{ type: 'text', text: JSON.stringify(candidates, null, 2) }] };
+    async ({ scope }) => {
+      const filtered = filterByScope(await resolveStore().load(), scope);
+      const payload = {
+        total: countUnrefined(filtered),
+        queue: buildRefineQueueWithReasons(filtered),
+      };
+      return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] };
     },
   );
 

@@ -106,4 +106,37 @@ describe('RefinePage', () => {
     renderPage();
     await screen.findByText(/Nothing needs refine/);
   });
+
+  it('surfaces the honest uncapped total in the header (was capped at 20)', async () => {
+    // 25 candidates → the session walks all 25, not a 20-sliced queue.
+    const tasks = Array.from({ length: 25 }, (_, i) => makeTask({ id: `t${i}`, vibe: null }));
+    listTasks.mockResolvedValue(tasks);
+    renderPage();
+
+    await screen.findByText('Vibe check?');
+    expect(screen.getByText(/task 1 \/ 25/)).toBeTruthy();
+  });
+
+  it('offers the focus card on the first two tasks but not the third (cap of 2)', async () => {
+    const tasks = ['a', 'b', 'c'].map((id) => makeTask({ id, vibe: null, focused: false }));
+    listTasks.mockResolvedValue(tasks);
+    const user = userEvent.setup();
+    renderPage();
+
+    // Tasks 1 and 2: vibe card, then the focus card appears; skip it with "No".
+    for (let i = 0; i < 2; i++) {
+      await screen.findByText('Vibe check?');
+      await user.click(screen.getByRole('button', { name: 'ok' }));
+      await screen.findByText("Pull this into tomorrow's focus?");
+      await user.click(screen.getByRole('button', { name: 'No' }));
+    }
+
+    // Task 3: vibe card, but the focus card must be suppressed — answering
+    // vibe ends the session instead of surfacing a third focus card.
+    await screen.findByText('Vibe check?');
+    await user.click(screen.getByRole('button', { name: 'ok' }));
+
+    await screen.findByText(/3 tasks reviewed/);
+    expect(screen.queryByText("Pull this into tomorrow's focus?")).toBeNull();
+  });
 });
