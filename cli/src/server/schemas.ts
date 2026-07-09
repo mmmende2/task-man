@@ -129,6 +129,10 @@ export const metricsQuery = z.object({
   scope: scope.optional(),
 });
 
+export const categoriesQuery = z.object({
+  scope: scope.optional(),
+});
+
 export const searchQuery = z.object({
   q: z.string().optional(),
   query: z.string().optional(),

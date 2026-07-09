@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError, reloadForAuth } from '../api';
 import type { TaskPriority, TaskScope } from '../types';
 import { NavMenu } from '../components/NavMenu';
+import { loadScopeFilter } from '../components/ScopeChip';
 import './Capture.css';
 
 const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high'];
@@ -20,7 +21,14 @@ export function CapturePage() {
   const [time, setTime] = useState<TimeEstimate | null>(null);
   // Scope follows the priority pattern: nullable, tap-again-to-clear.
   // When null we omit it and the server defaults to 'personal'.
-  const [scope, setScope] = useState<TaskScope | null>(null);
+  // Seed from the app-wide scope filter so a capture inherits whatever scope
+  // you're currently viewing ('all' → no pre-selection). Note: the Segmented
+  // control only sets THIS task's scope — it never writes back through
+  // saveScopeFilter, so capturing doesn't move the app-wide filter.
+  const [scope, setScope] = useState<TaskScope | null>(() => {
+    const f = loadScopeFilter();
+    return f === 'all' ? null : f;
+  });
   const [focused, setFocused] = useState(true);
   const [categories, setCategories] = useState<string[]>([]);
   const [description, setDescription] = useState('');
@@ -38,12 +46,15 @@ export function CapturePage() {
   const subtaskInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api.listCategories()
+    // Pills mirror the task's scope: professional capture → professional
+    // categories only. Scope null ('all') → unfiltered list. Refetches when
+    // the Segmented control changes scope mid-capture.
+    api.listCategories(scope ?? undefined)
       .then((cs) => setKnownCategories(cs.map((c) => c.name)))
       .catch(() => {
         /* harmless — user can still add categories ad-hoc */
       });
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     titleRef.current?.focus();

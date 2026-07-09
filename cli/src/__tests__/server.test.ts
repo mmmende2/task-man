@@ -107,6 +107,37 @@ describe('server', () => {
     expect(bogus.status).toBe(400);
   });
 
+  it('filters /api/categories by scope and rejects a bogus one', async () => {
+    await app.request('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Work', scope: 'professional', categories: ['work'] }),
+    });
+    await app.request('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Home', scope: 'personal', categories: ['home'] }),
+    });
+
+    const all = await app.request('/api/categories');
+    expect(all.status).toBe(200);
+    expect((await all.json()) as { name: string }[]).toEqual(
+      expect.arrayContaining([
+        { name: 'work', count: 1 },
+        { name: 'home', count: 1 },
+      ]),
+    );
+
+    const pro = await app.request('/api/categories?scope=professional');
+    expect(pro.status).toBe(200);
+    expect((await pro.json()) as { name: string; count: number }[]).toEqual([
+      { name: 'work', count: 1 },
+    ]);
+
+    const bogus = await app.request('/api/categories?scope=work');
+    expect(bogus.status).toBe(400);
+  });
+
   it('completes a top-level task from the web (no MCP guard)', async () => {
     const created = await app.request('/api/tasks', {
       method: 'POST',

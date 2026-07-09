@@ -19,6 +19,7 @@ import {
   unfocusTask,
   searchTasks,
   getStats,
+  getCategories,
 } from '../handlers/index.js';
 import type { Store } from '../store-interface.js';
 import type { SessionColor, Task } from '../types.js';
@@ -339,20 +340,13 @@ export function registerTools(server: McpServer, opts: RegisterToolsOptions): vo
   server.registerTool(
     'task_categories',
     {
-      description: 'List all known categories with usage counts. Useful for auto-categorization decisions.',
-      inputSchema: {},
+      description: 'List all known categories with usage counts. Useful for auto-categorization decisions. Pass scope to list only categories used by personal or professional tasks.',
+      inputSchema: {
+        scope: z.enum(['personal', 'professional']).optional().describe('Filter to categories used by tasks of this scope'),
+      },
     },
-    async () => {
-      const all = await resolveStore().load();
-      const counts = new Map<string, number>();
-      for (const t of all) {
-        for (const c of t.categories) {
-          counts.set(c, (counts.get(c) ?? 0) + 1);
-        }
-      }
-      const categories = Array.from(counts.entries())
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count);
+    async ({ scope }) => {
+      const categories = await getCategories(resolveStore(), scope);
       return { content: [{ type: 'text', text: JSON.stringify(categories, null, 2) }] };
     },
   );

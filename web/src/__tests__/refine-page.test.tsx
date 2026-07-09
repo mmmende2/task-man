@@ -62,6 +62,7 @@ beforeEach(() => {
   patchTask.mockReset().mockImplementation((_id, changes) => Promise.resolve({ ...makeTask(), ...changes }));
   deleteTask.mockReset().mockResolvedValue(undefined);
   sessionStorage.clear();
+  localStorage.clear();
 });
 
 describe('RefinePage', () => {

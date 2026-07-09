@@ -1,4 +1,5 @@
 import type { Store } from '../store-interface.js';
+import type { TaskScope } from '../types.js';
 import { isLocalToday } from '../local-date.js';
 
 export interface CategoryCount {
@@ -6,10 +7,16 @@ export interface CategoryCount {
   count: number;
 }
 
-/** Distinct category names with usage counts, ordered most-used first. */
-export async function getCategories(store: Store): Promise<CategoryCount[]> {
+/**
+ * Distinct category names with usage counts, ordered most-used first.
+ * When `scope` is given, only tasks with that scope contribute — categories
+ * have no stored scope of their own, so a scoped list is derived from the
+ * tasks that use them (each task counted by its own scope field).
+ */
+export async function getCategories(store: Store, scope?: TaskScope): Promise<CategoryCount[]> {
   const counts = new Map<string, number>();
   for (const t of await store.load()) {
+    if (scope && t.scope !== scope) continue;
     for (const c of t.categories) {
       counts.set(c, (counts.get(c) ?? 0) + 1);
     }
