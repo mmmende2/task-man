@@ -197,6 +197,7 @@ function InteractiveAppInner() {
           reload={reload}
           onExit={switchMode}
           previousMode={prevMode}
+          scopeFilter={scopeFilter}
         />
       ) : (
         <MetricsMode store={store} scopeFilter={scopeFilter} />

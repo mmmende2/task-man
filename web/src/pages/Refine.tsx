@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError, reloadForAuth } from '../api';
 import type { Task, TaskPriority, TaskScope } from '../types';
 import { NavMenu } from '../components/NavMenu';
-import { buildRefineQueue } from 'task-man/refine-queue';
+import { buildRefineCandidates } from 'task-man/refine-queue';
 import { buildQuestions, type QuestionDef } from 'task-man/refine-questions';
 import { ScopeChip, loadScopeFilter, saveScopeFilter, matchesScope, type ScopeFilter } from '../components/ScopeChip';
 import './Refine.css';
@@ -91,12 +91,19 @@ export function RefinePage() {
   // `snapshot` stays in deps so the first non-null load triggers a build; the
   // ref guard suppresses every subsequent same-scope run.
   const queueBuiltForScope = useRef<ScopeFilter | null>(null);
+  // How many focus questions ("Pull this into tomorrow's focus?") have been
+  // shown this session. Capped at 2 (high-priority first — the queue is
+  // priority-sorted). Reset whenever the queue is rebuilt for a new scope.
+  const focusAsksUsed = useRef(0);
   useEffect(() => {
     if (!snapshot) return;
     if (queueBuiltForScope.current === scopeFilter) return;
     queueBuiltForScope.current = scopeFilter;
+    focusAsksUsed.current = 0;
     const candidates = snapshot.filter((t) => matchesScope(t.scope, scopeFilter));
-    const ids = buildRefineQueue(candidates).map((t) => t.id);
+    // Uncapped: the session walks every candidate so the header count is the
+    // honest total (was sliced to 20 by buildRefineQueue).
+    const ids = buildRefineCandidates(candidates).map((t) => t.id);
     setQueueIds(ids);
     setTaskIndex(0);
     setQuestionIndex(0);
@@ -154,7 +161,13 @@ export function RefinePage() {
     const cats = Array.from(new Set(snap.flatMap((t) => t.categories)));
     // No local focus cap on the web (see the plan's "no focus limit" ruling):
     // threshold null means the focus card is offered with no warning note.
-    const qs = buildQuestions(task, snap, focused, null, cats);
+    // suppressFocusQuestion enforces the session cap of 2 focus asks.
+    const qs = buildQuestions(task, snap, focused, null, cats, focusAsksUsed.current >= 2);
+    // Charge an ask only for a focus card that actually SURVIVED the
+    // 3-question slice (a task with 3 earlier questions may have it sliced
+    // off — don't spend the budget on an unshown card). Undo does not refund
+    // the ask (accepted).
+    if (qs.some((q) => q.prompt.startsWith('Pull this into'))) focusAsksUsed.current += 1;
     setActiveQuestions(qs);
     setQuestionIndex(0);
     if (qs.length === 0) advanceTask();
