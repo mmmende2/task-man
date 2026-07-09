@@ -25,8 +25,8 @@ export function reloadForAuth(): void {
 }
 
 export const api = {
-  async listCategories(): Promise<{ name: string; count: number }[]> {
-    return client.req('/api/categories');
+  async listCategories(scope?: 'personal' | 'professional'): Promise<{ name: string; count: number }[]> {
+    return client.req(`/api/categories${scope ? `?scope=${scope}` : ''}`);
   },
   async listTasks(params: Record<string, string | undefined> = {}): Promise<Task[]> {
     const qs = new URLSearchParams();

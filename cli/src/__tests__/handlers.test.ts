@@ -17,6 +17,7 @@ import {
   unfocusTask,
   searchTasks,
   getStats,
+  getCategories,
   sortTasks,
 } from '../handlers/index.js';
 
@@ -144,5 +145,30 @@ describe('handlers', () => {
     expect(stats.total).toBe(2);
     expect(stats.completed_today).toBe(1);
     expect(stats.backlog).toBe(1);
+  });
+
+  it('getCategories aggregates counts, ordered most-used first', async () => {
+    await createTask(store, { title: 'A', categories: ['home', 'errand'] });
+    await createTask(store, { title: 'B', categories: ['home'] });
+    const cats = await getCategories(store);
+    expect(cats).toEqual([
+      { name: 'home', count: 2 },
+      { name: 'errand', count: 1 },
+    ]);
+  });
+
+  it('getCategories with a scope counts only that scope\'s tasks', async () => {
+    await createTask(store, { title: 'P', scope: 'personal', categories: ['home'] });
+    await createTask(store, { title: 'W', scope: 'professional', categories: ['work'] });
+    await createTask(store, { title: 'W2', scope: 'professional', categories: ['work', 'home'] });
+
+    const pro = await getCategories(store, 'professional');
+    expect(pro).toEqual([
+      { name: 'work', count: 2 },
+      { name: 'home', count: 1 },
+    ]);
+
+    const personal = await getCategories(store, 'personal');
+    expect(personal).toEqual([{ name: 'home', count: 1 }]);
   });
 });

@@ -2,8 +2,10 @@ import type { TaskScope } from '../types';
 import './ScopeChip.css';
 
 // Scope filter chip shared by Focus and Backlog. Tap to cycle
-// all → personal → professional. Persisted in sessionStorage under one
-// key so the two pages stay in sync within a browsing session.
+// all → personal → professional. Persisted in localStorage under one key so
+// the filter survives across sessions (close the tab, reopen, still set) and
+// the pages stay in sync. Deliberately no `storage` event listener —
+// cross-tab live sync is not required.
 
 export type ScopeFilter = 'all' | TaskScope;
 
@@ -12,8 +14,17 @@ const STORAGE_KEY = 'scopeFilter';
 
 export function loadScopeFilter(): ScopeFilter {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw === 'personal' || raw === 'professional' ? raw : 'all';
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === 'personal' || raw === 'professional') return raw;
+    // One-shot migration from the old sessionStorage home. If a valid value
+    // is there, promote it to localStorage and clear the old key.
+    const legacy = sessionStorage.getItem(STORAGE_KEY);
+    if (legacy === 'personal' || legacy === 'professional') {
+      localStorage.setItem(STORAGE_KEY, legacy);
+      sessionStorage.removeItem(STORAGE_KEY);
+      return legacy;
+    }
+    return 'all';
   } catch {
     return 'all';
   }
@@ -21,9 +32,9 @@ export function loadScopeFilter(): ScopeFilter {
 
 export function saveScopeFilter(v: ScopeFilter) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, v);
+    localStorage.setItem(STORAGE_KEY, v);
   } catch {
-    /* sessionStorage full or disabled — filter just won't persist */
+    /* localStorage full or disabled — filter just won't persist */
   }
 }
 
