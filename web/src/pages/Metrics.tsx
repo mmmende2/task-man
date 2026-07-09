@@ -4,7 +4,7 @@ import { usePoll } from '../lib/use-poll';
 import { NavMenu } from '../components/NavMenu';
 import { Brand } from '../components/Brand';
 import { ScopeChip, loadScopeFilter, saveScopeFilter, type ScopeFilter } from '../components/ScopeChip';
-import { localDateString, isOnLocalDate } from 'task-man/local-date';
+import { localDateString, isOnLocalDate, defaultMetricsDate } from 'task-man/local-date';
 import type { Task } from '../types';
 import './Metrics.css';
 
@@ -12,11 +12,22 @@ const STATUS_ORDER: Record<string, number> = { done: 0, in_progress: 1, todo: 2 
 
 export function MetricsPage() {
   const today = localDateString();
-  const [viewDate, setViewDate] = useState(today);
+  // Initial day by scope + time of day (see defaultMetricsDate). For morning +
+  // professional this lands on 'yesterday' first; the smart-init effect below
+  // then jumps to the real last work day once the first response arrives.
+  const [viewDate, setViewDate] = useState(() =>
+    defaultMetricsDate({ scope: loadScopeFilter(), lastWorkDay: null }),
+  );
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>(() => loadScopeFilter());
   // "Last work day" pressed from a non-professional scope: jump once the
   // professionally-scoped response (with its own lastWorkDay) arrives.
   const [pendingLastWork, setPendingLastWork] = useState(false);
+  // Morning + professional at mount: jump to the last work day once the first
+  // response lands (its lastWorkDay isn't known until then). Any manual date
+  // action clears this before it can fire.
+  const [pendingSmartInit, setPendingSmartInit] = useState(
+    () => loadScopeFilter() === 'professional' && new Date().getHours() < 12,
+  );
   // Which scope the currently-displayed metrics were fetched under — guards
   // the pending jump against acting on stale (pre-scope-switch) data.
   const fetchedScope = useRef<ScopeFilter>('all');
@@ -62,6 +73,14 @@ export function MetricsPage() {
     if (metrics.lastWorkDay) setViewDate(metrics.lastWorkDay);
   }, [pendingLastWork, metrics]);
 
+  // Morning + professional smart-init: on the first professional response,
+  // jump to its lastWorkDay (or stay put if there is none).
+  useEffect(() => {
+    if (!pendingSmartInit || !metrics || fetchedScope.current !== 'professional') return;
+    setPendingSmartInit(false);
+    setViewDate((cur) => metrics.lastWorkDay ?? cur);
+  }, [pendingSmartInit, metrics]);
+
   const isPast = viewDate !== today;
   const dateLabel = isPast ? `Done on ${viewDate}` : 'Done today';
   const sectionLabel = isPast ? `Progress — ${viewDate}` : "Today's Progress";
@@ -87,6 +106,7 @@ export function MetricsPage() {
   // when switching we defer the date change until that data lands (see the
   // pendingLastWork effect above).
   const goLastWorkDay = () => {
+    setPendingSmartInit(false);
     if (scopeFilter === 'professional') {
       if (metrics?.lastWorkDay) setViewDate(metrics.lastWorkDay);
     } else {
@@ -95,10 +115,16 @@ export function MetricsPage() {
     }
   };
 
-  const goToday = () => setViewDate(today);
+  const goToday = () => {
+    setPendingSmartInit(false);
+    setViewDate(today);
+  };
 
   const onPickDate = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.value) setViewDate(e.target.value);
+    if (e.target.value) {
+      setPendingSmartInit(false);
+      setViewDate(e.target.value);
+    }
   };
 
   return (

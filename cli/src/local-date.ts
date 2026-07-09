@@ -40,6 +40,48 @@ export function isOnLocalDate(iso: string | null | undefined, date: string): boo
 }
 
 /**
+ * Add `delta` days to a local `YYYY-MM-DD` string, returning another
+ * `YYYY-MM-DD`. Parses by components (`new Date(y, m-1, d+delta)`) so the
+ * arithmetic happens in local time and rolls month/year/DST boundaries
+ * correctly. NEVER `new Date(dateString)` here — that parses as UTC midnight
+ * and shifts the date west of UTC (the whole reason this module exists).
+ */
+export function addDays(date: string, delta: number): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return localDateString(new Date(y, m - 1, d + delta));
+}
+
+/**
+ * The day Metrics should open on, by scope and time of day:
+ *   - morning (before 12:00 local) + personal/all → yesterday
+ *   - morning + professional → last work day (fallback: yesterday)
+ *   - afternoon/evening → today
+ * Scope 'all' is treated as personal. The result is clamped to ≤ today.
+ * `now` is injectable for testing; defaults to the current time.
+ */
+export function defaultMetricsDate({
+  scope,
+  lastWorkDay,
+  now,
+}: {
+  scope: 'all' | 'personal' | 'professional';
+  lastWorkDay: string | null;
+  now?: Date;
+}): string {
+  const n = now ?? new Date();
+  const today = localDateString(n);
+  let result = today;
+  if (n.getHours() < 12) {
+    result =
+      scope === 'professional'
+        ? lastWorkDay ?? addDays(today, -1)
+        : addDays(today, -1);
+  }
+  // Clamp to today (lastWorkDay is always in the past, but guard anyway).
+  return result > today ? today : result;
+}
+
+/**
  * Resolve a date argument from the CLI/MCP end-day commands:
  *   undefined | null | 'today' → local-today
  *   'yesterday'                → local-yesterday

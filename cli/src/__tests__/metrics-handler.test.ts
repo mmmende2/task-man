@@ -6,7 +6,9 @@ import { TaskStore } from '../store.js';
 import { LocalStore } from '../local-store.js';
 import type { Store } from '../store-interface.js';
 import { buildMetrics } from '../handlers/metrics.js';
+import { computeLastWorkDay, computeEarliestDate } from '../metrics-dates.js';
 import { localDateString } from '../local-date.js';
+import type { Task } from '../types.js';
 
 const TODAY = localDateString();
 
@@ -161,5 +163,42 @@ describe('buildMetrics', () => {
     // its subtree should be included via the subtask-completion bridge.
     expect(r.subtasksByParent[parent.id]).toBeDefined();
     expect(r.subtasksByParent[parent.id]).toHaveLength(1);
+  });
+});
+
+describe('computeLastWorkDay / computeEarliestDate', () => {
+  // Minimal task shape for the pure date helpers (only the date fields matter).
+  const task = (over: Partial<Task>): Task =>
+    ({
+      id: 'x', title: 't', description: null, status: 'todo', priority: 'medium',
+      scope: 'personal', categories: [], parent_id: null,
+      created_at: isoOnLocalDate(TODAY), updated_at: isoOnLocalDate(TODAY),
+      completed_at: null, focused: false, created_by: 'human', session_id: null,
+      time_estimate: null, vibe: null, owner: null, ...over,
+    }) as Task;
+
+  it('computeLastWorkDay returns the most recent completion strictly before the date', () => {
+    const tasks = [
+      task({ completed_at: isoOnLocalDate(priorDay(1)) }),
+      task({ completed_at: isoOnLocalDate(priorDay(3)) }),
+      task({ completed_at: isoOnLocalDate(TODAY) }), // on the date — excluded
+      task({ completed_at: null }),                  // never done — ignored
+    ];
+    expect(computeLastWorkDay(tasks, TODAY)).toBe(priorDay(1));
+  });
+
+  it('computeLastWorkDay is null when nothing was completed before the date', () => {
+    expect(computeLastWorkDay([task({ completed_at: isoOnLocalDate(TODAY) })], TODAY)).toBeNull();
+    expect(computeLastWorkDay([], TODAY)).toBeNull();
+  });
+
+  it('computeEarliestDate returns the min created_at date, or null', () => {
+    const tasks = [
+      task({ created_at: isoOnLocalDate(priorDay(2)) }),
+      task({ created_at: isoOnLocalDate(priorDay(10)) }),
+      task({ created_at: isoOnLocalDate(TODAY) }),
+    ];
+    expect(computeEarliestDate(tasks)).toBe(priorDay(10));
+    expect(computeEarliestDate([])).toBeNull();
   });
 });

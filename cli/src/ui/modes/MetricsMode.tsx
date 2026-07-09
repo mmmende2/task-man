@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { DayReport, Task, TaskScope } from '../../types.js';
 import type { Store } from '../../store-interface.js';
@@ -10,7 +10,8 @@ import { ProgressBar } from '../shared/ProgressBar.js';
 import { PulsingProgressBar } from '../shared/PulsingProgressBar.js';
 import { SectionDivider } from '../shared/SectionDivider.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
-import { isOnLocalDate, localDateString } from '../../local-date.js';
+import { isOnLocalDate, localDateString, addDays, defaultMetricsDate } from '../../local-date.js';
+import { computeLastWorkDay, computeEarliestDate } from '../../metrics-dates.js';
 
 interface Props {
   store: Store;
@@ -28,10 +29,18 @@ interface SubtaskInfo {
 export function MetricsMode({ store, scopeFilter = 'all' }: Props) {
   const scope = scopeFilter === 'all' ? undefined : scopeFilter;
   const realToday = localDateString();
-  const [viewDate, setViewDate] = useState(realToday);
+  // Initial day by scope + time of day. Synchronously correct for
+  // personal/all and for the afternoon; morning + professional wants the last
+  // work day, which needs loaded tasks — resolved by the one-shot below.
+  const [viewDate, setViewDate] = useState(() =>
+    defaultMetricsDate({ scope: scopeFilter, lastWorkDay: null }),
+  );
   const [editingDate, setEditingDate] = useState(false);
   const [dateText, setDateText] = useState('');
   const [dateCursor, setDateCursor] = useState(0);
+  // Any h/l/D interaction claims the view — suppresses the morning smart-init.
+  const userNavigated = useRef(false);
+  const smartInitDone = useRef(false);
 
   const today = viewDate;
   const [report, setReport] = useState<DayReport>(EMPTY_DAY_REPORT);
@@ -40,11 +49,21 @@ export function MetricsMode({ store, scopeFilter = 'all' }: Props) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([buildDayReport(store, today, { scope }), store.load()]).then(([r, tasks]) => {
-      if (!cancelled) {
-        setReport(r);
-        // Same parent-scope slice the report was built from, so the task
-        // list below matches the numbers above.
-        setAllTasks(filterByScope(tasks, scope));
+      if (cancelled) return;
+      setReport(r);
+      // Same parent-scope slice the report was built from, so the task
+      // list below matches the numbers above.
+      const scoped = filterByScope(tasks, scope);
+      setAllTasks(scoped);
+      // One-shot: morning + professional opens on the last work day, which
+      // needed loaded tasks to compute. Null (no prior completions) → stay on
+      // yesterday (the init value). User navigation pre-empts it.
+      if (!smartInitDone.current) {
+        smartInitDone.current = true;
+        if (!userNavigated.current && scopeFilter === 'professional' && new Date().getHours() < 12) {
+          const lwd = computeLastWorkDay(scoped, realToday);
+          if (lwd) setViewDate(lwd);
+        }
       }
     });
     return () => {
@@ -136,9 +155,25 @@ export function MetricsMode({ store, scopeFilter = 'all' }: Props) {
     }
 
     if (input === 'D') {
+      userNavigated.current = true;
       setDateText(viewDate);
       setDateCursor(viewDate.length);
       setEditingDate(true);
+    } else if (input === 'h') {
+      // Step back a day, clamped at the earliest task date.
+      userNavigated.current = true;
+      const floor = computeEarliestDate(allTasks) ?? viewDate;
+      setViewDate(d => {
+        const prev = addDays(d, -1);
+        return prev < floor ? floor : prev;
+      });
+    } else if (input === 'l') {
+      // Step forward a day, clamped at today.
+      userNavigated.current = true;
+      setViewDate(d => {
+        const next = addDays(d, 1);
+        return next > realToday ? realToday : next;
+      });
     }
     // 'e' (print report + exit) removed 2026-07 — reports/email live in MCP
     // task_end_day; Metrics stays on-screen only.

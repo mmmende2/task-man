@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { localDateString, isLocalToday } from '../local-date.js';
+import { localDateString, isLocalToday, addDays, defaultMetricsDate } from '../local-date.js';
 
 describe('local-date', () => {
   afterEach(() => {
@@ -43,5 +43,62 @@ describe('local-date', () => {
     vi.setSystemTime(now);
 
     expect(isLocalToday(completion.toISOString())).toBe(true);
+  });
+
+  describe('addDays', () => {
+    it('steps within a month', () => {
+      expect(addDays('2026-07-09', -1)).toBe('2026-07-08');
+      expect(addDays('2026-07-09', 1)).toBe('2026-07-10');
+    });
+
+    it('rolls a month boundary backward', () => {
+      expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+    });
+
+    it('rolls a year boundary backward', () => {
+      expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
+    });
+
+    it('handles a US spring-forward DST day without drifting', () => {
+      // 2026-03-08 is the US DST switch; component-based math must not shift
+      // the calendar date regardless of the host timezone.
+      expect(addDays('2026-03-08', 1)).toBe('2026-03-09');
+      expect(addDays('2026-03-09', -1)).toBe('2026-03-08');
+    });
+
+    it('handles a US fall-back DST day without drifting', () => {
+      expect(addDays('2026-11-01', 1)).toBe('2026-11-02');
+      expect(addDays('2026-11-02', -1)).toBe('2026-11-01');
+    });
+  });
+
+  describe('defaultMetricsDate', () => {
+    const morning = new Date(2026, 6, 9, 9, 0, 0); // 2026-07-09 09:00 local
+    const afternoon = new Date(2026, 6, 9, 15, 0, 0); // 2026-07-09 15:00 local
+    const LWD = '2026-07-06';
+    const YESTERDAY = '2026-07-08';
+    const TODAY = '2026-07-09';
+
+    it('morning + personal → yesterday (lastWorkDay ignored)', () => {
+      expect(defaultMetricsDate({ scope: 'personal', lastWorkDay: LWD, now: morning })).toBe(YESTERDAY);
+      expect(defaultMetricsDate({ scope: 'personal', lastWorkDay: null, now: morning })).toBe(YESTERDAY);
+    });
+
+    it('morning + all → yesterday (treated as personal)', () => {
+      expect(defaultMetricsDate({ scope: 'all', lastWorkDay: LWD, now: morning })).toBe(YESTERDAY);
+      expect(defaultMetricsDate({ scope: 'all', lastWorkDay: null, now: morning })).toBe(YESTERDAY);
+    });
+
+    it('morning + professional → last work day, falling back to yesterday', () => {
+      expect(defaultMetricsDate({ scope: 'professional', lastWorkDay: LWD, now: morning })).toBe(LWD);
+      expect(defaultMetricsDate({ scope: 'professional', lastWorkDay: null, now: morning })).toBe(YESTERDAY);
+    });
+
+    it('afternoon → today for every scope', () => {
+      for (const scope of ['personal', 'professional', 'all'] as const) {
+        expect(defaultMetricsDate({ scope, lastWorkDay: LWD, now: afternoon })).toBe(TODAY);
+        expect(defaultMetricsDate({ scope, lastWorkDay: null, now: afternoon })).toBe(TODAY);
+      }
+    });
   });
 });

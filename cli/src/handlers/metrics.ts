@@ -3,6 +3,7 @@ import type { MetricsResponse, Task, TaskScope } from '../types.js';
 import { buildDayReport } from '../report.js';
 import { filterByScope } from '../task-filters.js';
 import { localDateString } from '../local-date.js';
+import { computeLastWorkDay, computeEarliestDate } from '../metrics-dates.js';
 
 // Re-export so callers can `import { MetricsResponse } from 'task-man/handlers'`.
 // The interface itself lives in types.ts (pure type module) so the web bundle
@@ -40,24 +41,10 @@ export async function buildMetrics(
     }
   }
 
-  // lastWorkDay: scan distinct local-dates of any completion strictly before `date`.
-  let lastWorkDay: string | null = null;
-  for (const t of all) {
-    if (!t.completed_at) continue;
-    const d = localDateString(new Date(t.completed_at));
-    if (d < date && (lastWorkDay === null || d > lastWorkDay)) {
-      lastWorkDay = d;
-    }
-  }
-
+  // lastWorkDay: most recent completion strictly before `date` (in scope).
+  const lastWorkDay = computeLastWorkDay(all, date);
   // earliestDate: min(created_at) across all tasks, in local time.
-  let earliestDate: string | null = null;
-  for (const t of all) {
-    const d = localDateString(new Date(t.created_at));
-    if (earliestDate === null || d < earliestDate) {
-      earliestDate = d;
-    }
-  }
+  const earliestDate = computeEarliestDate(all);
 
   return { ...report, subtasksByParent, lastWorkDay, earliestDate };
 }
