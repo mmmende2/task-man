@@ -172,11 +172,19 @@ Full-text search across titles and descriptions, with optional filters.
 
 ### `task_session_color`
 
-Set the terminal color for the current Claude Code session. Matches the session tint used across the TUI.
+Set the terminal color for the current Claude Code session. Matches the session tint used across the TUI. Stdio-only — not registered on the hosted `/mcp` endpoint (no local session to color there).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `color` | `cyan` / `magenta` / `purple` / `yellow` | yes | |
+
+### `task_whoami`
+
+Diagnostic: which store this MCP server talks to — mode (`local`/`remote`/`server`), remote URL, reachability, and authenticated identity. No parameters. Same info as `task-man whoami` on the CLI. See [`docs/mcp-remote-mode-hardening.md`](../docs/mcp-remote-mode-hardening.md).
+
+## Remote MCP (claude.ai connector / iOS)
+
+The same tools (minus `task_session_color`) are served over streamable HTTP at `POST /mcp` by `task-man serve`, so a claude.ai custom connector — and therefore the Claude iOS app — can use them. Setup: [`docs/mcp-remote-mode-hardening.md`](../docs/mcp-remote-mode-hardening.md).
 
 ## Development
 
