@@ -6,7 +6,7 @@ import type { AppMode } from '../types.js';
 import { loadConfig } from '../../config.js';
 import { buildRefineQueue } from '../../refine-queue.js';
 import { filterByScope } from '../../task-filters.js';
-import { buildQuestions, type QuestionDef } from '../../refine-questions.js';
+import { buildQuestions, deriveCategories, type QuestionDef } from '../../refine-questions.js';
 import { usePulse, CYAN_PULSE } from '../hooks/usePulse.js';
 import { RefineQuestion } from './RefineQuestion.js';
 
@@ -147,7 +147,9 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     if (phase !== 'asking' || !currentTask) return;
     const all = allTasksRef.current;
     const focused = all.filter(t => t.focused && t.status !== 'done').length;
-    const cats = Array.from(new Set(all.flatMap(t => t.categories)));
+    // Scope the offered categories to the session's scope (and case-dedupe) so
+    // e.g. work categories don't surface while refining personal tasks.
+    const cats = deriveCategories(all, scopeFilter === 'all' ? undefined : scopeFilter);
     const qs = buildQuestions(currentTask, all, focused, config.focus.maxFocused, cats, focusAsksUsed.current >= 2);
     // Charge an ask only for a focus card that survived the question slice
     // (see the web's matching note in Refine.tsx). Undo doesn't refund it.
