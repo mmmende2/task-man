@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildQuestions, suggestTitleFix, MAX_QUESTIONS_PER_TASK } from '../refine-questions.js';
+import { buildQuestions, deriveCategories, suggestTitleFix, MAX_QUESTIONS_PER_TASK } from '../refine-questions.js';
+import { STALE_TODO_DAYS } from '../refine-queue.js';
 import type { Task } from '../types.js';
 
 // A fully-refined human task: no scope gap, has time + vibe, has a category,
@@ -70,7 +71,7 @@ describe('buildQuestions', () => {
   });
 
   it('reviews priority on a stale todo', () => {
-    const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const old = new Date(Date.now() - (STALE_TODO_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString();
     expect(prompts(makeTask({ created_at: old, priority: 'low' }))).toContain('How urgent is this, really?');
   });
 
@@ -147,5 +148,47 @@ describe('buildQuestions', () => {
     });
     const qs = buildQuestions(messy, [], 0, 3, ['work', 'home']);
     expect(qs.length).toBeLessThanOrEqual(MAX_QUESTIONS_PER_TASK);
+  });
+});
+
+describe('deriveCategories', () => {
+  it('returns categories used within the scope only', () => {
+    const tasks = [
+      makeTask({ id: 'a', scope: 'personal', categories: ['Home'] }),
+      makeTask({ id: 'b', scope: 'professional', categories: ['AIM'] }),
+    ];
+    expect(deriveCategories(tasks, 'personal')).toEqual(['Home']);
+    expect(deriveCategories(tasks, 'professional')).toEqual(['AIM']);
+    expect(deriveCategories(tasks).sort()).toEqual(['AIM', 'Home']);
+  });
+
+  it('inherits a subtask into its parent scope (parent-scope semantics)', () => {
+    const tasks = [
+      makeTask({ id: 'p', parent_id: null, scope: 'professional', categories: [] }),
+      // Subtask stored as personal but belongs to its professional parent.
+      makeTask({ id: 's', parent_id: 'p', scope: 'personal', categories: ['migration'] }),
+    ];
+    expect(deriveCategories(tasks, 'professional')).toEqual(['migration']);
+    expect(deriveCategories(tasks, 'personal')).toEqual([]);
+  });
+
+  it('collapses case-duplicate categories, keeping the most-common casing', () => {
+    const tasks = [
+      makeTask({ id: 'a', categories: ['AIM'] }),
+      makeTask({ id: 'b', categories: ['AIM'] }),
+      makeTask({ id: 'c', categories: ['aim'] }),
+    ];
+    // 'AIM' (2) beats 'aim' (1); one merged entry with the combined count.
+    expect(deriveCategories(tasks)).toEqual(['AIM']);
+  });
+
+  it('orders by usage (most-used first)', () => {
+    const tasks = [
+      makeTask({ id: 'a', categories: ['rare'] }),
+      makeTask({ id: 'b', categories: ['common'] }),
+      makeTask({ id: 'c', categories: ['common'] }),
+      makeTask({ id: 'd', categories: ['common'] }),
+    ];
+    expect(deriveCategories(tasks)).toEqual(['common', 'rare']);
   });
 });

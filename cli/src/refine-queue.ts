@@ -2,6 +2,9 @@ import type { Task, TaskPriority } from './types.js';
 
 const MAX_TASKS = 20;
 
+/** Days a todo can sit untouched before refine flags it as stale. */
+export const STALE_TODO_DAYS = 30;
+
 function daysSince(iso: string): number {
   const then = new Date(iso).getTime();
   const now = Date.now();
@@ -19,6 +22,23 @@ export type RefineReason =
 export interface RefineCandidate {
   task: Task;
   reasons: RefineReason[];
+}
+
+/**
+ * Does this task warrant the "How urgent is this, really?" review because it
+ * has gone stale? Already-high tasks are exempt — their urgency is answered.
+ *
+ * Shared by isRefineCandidate (stale_todo reason) and buildQuestions (the
+ * priority card) so the two gates can never drift. The queue/questions
+ * invariant this protects: every reason that admits a task to the refine
+ * queue must map to a card buildQuestions will actually ask. A queued task
+ * with zero cards is auto-skipped by the session (qs.length === 0 →
+ * advanceTask in RefineMode/Refine.tsx), and once the focus-ask budget is
+ * spent those skips chain — the TUI visibly fast-forwards through the rest
+ * of the queue with no input.
+ */
+export function isStaleTodo(t: Task): boolean {
+  return t.status === 'todo' && daysSince(t.created_at) > STALE_TODO_DAYS && t.priority !== 'high';
 }
 
 /**
@@ -40,7 +60,7 @@ export function isRefineCandidate(
   const reasons: RefineReason[] = [];
   if (!t.scope) reasons.push('no_scope');
   if (t.created_by === 'claude') reasons.push('from_claude');
-  if (t.status === 'todo' && daysSince(t.created_at) > 7) reasons.push('stale_todo');
+  if (isStaleTodo(t)) reasons.push('stale_todo');
   if (t.time_estimate == null) reasons.push('no_time_estimate');
   if (t.vibe == null) reasons.push('no_vibe');
   if (t.categories.length === 0 && (opts?.anyCategoriesExist ?? true)) reasons.push('no_category');

@@ -4,7 +4,7 @@ import { api, ApiError, reloadForAuth } from '../api';
 import type { Task, TaskPriority, TaskScope } from '../types';
 import { NavMenu } from '../components/NavMenu';
 import { buildRefineCandidates } from 'task-man/refine-queue';
-import { buildQuestions, type QuestionDef } from 'task-man/refine-questions';
+import { buildQuestions, deriveCategories, type QuestionDef } from 'task-man/refine-questions';
 import { localDateString } from 'task-man/local-date';
 import { ScopeChip, loadScopeFilter, saveScopeFilter, matchesScope, type ScopeFilter } from '../components/ScopeChip';
 import './Refine.css';
@@ -162,12 +162,14 @@ export function RefinePage() {
     return m;
   }, [snapshot]);
 
-  // Every category in use, for the "File this under…?" card's dropdown — the
-  // card's quick buttons only surface the first few, so a less-common category
-  // was unreachable without this.
+  // Every category in use *within the active scope*, for the "File this
+  // under…?" card's dropdown — the card's quick buttons only surface the first
+  // few, so a less-common category was unreachable without this. Scoped +
+  // case-deduped by deriveCategories so it matches the quick-pick options
+  // (and the TUI) exactly.
   const allCategories = useMemo(
-    () => Array.from(new Set((snapshot ?? []).flatMap((t) => t.categories))).sort(),
-    [snapshot],
+    () => deriveCategories(snapshot ?? [], scopeFilter === 'all' ? undefined : scopeFilter),
+    [snapshot, scopeFilter],
   );
 
   const currentTaskId = queueIds[taskIndex];
@@ -210,7 +212,10 @@ export function RefinePage() {
     const task = snap.find((t) => t.id === currentTaskId);
     if (!task) { advanceTask(); return; }
     const focused = snap.filter((t) => t.focused && t.status !== 'done').length;
-    const cats = Array.from(new Set(snap.flatMap((t) => t.categories)));
+    // Scope + case-dedupe the quick-pick categories the same way as the
+    // dropdown above, so the two never disagree (and work categories don't
+    // leak into a personal session).
+    const cats = deriveCategories(snap, scopeFilter === 'all' ? undefined : scopeFilter);
     // No local focus cap on the web (see the plan's "no focus limit" ruling):
     // threshold null means the focus card is offered with no warning note.
     // suppressFocusQuestion enforces the per-day cap of FOCUS_ASKS_PER_DAY.

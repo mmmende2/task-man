@@ -6,7 +6,7 @@ import type { AppMode } from '../types.js';
 import { loadConfig } from '../../config.js';
 import { buildRefineQueue } from '../../refine-queue.js';
 import { filterByScope } from '../../task-filters.js';
-import { buildQuestions, type QuestionDef } from '../../refine-questions.js';
+import { buildQuestions, deriveCategories, type QuestionDef } from '../../refine-questions.js';
 import { usePulse, CYAN_PULSE } from '../hooks/usePulse.js';
 import { RefineQuestion } from './RefineQuestion.js';
 
@@ -139,6 +139,15 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     }, BETWEEN_MS);
   }, [queue.length, onExit, previousMode]);
 
+  // Hold advanceTask behind a ref so the effects below can CALL the latest one
+  // without listing it as a dependency. advanceTask's identity changes on every
+  // parent render (onExit=switchMode is a fresh function each InteractiveApp
+  // render, and the store polls every 2s) — listing it made the freeze effect
+  // re-run on every poll/reload, resetting questionIndex to 0 and rebuilding the
+  // question list mid-task, which manifested as cards flashing past on their own.
+  const advanceTaskRef = useRef(advanceTask);
+  useEffect(() => { advanceTaskRef.current = advanceTask; }, [advanceTask]);
+
   // Freeze the question list when a task becomes current. Keyed on task
   // identity + phase, so it does NOT re-run as the current task's own fields
   // change under applyChange — that's what keeps the list stable while you
@@ -147,7 +156,9 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     if (phase !== 'asking' || !currentTask) return;
     const all = allTasksRef.current;
     const focused = all.filter(t => t.focused && t.status !== 'done').length;
-    const cats = Array.from(new Set(all.flatMap(t => t.categories)));
+    // Scope the offered categories to the session's scope (and case-dedupe) so
+    // e.g. work categories don't surface while refining personal tasks.
+    const cats = deriveCategories(all, scopeFilter === 'all' ? undefined : scopeFilter);
     const qs = buildQuestions(currentTask, all, focused, config.focus.maxFocused, cats, focusAsksUsed.current >= 2);
     // Charge an ask only for a focus card that survived the question slice
     // (see the web's matching note in Refine.tsx). Undo doesn't refund it.
@@ -155,15 +166,15 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     setActiveQuestions(qs);
     setQuestionIndex(0);
     setListCursor(0);
-    if (qs.length === 0) advanceTask();
-  }, [currentTask?.id, phase, config.focus.maxFocused, advanceTask]);
+    if (qs.length === 0) advanceTaskRef.current();
+  }, [currentTask?.id, phase, config.focus.maxFocused]);
 
   // Walked past the end of a task's frozen list → next task. (The empty-list
   // case is handled at freeze time above.)
   useEffect(() => {
     if (phase !== 'asking') return;
-    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) advanceTask();
-  }, [phase, questionIndex, activeQuestions.length, advanceTask]);
+    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) advanceTaskRef.current();
+  }, [phase, questionIndex, activeQuestions.length]);
 
   const applyChange = useCallback(async (changes: Partial<Task>, flashLabel: string) => {
     if (!currentTask) return;
