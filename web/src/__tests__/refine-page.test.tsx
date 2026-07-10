@@ -107,14 +107,16 @@ describe('RefinePage', () => {
     await screen.findByText(/Nothing needs refine/);
   });
 
-  it('surfaces the honest uncapped total in the header (was capped at 20)', async () => {
-    // 25 candidates → the session walks all 25, not a 20-sliced queue.
+  it('caps the session walk at 20 when more candidates exist', async () => {
+    // 25 candidates → the session walks the top 20 (the NavMenu badge and the
+    // complete screen carry the honest total). A single sitting must not read
+    // "/ 25" — an endless-feeling queue was the complaint.
     const tasks = Array.from({ length: 25 }, (_, i) => makeTask({ id: `t${i}`, vibe: null }));
     listTasks.mockResolvedValue(tasks);
     renderPage();
 
     await screen.findByText('Vibe check?');
-    expect(screen.getByText(/task 1 \/ 25/)).toBeTruthy();
+    expect(screen.getByText(/task 1 \/ 20/)).toBeTruthy();
   });
 
   it('offers the focus card on the first two tasks but not the third (cap of 2)', async () => {
@@ -137,6 +139,33 @@ describe('RefinePage', () => {
     await user.click(screen.getByRole('button', { name: 'ok' }));
 
     await screen.findByText(/3 tasks reviewed/);
+    expect(screen.queryByText("Pull this into tomorrow's focus?")).toBeNull();
+  });
+
+  // Issue: "still constantly getting asked to focus". The cap is per-DAY and
+  // persisted, so re-opening Refine the same day must not resurface the card —
+  // a plain per-mount ref used to reset it every visit.
+  it('keeps the focus-ask budget spent across a remount (same day)', async () => {
+    const user = userEvent.setup();
+
+    // First visit: spend both focus asks.
+    listTasks.mockResolvedValue(['a', 'b'].map((id) => makeTask({ id, vibe: null, focused: false })));
+    const { unmount } = renderPage();
+    for (let i = 0; i < 2; i++) {
+      await screen.findByText('Vibe check?');
+      await user.click(screen.getByRole('button', { name: 'ok' }));
+      await screen.findByText("Pull this into tomorrow's focus?");
+      await user.click(screen.getByRole('button', { name: 'No' }));
+    }
+    unmount();
+
+    // Fresh visit, same day, one task: the budget is already spent, so
+    // answering its vibe ends the session instead of surfacing a focus card.
+    listTasks.mockResolvedValue([makeTask({ id: 'c', vibe: null, focused: false })]);
+    renderPage();
+    await screen.findByText('Vibe check?');
+    await user.click(screen.getByRole('button', { name: 'ok' }));
+    await screen.findByText(/1 task reviewed/);
     expect(screen.queryByText("Pull this into tomorrow's focus?")).toBeNull();
   });
 });

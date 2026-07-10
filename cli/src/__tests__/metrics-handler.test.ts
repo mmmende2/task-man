@@ -163,6 +163,10 @@ describe('buildMetrics', () => {
     // its subtree should be included via the subtask-completion bridge.
     expect(r.subtasksByParent[parent.id]).toBeDefined();
     expect(r.subtasksByParent[parent.id]).toHaveLength(1);
+    // ...and it must appear in activeParents so the web renders the row — the
+    // web dropped this case when it reconstructed rows from
+    // completedTasks ∪ inProgressTasks alone (regression fix).
+    expect(r.activeParents.map((t) => t.id)).toContain(parent.id);
   });
 });
 

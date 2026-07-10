@@ -41,10 +41,15 @@ export async function buildMetrics(
     }
   }
 
+  // The parent rows the web should render: every active parent, including a
+  // `todo` parent whose only activity was a completed subtask (activeParentIds
+  // already captures that case; completedTasks ∪ inProgressTasks does not).
+  const activeParents = all.filter((t) => t.parent_id === null && activeParentIds.has(t.id));
+
   // lastWorkDay: most recent completion strictly before `date` (in scope).
   const lastWorkDay = computeLastWorkDay(all, date);
   // earliestDate: min(created_at) across all tasks, in local time.
   const earliestDate = computeEarliestDate(all);
 
-  return { ...report, subtasksByParent, lastWorkDay, earliestDate };
+  return { ...report, activeParents, subtasksByParent, lastWorkDay, earliestDate };
 }

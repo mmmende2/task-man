@@ -140,6 +140,25 @@
   opacity: 0.5;
 }
 
+/* Full-category dropdown on the "File this under…?" card — styled to sit
+   alongside the quick-pick option buttons. */
+.refine-select {
+  min-height: 52px;
+  font-size: 17px;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-row);
+  color: var(--fg-dim);
+  padding: 0 12px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.refine-select:disabled {
+  opacity: 0.5;
+}
+
 /* ── Correction diff ──────────────────────────────────── */
 .refine-correction {
   margin-top: 20px;

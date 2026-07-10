@@ -31,6 +31,7 @@ const emptyMetrics: MetricsResponse = {
   },
   completedTasks: [],
   inProgressTasks: [],
+  activeParents: [],
   subtasksByParent: {},
   lastWorkDay: null,
   earliestDate: null,

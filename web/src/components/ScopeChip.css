@@ -5,7 +5,9 @@
   font-family: inherit;
   font-size: 0.8rem;
   padding: 4px 10px;
-  border-radius: 999px;
+  /* Match the nav trigger's rounded-square corners (sibling in the header)
+     rather than a pill. */
+  border-radius: 10px;
   cursor: pointer;
   white-space: nowrap;
   min-height: var(--tap-min, 32px);

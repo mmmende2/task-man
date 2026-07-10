@@ -92,10 +92,10 @@ export function MetricsPage() {
 
   const sortedActive = useMemo(() => {
     if (!metrics) return [];
-    const set = new Map<string, Task>();
-    for (const t of metrics.completedTasks) set.set(t.id, t);
-    for (const t of metrics.inProgressTasks) set.set(t.id, t);
-    return [...set.values()].sort(
+    // activeParents already includes `todo` parents whose only activity was a
+    // completed subtask — older builds reconstructed this from
+    // completedTasks ∪ inProgressTasks and dropped that case.
+    return [...metrics.activeParents].sort(
       (a, b) => (STATUS_ORDER[a.status] ?? 2) - (STATUS_ORDER[b.status] ?? 2),
     );
   }, [metrics]);
