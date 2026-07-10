@@ -139,6 +139,15 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     }, BETWEEN_MS);
   }, [queue.length, onExit, previousMode]);
 
+  // Hold advanceTask behind a ref so the effects below can CALL the latest one
+  // without listing it as a dependency. advanceTask's identity changes on every
+  // parent render (onExit=switchMode is a fresh function each InteractiveApp
+  // render, and the store polls every 2s) — listing it made the freeze effect
+  // re-run on every poll/reload, resetting questionIndex to 0 and rebuilding the
+  // question list mid-task, which manifested as cards flashing past on their own.
+  const advanceTaskRef = useRef(advanceTask);
+  useEffect(() => { advanceTaskRef.current = advanceTask; }, [advanceTask]);
+
   // Freeze the question list when a task becomes current. Keyed on task
   // identity + phase, so it does NOT re-run as the current task's own fields
   // change under applyChange — that's what keeps the list stable while you
@@ -157,15 +166,15 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     setActiveQuestions(qs);
     setQuestionIndex(0);
     setListCursor(0);
-    if (qs.length === 0) advanceTask();
-  }, [currentTask?.id, phase, config.focus.maxFocused, advanceTask]);
+    if (qs.length === 0) advanceTaskRef.current();
+  }, [currentTask?.id, phase, config.focus.maxFocused]);
 
   // Walked past the end of a task's frozen list → next task. (The empty-list
   // case is handled at freeze time above.)
   useEffect(() => {
     if (phase !== 'asking') return;
-    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) advanceTask();
-  }, [phase, questionIndex, activeQuestions.length, advanceTask]);
+    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) advanceTaskRef.current();
+  }, [phase, questionIndex, activeQuestions.length]);
 
   const applyChange = useCallback(async (changes: Partial<Task>, flashLabel: string) => {
     if (!currentTask) return;

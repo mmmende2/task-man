@@ -18,6 +18,11 @@ export function renderWithDimensions(
     stdin: instance.stdin,
     lastFrame: () => instance.lastFrame(),
     cleanup: () => instance.cleanup(),
+    /** Re-render with new props (same dimensions), like a parent re-render. */
+    rerender: (next: React.ReactElement) =>
+      instance.rerender(
+        createElement(TerminalDimensionsProvider, { value: merged }, next),
+      ),
     /** Return lines of the last frame, ANSI stripped */
     lines(): string[] {
       const frame = instance.lastFrame();

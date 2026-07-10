@@ -137,6 +137,45 @@ describe('RefineMode interaction', () => {
     expect(result.text()).not.toContain("Pull this into tomorrow's focus?");
   });
 
+  // Regression: a parent re-render (InteractiveApp polls the store every 2s and
+  // passes a fresh onExit=switchMode each time) must NOT re-run the freeze
+  // effect and bounce the session back to question 0. The bug made cards flash
+  // past and jump on their own, with no input.
+  it('does not reset the question flow when the parent re-renders (fresh onExit)', async () => {
+    // Yields [vibe, focus]. We *skip* the vibe question (leaving it unanswered
+    // and still live at index 0) so a re-freeze would visibly reset us to it.
+    await store.add({
+      title: 'clean title', scope: 'personal', time_estimate: '20m',
+      categories: ['home'], focused: false,
+    });
+
+    const localStore = new LocalStore(store);
+    const reload = vi.fn();
+    const mk = (onExit: () => void) =>
+      createElement(RefineMode, { store: localStore, reload, onExit, previousMode: 'focus' as const });
+
+    const result = renderWithDimensions(mk(vi.fn()));
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('Vibe check?'), { timeout: 2000 });
+
+    // Skip the vibe question ('n') → land on the focus card. Only press while
+    // the vibe card is showing, so we can't over-skip into the focus card.
+    await vi.waitFor(() => {
+      if (result.text().includes('Vibe check?')) result.stdin.write('n');
+      expect(result.text()).toContain("Pull this into tomorrow's focus?");
+    }, { timeout: 3000, interval: 60 });
+
+    // Simulate several parent re-renders, each with a brand-new onExit.
+    for (let i = 0; i < 3; i++) result.rerender(mk(vi.fn()));
+    // Give any (erroneous) freeze re-run time to fire.
+    await new Promise((r) => setTimeout(r, 120));
+
+    // Still on the focus card — not bounced back to the unanswered vibe card.
+    expect(result.text()).toContain("Pull this into tomorrow's focus?");
+    expect(result.text()).not.toContain('Vibe check?');
+  });
+
   it('shows the empty state when nothing needs refine', async () => {
     // Fully-refined + focused = not a candidate → empty queue.
     await store.add({
