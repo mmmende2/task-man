@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildQuestions, deriveCategories, suggestTitleFix, MAX_QUESTIONS_PER_TASK } from '../refine-questions.js';
+import { STALE_TODO_DAYS } from '../refine-queue.js';
 import type { Task } from '../types.js';
 
 // A fully-refined human task: no scope gap, has time + vibe, has a category,
@@ -70,7 +71,7 @@ describe('buildQuestions', () => {
   });
 
   it('reviews priority on a stale todo', () => {
-    const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const old = new Date(Date.now() - (STALE_TODO_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString();
     expect(prompts(makeTask({ created_at: old, priority: 'low' }))).toContain('How urgent is this, really?');
   });
 

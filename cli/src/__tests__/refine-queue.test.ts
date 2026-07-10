@@ -6,6 +6,7 @@ import {
   countUnrefined,
   buildRefineQueueWithReasons,
 } from '../refine-queue.js';
+import { buildQuestions, deriveCategories } from '../refine-questions.js';
 import type { Task } from '../types.js';
 
 // A fully-refined, non-candidate task: has scope, human-made, has time/vibe,
@@ -52,6 +53,52 @@ describe('isRefineCandidate — no_category', () => {
 
   it('defaults anyCategoriesExist to true for ad-hoc callers', () => {
     expect(isRefineCandidate(makeTask({ categories: [] }))).toContain('no_category');
+  });
+});
+
+describe('isRefineCandidate — stale_todo', () => {
+  const old = '2020-01-01T00:00:00.000Z';
+
+  it('flags an old non-high todo', () => {
+    expect(isRefineCandidate(makeTask({ created_at: old }))).toContain('stale_todo');
+  });
+
+  it('does NOT flag an old high-priority todo (mirrors the priority-card gate)', () => {
+    // An already-high stale task gets no priority card, so queueing it would
+    // produce a zero-question entry the session auto-skips (the cascade bug).
+    expect(isRefineCandidate(makeTask({ created_at: old, priority: 'high' }))).not.toContain('stale_todo');
+  });
+});
+
+describe('queue ↔ questions invariant', () => {
+  // Regression for the "cards flash past on their own" cascade: every task
+  // the queue admits must yield at least one card from buildQuestions — even
+  // with the focus ask suppressed (budget spent), since focus is not a queue
+  // reason. A queued task with zero cards is auto-advanced by the session,
+  // and those skips chain into an unanswerable fast-forward.
+  it('every queued task yields at least one card with the focus ask suppressed', () => {
+    const old = '2020-01-01T00:00:00.000Z';
+    const tasks = [
+      makeTask({ title: 'refined' }),
+      makeTask({ title: 'stale-high', created_at: old, priority: 'high' }),
+      makeTask({ title: 'stale-low', created_at: old, priority: 'low' }),
+      makeTask({ title: 'no-vibe', vibe: null }),
+      makeTask({ title: 'no-time', time_estimate: null }),
+      makeTask({ title: 'no-cat', categories: [] }),
+      makeTask({ title: 'from-claude', created_by: 'claude' }),
+      makeTask({ title: 'claude-unrefined', created_by: 'claude', time_estimate: null, vibe: null }),
+    ];
+    const queued = buildRefineCandidates(tasks);
+
+    // The stale-but-already-high task has nothing to ask — it must not queue.
+    expect(queued.map((t) => t.title)).not.toContain('stale-high');
+    expect(queued.length).toBeGreaterThan(0);
+
+    const cats = deriveCategories(tasks);
+    for (const t of queued) {
+      const qs = buildQuestions(t, tasks, 0, null, cats, /* suppressFocusQuestion */ true);
+      expect(qs.length, `queued task "${t.title}" built zero cards`).toBeGreaterThan(0);
+    }
   });
 });
 

@@ -1,5 +1,6 @@
 import type { Task, TaskScope } from './types.js';
 import { filterByScope } from './task-filters.js';
+import { isStaleTodo } from './refine-queue.js';
 
 // The "question brain" for Refine, extracted from the TUI so the web can
 // drive the exact same card sequence. Pure — no React, no I/O — and
@@ -97,12 +98,6 @@ export function suggestTitleFix(title: string): string | null {
   return fixed !== title ? fixed : null;
 }
 
-function daysSince(iso: string): number {
-  const then = new Date(iso).getTime();
-  const now = Date.now();
-  return Math.floor((now - then) / (1000 * 60 * 60 * 24));
-}
-
 /**
  * Build the ordered question list for one task, capped at
  * MAX_QUESTIONS_PER_TASK.
@@ -186,9 +181,10 @@ export function buildQuestions(
     });
   }
 
-  // 3. Priority review
-  const stale = task.status === 'todo' && daysSince(task.created_at) > 7 && task.priority !== 'high';
-  if (task.created_by === 'claude' || stale) {
+  // 3. Priority review. isStaleTodo is the same predicate that admits a task
+  // to the queue as stale_todo — shared so a task queued only for staleness
+  // always has this card to show (see the invariant note in refine-queue.ts).
+  if (task.created_by === 'claude' || isStaleTodo(task)) {
     list.push({
       type: 'list',
       prompt: 'How urgent is this, really?',
