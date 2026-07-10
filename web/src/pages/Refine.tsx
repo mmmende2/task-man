@@ -5,6 +5,7 @@ import type { Task, TaskPriority, TaskScope } from '../types';
 import { NavMenu } from '../components/NavMenu';
 import { buildRefineCandidates } from 'task-man/refine-queue';
 import { buildQuestions, type QuestionDef } from 'task-man/refine-questions';
+import { localDateString } from 'task-man/local-date';
 import { ScopeChip, loadScopeFilter, saveScopeFilter, matchesScope, type ScopeFilter } from '../components/ScopeChip';
 import './Refine.css';
 
@@ -16,6 +17,41 @@ interface UndoSnapshot {
 }
 
 const FLASH_MS = 240;
+
+// Cap the cards you walk in one sitting. The uncapped candidate set (see
+// NavMenu's badge) is the honest *total* still needing refine, but walking
+// every one in a single session reads as "this never ends" — so a session
+// takes the top slice (priority-sorted) and the complete screen shows what's
+// left. Each answer is persisted the instant it's given (patchTask), so a
+// partial session loses nothing.
+const SESSION_MAX = 20;
+
+// Focus-nomination budget. The "Pull this into tomorrow's focus?" card is
+// capped per *day*, not per session: a plain useRef reset every time you
+// re-open Refine, so the card came back a couple of cards in, every visit —
+// "constantly". Persisting the count keyed on the local date holds the cap
+// across remounts, navigations, and reloads.
+const FOCUS_ASKS_PER_DAY = 2;
+const FOCUS_BUDGET_KEY = 'refineFocusAsks';
+
+function loadFocusAsks(today: string): number {
+  try {
+    const raw = localStorage.getItem(FOCUS_BUDGET_KEY);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw) as { date?: string; count?: number };
+    return parsed.date === today ? parsed.count ?? 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveFocusAsks(today: string, count: number): void {
+  try {
+    localStorage.setItem(FOCUS_BUDGET_KEY, JSON.stringify({ date: today, count }));
+  } catch {
+    /* storage full/disabled — the cap just won't persist */
+  }
+}
 
 // Which task field an answer writes, keyed off the question's prompt — the
 // exact same prefix routing the TUI uses (RefineMode.tsx), kept identical so
@@ -45,6 +81,9 @@ export function RefinePage() {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('loading');
   const [reviewedCount, setReviewedCount] = useState(0);
+  // Full candidate count for this scope (before the SESSION_MAX slice), so the
+  // complete screen can honestly say how many still need refine.
+  const [totalCandidates, setTotalCandidates] = useState(0);
 
   const [lastAction, setLastAction] = useState<UndoSnapshot | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -92,18 +131,23 @@ export function RefinePage() {
   // ref guard suppresses every subsequent same-scope run.
   const queueBuiltForScope = useRef<ScopeFilter | null>(null);
   // How many focus questions ("Pull this into tomorrow's focus?") have been
-  // shown this session. Capped at 2 (high-priority first — the queue is
-  // priority-sorted). Reset whenever the queue is rebuilt for a new scope.
-  const focusAsksUsed = useRef(0);
+  // charged today. Seeded from (and written back to) localStorage so the
+  // per-day cap survives remounts and reloads (see FOCUS_BUDGET_KEY).
+  const focusAsksUsed = useRef(loadFocusAsks(localDateString()));
   useEffect(() => {
     if (!snapshot) return;
     if (queueBuiltForScope.current === scopeFilter) return;
     queueBuiltForScope.current = scopeFilter;
-    focusAsksUsed.current = 0;
-    const candidates = snapshot.filter((t) => matchesScope(t.scope, scopeFilter));
-    // Uncapped: the session walks every candidate so the header count is the
-    // honest total (was sliced to 20 by buildRefineQueue).
-    const ids = buildRefineCandidates(candidates).map((t) => t.id);
+    // Re-read the day's budget rather than resetting it — a scope switch is
+    // still the same day's session.
+    focusAsksUsed.current = loadFocusAsks(localDateString());
+    const candidates = buildRefineCandidates(
+      snapshot.filter((t) => matchesScope(t.scope, scopeFilter)),
+    );
+    setTotalCandidates(candidates.length);
+    // Walk only the top slice this session; the badge still shows the full
+    // total and the complete screen reports the remainder.
+    const ids = candidates.slice(0, SESSION_MAX).map((t) => t.id);
     setQueueIds(ids);
     setTaskIndex(0);
     setQuestionIndex(0);
@@ -117,6 +161,14 @@ export function RefinePage() {
     for (const t of snapshot ?? []) m.set(t.id, t);
     return m;
   }, [snapshot]);
+
+  // Every category in use, for the "File this under…?" card's dropdown — the
+  // card's quick buttons only surface the first few, so a less-common category
+  // was unreachable without this.
+  const allCategories = useMemo(
+    () => Array.from(new Set((snapshot ?? []).flatMap((t) => t.categories))).sort(),
+    [snapshot],
+  );
 
   const currentTaskId = queueIds[taskIndex];
   const currentTask: Task | undefined = tasksById.get(currentTaskId);
@@ -161,13 +213,18 @@ export function RefinePage() {
     const cats = Array.from(new Set(snap.flatMap((t) => t.categories)));
     // No local focus cap on the web (see the plan's "no focus limit" ruling):
     // threshold null means the focus card is offered with no warning note.
-    // suppressFocusQuestion enforces the session cap of 2 focus asks.
-    const qs = buildQuestions(task, snap, focused, null, cats, focusAsksUsed.current >= 2);
+    // suppressFocusQuestion enforces the per-day cap of FOCUS_ASKS_PER_DAY.
+    const qs = buildQuestions(
+      task, snap, focused, null, cats, focusAsksUsed.current >= FOCUS_ASKS_PER_DAY,
+    );
     // Charge an ask only for a focus card that actually SURVIVED the
     // 3-question slice (a task with 3 earlier questions may have it sliced
-    // off — don't spend the budget on an unshown card). Undo does not refund
-    // the ask (accepted).
-    if (qs.some((q) => q.prompt.startsWith('Pull this into'))) focusAsksUsed.current += 1;
+    // off — don't spend the budget on an unshown card). Persist immediately so
+    // the cap holds across sessions. Undo does not refund the ask (accepted).
+    if (qs.some((q) => q.prompt.startsWith('Pull this into'))) {
+      focusAsksUsed.current += 1;
+      saveFocusAsks(localDateString(), focusAsksUsed.current);
+    }
     setActiveQuestions(qs);
     setQuestionIndex(0);
     if (qs.length === 0) advanceTask();
@@ -305,7 +362,13 @@ export function RefinePage() {
       <Shell scope={scopeFilter} onScope={changeScopeFilter} nav={nav}>
         <div className="refine-empty">
           <div className="refine-complete-count">{reviewedCount} task{reviewedCount === 1 ? '' : 's'} reviewed.</div>
-          <span className="refine-dim">Clean slate.</span>
+          {totalCandidates > reviewedCount ? (
+            <span className="refine-dim">
+              {totalCandidates - reviewedCount} still need refine — run again to keep going.
+            </span>
+          ) : (
+            <span className="refine-dim">Clean slate.</span>
+          )}
           <button className="refine-link" onClick={() => nav('/')}>Back to Focus</button>
         </div>
       </Shell>
@@ -346,6 +409,7 @@ export function RefinePage() {
         ) : (
           <CardBody
             q={currentQuestion}
+            allCategories={allCategories}
             busy={busy}
             editing={editing}
             editText={editText}
@@ -401,6 +465,7 @@ function Shell({
 
 interface CardBodyProps {
   q: QuestionDef;
+  allCategories: string[];
   busy: boolean;
   editing: boolean;
   editText: string;
@@ -416,7 +481,7 @@ interface CardBodyProps {
 }
 
 function CardBody({
-  q, busy, editing, editText, onEditText, onPick, onYes, onNo, onKeep, onTrash, onBeginEdit, onSaveEdit, onCancelEdit,
+  q, allCategories, busy, editing, editText, onEditText, onPick, onYes, onNo, onKeep, onTrash, onBeginEdit, onSaveEdit, onCancelEdit,
 }: CardBodyProps) {
   if (editing) {
     return (
@@ -475,7 +540,12 @@ function CardBody({
     );
   }
 
-  // number / list — a button per option.
+  // number / list — a button per option. The category card ("File this
+  // under…?") also gets a dropdown of *every* category, since its quick
+  // buttons only surface the first few and the one you want may not be listed.
+  const isCategory = q.prompt.startsWith('File this');
+  const buttonValues = new Set((q.options ?? []).map((o) => o.value));
+  const extraCategories = isCategory ? allCategories.filter((c) => !buttonValues.has(c)) : [];
   return (
     <div className="refine-options">
       {(q.options ?? []).map((opt) => (
@@ -488,6 +558,20 @@ function CardBody({
           {opt.label}
         </button>
       ))}
+      {isCategory && extraCategories.length > 0 && (
+        <select
+          className="refine-select"
+          value=""
+          disabled={busy}
+          onChange={(e) => { if (e.target.value) onPick(e.target.value, e.target.value); }}
+          aria-label="Pick another category"
+        >
+          <option value="" disabled>Another category…</option>
+          {extraCategories.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }

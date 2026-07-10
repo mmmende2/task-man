@@ -111,12 +111,17 @@ export interface DayReport {
   encouragingMessage: string;
 }
 
-// Shape returned by GET /api/metrics — DayReport plus three fields the
-// web Metrics page needs (subtask tree, last-work-day jump, date-picker
-// lower bound). Lives in types.ts (not handlers/metrics.ts) so the web
-// can import it without pulling the server-only handler module into its
-// bundle.
+// Shape returned by GET /api/metrics — DayReport plus the fields the web
+// Metrics page needs (parent rows to render, subtask tree, last-work-day
+// jump, date-picker lower bound). Lives in types.ts (not handlers/metrics.ts)
+// so the web can import it without pulling the server-only handler module
+// into its bundle.
 export interface MetricsResponse extends DayReport {
+  // Every parent task with activity on `date`: done that day, in progress
+  // that day, OR with a subtask completed that day. The web renders these
+  // directly — `completedTasks ∪ inProgressTasks` alone drops a `todo`
+  // parent whose only activity was a completed subtask (the TUI shows it).
+  activeParents: Task[];
   subtasksByParent: Record<string, Task[]>;
   lastWorkDay: string | null;
   earliestDate: string | null;
