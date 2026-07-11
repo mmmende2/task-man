@@ -178,12 +178,14 @@ describe('RefineMode interaction', () => {
     expect(result.text()).not.toContain('Vibe check?');
   });
 
-  // Regression: the ✓ flash must appear immediately on answer, not after the
-  // store write resolves — awaiting the write first re-rendered the card
-  // untouched for the write's duration (list cursor snapped back to the top),
-  // reading as the answer being visually reset. A never-resolving update()
-  // makes the old ordering hang the flash forever.
-  it('flashes the answer before the store write resolves', async () => {
+  // Regression: answering must advance immediately, not after the store write
+  // resolves — awaiting the write first re-rendered the card untouched for the
+  // write's duration (list cursor snapped back to the top), reading as the
+  // answer being visually reset. A never-resolving update() makes the old
+  // ordering hang forever. The task's single card also means this covers the
+  // no-✓-interstitial behavior: answering walks straight off the list and the
+  // session completes.
+  it('advances on answer before the store write resolves', async () => {
     await store.add({
       title: 'clean title', scope: 'personal', time_estimate: '20m',
       categories: ['home'], focused: true,
@@ -197,7 +199,7 @@ describe('RefineMode interaction', () => {
     await vi.waitFor(() => expect(result.text()).toContain('Vibe check?'), { timeout: 2000 });
     await vi.waitFor(() => {
       result.stdin.write('2');
-      expect(result.text()).toContain('✓ vibe: ok');
+      expect(result.text()).toContain('REFINE COMPLETE');
     }, { timeout: 3000, interval: 60 });
   });
 

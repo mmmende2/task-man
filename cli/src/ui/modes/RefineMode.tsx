@@ -103,29 +103,23 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
   // The frozen question list for the current task. Built ONCE when a task
   // becomes current (keyed on task identity) and walked by index — never
   // rebuilt as answers mutate the task. Rebuilding-on-answer would drop the
-  // just-answered card and shift the survivors down while the flash timer
-  // still bumps questionIndex, skipping the next card. Mirrors the web
-  // (web/src/pages/Refine.tsx).
+  // just-answered card and shift the survivors down under the advancing
+  // index, skipping the next card. Mirrors the web (web/src/pages/Refine.tsx).
   const [activeQuestions, setActiveQuestions] = useState<QuestionDef[]>([]);
   const currentQuestion = activeQuestions[questionIndex];
 
-  const flashAndAdvance = useCallback((label: string) => {
-    debugLog('refine.flashAndAdvance', { label });
-    setFlash(label);
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => {
-      setFlash(null);
-      setQuestionIndex(i => {
-        debugLog('refine.flashTimerFired', { fromQuestionIndex: i });
-        return i + 1;
-      });
-    }, FLASH_MS);
+  // Answers advance straight to the next card — no ✓-flash interstitial.
+  // (There used to be a 400ms flash here; it read as churn between cards.)
+  // The label survives only for the debug log. `flash` itself is still used
+  // by undo, which shows feedback without advancing.
+  const advanceQuestion = useCallback((label: string) => {
+    debugLog('refine.advanceQuestion', { label });
+    setQuestionIndex(i => i + 1);
   }, []);
 
   const advanceTask = useCallback(() => {
     debugLog('refine.advanceTask', { queueLength: queue.length });
-    // Cancel any pending flash-advance so a stale timer can't bump the index
-    // on the next task after we've moved on.
+    // Clear any lingering undo flash so it can't bleed onto the next task.
     if (flashTimer.current) clearTimeout(flashTimer.current);
     setFlash(null);
     setActiveQuestions([]);
@@ -210,21 +204,21 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
       (prev as Record<string, unknown>)[key] = currentTask[key];
     }
     setLastAction({ taskId: currentTask.id, changes: prev });
-    // Flash + local queue update happen BEFORE the store write lands.
+    // Local queue update + advance happen BEFORE the store write lands.
     // Awaiting the write first left a ~90ms window (file lock; longer in
     // remote mode) where the card re-rendered untouched — the list cursor
     // snapped back to the top, reading as the answer being visually reset.
     // The write is fire-and-forget: on failure the 2s poll re-syncs truth.
     setQueue(q => q.map(t => t.id === currentTask.id ? { ...t, ...changes } as Task : t));
-    flashAndAdvance(flashLabel);
+    advanceQuestion(flashLabel);
     await store.update(currentTask.id, changes as Parameters<typeof store.update>[1]);
     reload();
-  }, [currentTask, store, reload, flashAndAdvance]);
+  }, [currentTask, store, reload, advanceQuestion]);
 
   const skipQuestion = useCallback(() => {
     setLastAction(null);
-    flashAndAdvance('skipped');
-  }, [flashAndAdvance]);
+    advanceQuestion('skipped');
+  }, [advanceQuestion]);
 
   const skipTask = useCallback(() => {
     setLastAction(null);
@@ -315,19 +309,15 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
 
       case 'confirm': {
         if (input === 'y') {
-          flashAndAdvance('kept');
+          advanceQuestion('kept');
         } else if (input === 'd') {
           if (!currentTask) return;
-          store.remove(currentTask.id).then(() => {
-            reload();
-            setLastAction(null);
-            setFlash('deleted');
-            if (flashTimer.current) clearTimeout(flashTimer.current);
-            flashTimer.current = setTimeout(() => {
-              setFlash(null);
-              advanceTask();
-            }, FLASH_MS);
-          });
+          // Same optimistic ordering as applyChange: move on immediately,
+          // the removal lands behind the transition.
+          debugLog('refine.delete', { taskId: currentTask.id.slice(0, 8) });
+          setLastAction(null);
+          advanceTask();
+          store.remove(currentTask.id).then(() => reload());
         } else if (input === 'e') {
           setEditText(currentTask?.title ?? '');
           setEditCursor(currentTask?.title.length ?? 0);
