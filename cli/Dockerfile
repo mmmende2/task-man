@@ -10,27 +10,40 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /repo
 
-# cli/ first: web's `file:../cli` dependency needs cli/dist to already exist
-# when web is installed below, since plain npm (no workspaces) snapshots the
-# local dependency at install time rather than symlinking it live.
+# ALL dependency layers come before any source copy: they invalidate only
+# when a package.json/lockfile changes, so a source-only deploy skips every
+# npm ci below and re-runs just tsc + vite. Ordered the other way (deps
+# interleaved with source), each deploy re-installed everything — which is
+# what froze the 1GB droplet for ~40 minutes building deploy-v8.
 COPY cli/package.json cli/package-lock.json ./cli/
 RUN npm ci --prefix cli
+
+# web's `file:../cli` dependency is snapshotted by npm at install time (plain
+# npm, no workspaces — it copies rather than symlinks). cli/dist doesn't exist
+# yet, so this snapshot is dist-less; it's refreshed after the cli build below.
+COPY web/package.json web/package-lock.json ./web/
+RUN npm ci --prefix web
+
+# Production-only deps for the runtime image, installed into a parallel dir so
+# this layer is also cache-stable across source changes.
+COPY cli/package.json cli/package-lock.json ./cli-prod/
+RUN npm ci --prefix cli-prod --omit=dev
 
 COPY cli/tsconfig*.json ./cli/
 COPY cli/src ./cli/src
 RUN npm run build --prefix cli
 
-COPY web/package.json web/package-lock.json ./web/
-RUN npm ci --prefix web
+# Refresh the snapshotted file:../cli dep with the freshly built dist so the
+# web build resolves task-man/* imports (and their .d.ts) normally.
+RUN rm -rf web/node_modules/task-man \
+  && mkdir -p web/node_modules/task-man \
+  && cp cli/package.json web/node_modules/task-man/ \
+  && cp -R cli/dist web/node_modules/task-man/dist
 
 COPY web/tsconfig*.json web/vite.config.ts web/index.html ./web/
 COPY web/src ./web/src
 COPY web/public ./web/public
 RUN npm run build --prefix web
-
-# Production-only install, discarding the devDependencies (typescript, vitest,
-# etc.) pulled in above.
-RUN rm -rf cli/node_modules && npm ci --prefix cli --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
@@ -51,7 +64,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /repo/cli/package.json ./package.json
-COPY --from=build /repo/cli/node_modules ./node_modules
+COPY --from=build /repo/cli-prod/node_modules ./node_modules
 COPY --from=build /repo/cli/dist ./dist
 COPY --from=build /repo/cli/dist-web ./dist-web
 
