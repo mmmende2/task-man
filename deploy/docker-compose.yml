@@ -5,10 +5,11 @@ services:
       dockerfile: cli/Dockerfile
       args:
         # Stamp the build with `git describe` of the deploying checkout. Set it
-        # in the deploy command: `GIT_DESCRIBE=$(git describe --always --dirty)
-        # docker compose ... up -d --build`. Falls back to 'dev'. Use plain
-        # `git describe` (annotated-only → clean vX.Y.Z), not `--tags`, which
-        # would resolve to the lightweight deploy-vN tag instead.
+        # in the deploy command: `GIT_DESCRIBE=$(git describe --long --always
+        # --dirty) docker compose ... up -d --build`. Falls back to 'dev'.
+        # `--long` keeps the SHA even exactly on a version tag
+        # (vX.Y.Z-0-g<sha>); don't use `--tags`, which would resolve to the
+        # lightweight deploy-vN tag instead.
         GIT_DESCRIBE: ${GIT_DESCRIBE:-dev}
     image: task-man:local
     restart: unless-stopped

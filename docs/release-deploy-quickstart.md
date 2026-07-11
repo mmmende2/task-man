@@ -21,10 +21,11 @@ cd /opt/task-man/src
 git fetch --tags --force && git checkout deploy-vN
 # GIT_DESCRIBE stamps the build string the server reports at /healthz. It is
 # REQUIRED — the compose file reads it (${GIT_DESCRIBE:-dev}); omit it and the
-# build reports "dev". Use plain `git describe` (annotated-only → clean vX.Y.Z
-# when an annotated version tag sits on the commit), NOT `--tags` (that would
-# resolve to the lightweight deploy-vN and stamp "deploy-vN").
-GIT_DESCRIBE=$(git describe --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
+# build reports "dev". `--long` keeps the commit SHA even when sitting exactly
+# on an annotated version tag (vX.Y.Z-0-g<sha>, not bare vX.Y.Z). Do NOT use
+# `--tags` (that would resolve to the lightweight deploy-vN and stamp
+# "deploy-vN").
+GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
 
 # 3. verify — build string is the discriminator (version alone doesn't move
 #    between releases); watch for cloudflared "Registered tunnel connection"
@@ -36,7 +37,7 @@ docker compose -f deploy/docker-compose.yml logs -f
 Note: `task-man whoami` is not on the container's PATH (the entrypoint runs the
 server directly), so verify via `/healthz` above, not `whoami`.
 
-**Rollback:** `git checkout deploy-v(N-1) && GIT_DESCRIBE=$(git describe --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build`.
+**Rollback:** `git checkout deploy-v(N-1) && GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build`.
 
 **Restart only (no code change):** `docker compose -f deploy/docker-compose.yml restart task-man` — data persists, TUI reconnects on its own.
 
