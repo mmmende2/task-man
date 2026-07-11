@@ -210,11 +210,15 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
       (prev as Record<string, unknown>)[key] = currentTask[key];
     }
     setLastAction({ taskId: currentTask.id, changes: prev });
-    await store.update(currentTask.id, changes as Parameters<typeof store.update>[1]);
-    // Update local queue so subsequent question gating sees fresh state
+    // Flash + local queue update happen BEFORE the store write lands.
+    // Awaiting the write first left a ~90ms window (file lock; longer in
+    // remote mode) where the card re-rendered untouched — the list cursor
+    // snapped back to the top, reading as the answer being visually reset.
+    // The write is fire-and-forget: on failure the 2s poll re-syncs truth.
     setQueue(q => q.map(t => t.id === currentTask.id ? { ...t, ...changes } as Task : t));
-    reload();
     flashAndAdvance(flashLabel);
+    await store.update(currentTask.id, changes as Parameters<typeof store.update>[1]);
+    reload();
   }, [currentTask, store, reload, flashAndAdvance]);
 
   const skipQuestion = useCallback(() => {
@@ -231,13 +235,15 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
 
   const undoLast = useCallback(async () => {
     if (!lastAction) return;
-    await store.update(lastAction.taskId, lastAction.changes as Parameters<typeof store.update>[1]);
+    // Same optimistic ordering as applyChange: reflect the undo immediately,
+    // let the write land behind the flash.
     setQueue(q => q.map(t => t.id === lastAction.taskId ? { ...t, ...lastAction.changes } as Task : t));
     setLastAction(null);
-    reload();
     setFlash('undone');
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlash(null), FLASH_MS);
+    await store.update(lastAction.taskId, lastAction.changes as Parameters<typeof store.update>[1]);
+    reload();
   }, [lastAction, store, reload]);
 
   useInput((input, key) => {
