@@ -13,6 +13,7 @@ import { WriteMode } from './modes/WriteMode.js';
 import { MetricsMode } from './modes/MetricsMode.js';
 import { RefineMode } from './modes/RefineMode.js';
 import { isLocalToday } from '../local-date.js';
+import { debugLog } from '../debug-log.js';
 
 const SCOPE_CYCLE: (TaskScope | 'all')[] = ['all', 'personal', 'professional'];
 
@@ -100,6 +101,7 @@ function InteractiveAppInner() {
   }, []);
 
   const switchMode = (newMode: AppMode) => {
+    debugLog('app.switchMode', { from: mode, to: newMode });
     setMode(prev => {
       if (prev !== 'refine') setPrevMode(prev);
       return newMode;
