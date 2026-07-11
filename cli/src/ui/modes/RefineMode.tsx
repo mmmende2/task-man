@@ -9,6 +9,7 @@ import { filterByScope } from '../../task-filters.js';
 import { buildQuestions, deriveCategories, type QuestionDef } from '../../refine-questions.js';
 import { usePulse, CYAN_PULSE } from '../hooks/usePulse.js';
 import { RefineQuestion } from './RefineQuestion.js';
+import { debugLog } from '../../debug-log.js';
 
 interface Props {
   store: Store;
@@ -55,9 +56,13 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
   // so the highest-priority tasks get the asks). Never reset — one session.
   const focusAsksUsed = useRef(0);
 
-  useEffect(() => () => {
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    if (transitionTimer.current) clearTimeout(transitionTimer.current);
+  useEffect(() => {
+    debugLog('refine.mount', { scopeFilter });
+    return () => {
+      debugLog('refine.unmount');
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      if (transitionTimer.current) clearTimeout(transitionTimer.current);
+    };
   }, []);
 
   const currentTask: Task | undefined = queue[taskIndex];
@@ -66,6 +71,7 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
   const [tasksLoaded, setTasksLoaded] = useState(false);
   useEffect(() => {
     store.load().then((tasks) => {
+      debugLog('refine.storeLoad', { count: tasks.length, reviewedCount });
       setAllTasks(tasks);
       setTasksLoaded(true);
     });
@@ -83,6 +89,7 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     queueInitialized.current = true;
     const scoped = filterByScope(allTasks, scopeFilter === 'all' ? undefined : scopeFilter);
     const initialQueue = buildRefineQueue(scoped);
+    debugLog('refine.queueSeed', { size: initialQueue.length, titles: initialQueue.map(t => t.title) });
     setQueue(initialQueue);
     setPhase(initialQueue.length === 0 ? 'empty' : 'asking');
   }, [tasksLoaded, allTasks, scopeFilter]);
@@ -103,15 +110,20 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
   const currentQuestion = activeQuestions[questionIndex];
 
   const flashAndAdvance = useCallback((label: string) => {
+    debugLog('refine.flashAndAdvance', { label });
     setFlash(label);
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => {
       setFlash(null);
-      setQuestionIndex(i => i + 1);
+      setQuestionIndex(i => {
+        debugLog('refine.flashTimerFired', { fromQuestionIndex: i });
+        return i + 1;
+      });
     }, FLASH_MS);
   }, []);
 
   const advanceTask = useCallback(() => {
+    debugLog('refine.advanceTask', { queueLength: queue.length });
     // Cancel any pending flash-advance so a stale timer can't bump the index
     // on the next task after we've moved on.
     if (flashTimer.current) clearTimeout(flashTimer.current);
@@ -127,10 +139,14 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     transitionTimer.current = setTimeout(() => {
       setTaskIndex(i => {
         const next = i + 1;
+        debugLog('refine.transitionTimerFired', { fromTaskIndex: i, next, queueLength: queue.length });
         if (next >= queue.length) {
           setPhase('complete');
           if (transitionTimer.current) clearTimeout(transitionTimer.current);
-          transitionTimer.current = setTimeout(() => onExit(previousMode), COMPLETE_MS);
+          transitionTimer.current = setTimeout(() => {
+            debugLog('refine.completeTimerFired -> exit', { previousMode });
+            onExit(previousMode);
+          }, COMPLETE_MS);
         } else {
           setPhase('asking');
         }
@@ -163,21 +179,32 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     // Charge an ask only for a focus card that survived the question slice
     // (see the web's matching note in Refine.tsx). Undo doesn't refund it.
     if (qs.some(q => q.prompt.startsWith('Pull this into'))) focusAsksUsed.current += 1;
+    debugLog('refine.freeze', {
+      taskId: currentTask.id.slice(0, 8), title: currentTask.title,
+      prompts: qs.map(q => q.prompt), focusAsksUsed: focusAsksUsed.current,
+    });
     setActiveQuestions(qs);
     setQuestionIndex(0);
     setListCursor(0);
-    if (qs.length === 0) advanceTaskRef.current();
+    if (qs.length === 0) {
+      debugLog('refine.freeze -> empty, auto-advance');
+      advanceTaskRef.current();
+    }
   }, [currentTask?.id, phase, config.focus.maxFocused]);
 
   // Walked past the end of a task's frozen list → next task. (The empty-list
   // case is handled at freeze time above.)
   useEffect(() => {
     if (phase !== 'asking') return;
-    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) advanceTaskRef.current();
+    if (activeQuestions.length > 0 && questionIndex >= activeQuestions.length) {
+      debugLog('refine.walkedPastEnd -> advance', { questionIndex, activeQuestions: activeQuestions.length });
+      advanceTaskRef.current();
+    }
   }, [phase, questionIndex, activeQuestions.length]);
 
   const applyChange = useCallback(async (changes: Partial<Task>, flashLabel: string) => {
     if (!currentTask) return;
+    debugLog('refine.applyChange', { taskId: currentTask.id.slice(0, 8), changes, flashLabel });
     const prev: Partial<Task> = {};
     for (const key of Object.keys(changes) as (keyof Task)[]) {
       (prev as Record<string, unknown>)[key] = currentTask[key];
@@ -214,6 +241,10 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
   }, [lastAction, store, reload]);
 
   useInput((input, key) => {
+    debugLog('refine.input', {
+      input, key: Object.entries(key).filter(([, v]) => v).map(([k]) => k).join('+') || undefined,
+      phase, flash, questionIndex, taskIndex, prompt: currentQuestion?.prompt, editing,
+    });
     if (phase === 'complete') {
       onExit(previousMode);
       return;

@@ -15,7 +15,8 @@ const program = new Command();
 program
   .name('task-man')
   .description('Personal task manager for developers who live in the terminal')
-  .version(VERSION);
+  .version(VERSION)
+  .option('--debug', 'append TUI diagnostics to ~/.task-man/debug.log');
 
 // The task-facing CLI (add/list/done/start/focus/unfocus/session-refocus/
 // end-day) was retired 2026-07: humans work in the TUI/web, Claude works
@@ -29,6 +30,6 @@ program.addCommand(loginCommand);
 program.addCommand(migrateCommand);
 program.addCommand(whoamiCommand);
 
-program.action(() => launchInteractive());
+program.action((opts: { debug?: boolean }) => launchInteractive({ debug: opts.debug }));
 
 program.parse();
