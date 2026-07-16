@@ -11,7 +11,7 @@ import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
 import { loadConfig } from '../../config.js';
 import { localDateString } from '../../local-date.js';
-import { getSessionHexColor, getCurrentSessionId, isSessionActive } from '../../sessions.js';
+import { getSessionHexColor, getSessionName, isSessionActive } from '../../sessions.js';
 
 interface Props {
   focusedTasks: Task[];
@@ -70,11 +70,6 @@ export function FocusMode({
 
   // Load session config for color resolution
   const sessionConfig = useMemo(() => loadConfig(), [focusedTasks]);
-  // Current session's color — used for the highlighted/expanded task
-  const currentSessionColor = useMemo(() => {
-    const sid = getCurrentSessionId();
-    return getSessionHexColor(sid, sessionConfig);
-  }, [sessionConfig]);
 
   const filteredTasks = useMemo(() => {
     if (!searchQuery) return focusedTasks;
@@ -525,13 +520,15 @@ export function FocusMode({
   }
 
   const taskRows = filteredTasks.map((task, i) => {
-    const terminalColor = getSessionHexColor(task.session_id, sessionConfig);
+    const sessionColor = getSessionHexColor(task.session_id, sessionConfig);
     const active = task.session_id ? isSessionActive(task.session_id) : false;
 
     if (editingId === task.id) {
       return <InlineEdit key={task.id} text={editText} cursorPos={cursorPos} />;
     }
     if (selPos === i) {
+      // Name lookup is gated on liveness — dead sessions may leave stale registry files.
+      const sessionName = active && task.session_id ? getSessionName(task.session_id) : null;
       return (
         <Box flexDirection="column" key={task.id}>
           <TaskRowExpanded
@@ -545,7 +542,9 @@ export function FocusMode({
             editingDescriptionId={editingDescriptionId}
             editText={editText}
             cursorPos={cursorPos}
-            terminalColor={currentSessionColor ?? terminalColor}
+            sessionColor={sessionColor}
+            sessionActive={active}
+            sessionName={sessionName}
             showScope={scopeFilter === 'all'}
           />
           {/* Insert creation row for subtask */}
@@ -562,7 +561,7 @@ export function FocusMode({
         task={task}
         isSelected={false}
         subtaskProgress={getSubtaskProgress(task.id, subtaskMap)}
-        terminalColor={terminalColor}
+        sessionColor={sessionColor}
         sessionActive={active}
         showScope={scopeFilter === 'all'}
       />

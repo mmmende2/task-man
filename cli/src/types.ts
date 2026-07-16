@@ -52,7 +52,9 @@ export interface TaskFilter {
   parent_id?: string | null;
 }
 
-export type SessionColor = 'cyan' | 'magenta' | 'purple' | 'yellow';
+// Matches Claude Code's /color palette. 'magenta' was renamed 'pink' when the
+// palette expanded — loadConfig normalizes legacy entries (see config.ts).
+export type SessionColor = 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'orange' | 'pink' | 'cyan';
 
 export interface TaskManConfig {
   email: {

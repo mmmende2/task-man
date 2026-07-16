@@ -38,10 +38,14 @@ export const DEFAULT_CONFIG: TaskManConfig = {
 };
 
 export const SESSION_COLORS: Record<SessionColor, string> = {
-  cyan:    '#00a5a5',
-  magenta: '#ff79c6',
-  purple:  '#bd93f9',
-  yellow:  '#f1fa8c',
+  red:    '#ff5555',
+  blue:   '#61afef',
+  green:  '#50fa7b',
+  yellow: '#f1fa8c',
+  purple: '#bd93f9',
+  orange: '#ffb86c',
+  pink:   '#ff79c6',
+  cyan:   '#00a5a5',
 };
 
 export const PRIORITY_COLORS: Record<TaskPriority, string> = {

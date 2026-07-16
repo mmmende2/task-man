@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import type { Task, TaskManConfig } from '../../../types.js';
 import { SCOPE_LABELS } from '../../../constants.js';
-import { getSessionHexColor } from '../../../sessions.js';
+import { getSessionHexColor, isSessionActive } from '../../../sessions.js';
 import { PriorityDot } from '../../shared/PriorityDot.js';
+import { SessionDot } from '../../shared/SessionDot.js';
 import { InlineEdit } from '../../shared/InlineEdit.js';
 import { CURSOR_GLYPH, type CursorTone } from '../../shared/selection.js';
 
@@ -111,7 +112,7 @@ export function EntryList({
       const selected = cursorId === task.id;
       const isEditingTitle = editing?.id === task.id && editing.type === 'title';
       const isEditingCategory = editing?.id === task.id && editing.type === 'category';
-      const terminalColor = getSessionHexColor(task.session_id, config);
+      const sessionColor = getSessionHexColor(task.session_id, config);
       const isCurrent = !!currentSessionId && task.session_id === currentSessionId;
       const gutter = selected ? `  ${CURSOR_GLYPH}` : '    ';
 
@@ -125,16 +126,19 @@ export function EntryList({
           </Box>,
         );
       } else {
-        const titleColor = selected ? tone : isCurrent ? terminalColor ?? undefined : undefined;
+        const titleColor = selected ? tone : undefined;
         const titleDim = !selected && !isCurrent && !task.focused;
         rows.push(
           <Box key={task.id}>
             <Text color={selected ? tone : undefined} dimColor={!selected}>{gutter} </Text>
-            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
+            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
             <Text color={titleColor} dimColor={titleDim}>{' '}{task.title}</Text>
             {showScope && <Text dimColor>{' ·'}{SCOPE_LABELS[task.scope]}</Text>}
             {task.focused && <Text color="yellow">{' ★'}</Text>}
             {task.status === 'done' && <Text dimColor>{' ✓'}</Text>}
+            {task.parent_id === null && sessionColor && (
+              <SessionDot color={sessionColor} active={task.session_id ? isSessionActive(task.session_id) : false} />
+            )}
             {selected && <Text color={tone}>{' ──────'}</Text>}
           </Box>,
         );

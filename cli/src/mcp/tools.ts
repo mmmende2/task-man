@@ -527,9 +527,9 @@ export function registerTools(server: McpServer, opts: RegisterToolsOptions): vo
     server.registerTool(
       'task_session_color',
       {
-        description: 'Set the terminal color for the current Claude Code session. Valid colors: cyan, magenta, purple, yellow',
+        description: 'Set the terminal color for the current Claude Code session. Valid colors: red, blue, green, yellow, purple, orange, pink, cyan (matches Claude Code /color)',
         inputSchema: {
-          color: z.enum(['cyan', 'magenta', 'purple', 'yellow']).describe('Session color'),
+          color: z.enum(['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']).describe('Session color'),
         },
       },
       async ({ color }) => {
