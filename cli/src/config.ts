@@ -1,14 +1,27 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { CONFIG_FILE, DEFAULT_CONFIG } from './constants.js';
-import type { TaskManConfig } from './types.js';
+import type { SessionColor, TaskManConfig } from './types.js';
+
+// 'magenta' predates the palette matching Claude Code's /color set, where the
+// same hex is called 'pink'. Unknown values pass through — getSessionHexColor
+// null-safes them at lookup time.
+export function normalizeSessionColors(sessions: Record<string, string>): Record<string, SessionColor> {
+  const out: Record<string, SessionColor> = {};
+  for (const [id, color] of Object.entries(sessions)) {
+    out[id] = (color === 'magenta' ? 'pink' : color) as SessionColor;
+  }
+  return out;
+}
 
 export function loadConfig(): TaskManConfig {
   if (!existsSync(CONFIG_FILE)) {
     return structuredClone(DEFAULT_CONFIG);
   }
   const raw = readFileSync(CONFIG_FILE, 'utf-8');
-  return { ...structuredClone(DEFAULT_CONFIG), ...JSON.parse(raw) };
+  const config: TaskManConfig = { ...structuredClone(DEFAULT_CONFIG), ...JSON.parse(raw) };
+  config.sessions = normalizeSessionColors(config.sessions ?? {});
+  return config;
 }
 
 export function saveConfig(config: TaskManConfig): void {

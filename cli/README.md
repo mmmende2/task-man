@@ -205,6 +205,23 @@ All data lives in `~/.task-man/`:
 
 Task IDs are UUIDs. Most commands accept an unambiguous prefix (e.g., `abc12`).
 
+## Session colors
+
+Tasks created or claimed through MCP carry the Claude Code session's id. Give
+the session a color with the `task_session_color` tool (or the `/session-color`
+skill) and the TUI marks the session's parent tasks with a dot on the right:
+filled `◉` while the session is running, hollow `○` after it ends. Colors match
+Claude Code's `/color` palette (red, blue, green, yellow, purple, orange, pink,
+cyan) and live in `config.json` under `sessions` — run `/color <name>` in
+Claude Code yourself to make the prompt bar match.
+
+The skill ships in this repo at `.claude/skills/session-color/` and auto-loads
+when working inside task-man. To use it from any project:
+
+```bash
+ln -s "$(pwd)/.claude/skills/session-color" ~/.claude/skills/session-color
+```
+
 ## Development
 
 ```bash

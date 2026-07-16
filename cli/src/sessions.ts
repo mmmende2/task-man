@@ -14,6 +14,7 @@ interface SessionFile {
   startedAt: number;
   kind: string;
   entrypoint: string;
+  name?: string;
 }
 
 /**
@@ -90,6 +91,32 @@ export function isSessionActive(sessionId: string): boolean {
     // Sessions dir unreadable
   }
   return false;
+}
+
+/**
+ * Resolve a session's display name (from /rename or derived) via the registry
+ * file. Registry files can linger after a session dies — callers gate on
+ * isSessionActive so stale names never surface.
+ */
+export function getSessionName(sessionId: string): string | null {
+  if (!existsSync(SESSIONS_DIR)) return null;
+
+  try {
+    const files = readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.json'));
+    for (const file of files) {
+      try {
+        const data: SessionFile = JSON.parse(
+          readFileSync(join(SESSIONS_DIR, file), 'utf-8'),
+        );
+        if (data.sessionId === sessionId) return data.name ?? null;
+      } catch {
+        // Skip malformed session files
+      }
+    }
+  } catch {
+    // Sessions dir unreadable
+  }
+  return null;
 }
 
 /**

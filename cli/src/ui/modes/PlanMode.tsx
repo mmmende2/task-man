@@ -8,8 +8,9 @@ import { useUndoStack } from '../hooks/useUndoStack.js';
 import { useTerminalHeight } from '../hooks/useTerminalWidth.js';
 import { loadConfig, saveConfig } from '../../config.js';
 import { SCOPE_LABELS } from '../../constants.js';
-import { getSessionHexColor } from '../../sessions.js';
+import { getSessionHexColor, isSessionActive } from '../../sessions.js';
 import { PriorityDot } from '../shared/PriorityDot.js';
+import { SessionDot } from '../shared/SessionDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
 import { CURSOR_GLYPH } from '../shared/selection.js';
@@ -528,15 +529,18 @@ export function PlanMode({
           </Box>
         );
       } else {
-        const terminalColor = getSessionHexColor(task.session_id, config);
+        const sessionColor = getSessionHexColor(task.session_id, config);
         const activeSel = isSelected && panelFocus === 'tasks';
         taskRows.push(
           <Box key={task.id}>
             <Text color={activeSel ? 'cyan' : undefined} dimColor={!activeSel}>{isSelected ? ` ${CURSOR_GLYPH} ` : '   '}</Text>
-            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
+            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
             <Text color={activeSel ? 'cyan' : undefined}>{' '}{task.title}</Text>
             {scopeFilter === 'all' && <Text dimColor>{' ·'}{SCOPE_LABELS[task.scope]}</Text>}
             {task.status === 'done' && <Text dimColor>{' ✓'}</Text>}
+            {task.parent_id === null && sessionColor && (
+              <SessionDot color={sessionColor} active={task.session_id ? isSessionActive(task.session_id) : false} />
+            )}
           </Box>
         );
       }
@@ -568,18 +572,21 @@ export function PlanMode({
           </Box>
         );
       } else {
-        const terminalColor = getSessionHexColor(task.session_id, config);
+        const sessionColor = getSessionHexColor(task.session_id, config);
         const activeSel = isSelected && panelFocus === 'tasks';
         taskRows.push(
           <Box key={task.id}>
             <Text color={activeSel ? 'cyan' : undefined} dimColor={!activeSel}>{isSelected ? ` ${CURSOR_GLYPH}` : '  '}{connector} </Text>
-            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} terminalColor={terminalColor} />
+            <PriorityDot priority={task.priority} filled={task.status !== 'todo'} />
             <Text dimColor={!task.focused && !activeSel} color={activeSel ? 'cyan' : undefined}>
               {' '}{task.title}
             </Text>
             {scopeFilter === 'all' && <Text dimColor>{' ·'}{SCOPE_LABELS[task.scope]}</Text>}
             {task.focused && <Text color="yellow">{' ★'}</Text>}
             {task.status === 'done' && <Text dimColor>{' ✓'}</Text>}
+            {task.parent_id === null && sessionColor && (
+              <SessionDot color={sessionColor} active={task.session_id ? isSessionActive(task.session_id) : false} />
+            )}
           </Box>
         );
       }

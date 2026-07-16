@@ -5,7 +5,9 @@ build/
 *.tsbuildinfo
 *.lock
 !package-lock.json
-.claude/
+# Local Claude Code state stays ignored, but the repo's skills ship.
+.claude/*
+!.claude/skills/
 *.swp
 todo*.md
 .DS_Store

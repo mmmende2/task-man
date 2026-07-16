@@ -237,11 +237,29 @@
 
 .metrics-sub {
   display: flex;
-  align-items: center;
+  /* Top-align so the connector and dot ride the first line of a wrapped title. */
+  align-items: flex-start;
   gap: 6px;
   font-size: 13px;
+  /* px so the 12px connector/mark and 13px title share one first-line box. */
+  line-height: 20px;
   color: var(--fg-dim);
   font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Monaco, monospace;
+  position: relative;
+}
+
+/* Continue the tree rail below ├─ across wrapped title lines and the row gap.
+   Geometry assumes the 20px line-height above: the 12px glyph's stroke spans
+   4px–16px of the first line box, so the rail starts at 16px and overshoots
+   6px (2px row gap + 4px) to meet the next row's glyph stroke. */
+.metrics-sub:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 16px;
+  bottom: -6px;
+  width: 1px;
+  background: var(--fg-muted);
 }
 
 .metrics-sub-connector {
