@@ -49,13 +49,6 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-# `git describe` of the source this image was built from, passed by the
-# deploy (`--build-arg GIT_DESCRIBE=$(git describe --tags --always --dirty)`).
-# Surfaced at /healthz and in the web footer so you can confirm what's live.
-# Defaults to 'dev' for an un-stamped local build.
-ARG GIT_DESCRIBE=dev
-ENV TASK_MAN_BUILD=${GIT_DESCRIBE}
-
 # zoneinfo for the TZ env var (compose passes the user's timezone so the
 # server's "today" matches theirs) — slim images don't include it, and a
 # TZ that can't resolve silently means UTC date boundaries.
@@ -72,6 +65,17 @@ COPY --from=build /repo/cli/dist-web ./dist-web
 # mounts a volume here so tasks survive container recreation.
 ENV HOME=/root
 VOLUME /root/.task-man
+
+# `git describe` of the source this image was built from, passed by the
+# deploy (`--build-arg GIT_DESCRIBE=$(git describe --long --always --dirty)`).
+# Surfaced at /healthz and in the web footer so you can confirm what's live.
+# Defaults to 'dev' for an un-stamped local build. Declared LAST so a new
+# stamp only rebuilds these final layers — everything above stays cached.
+ARG GIT_DESCRIBE=dev
+ENV TASK_MAN_BUILD=${GIT_DESCRIBE}
+# Print the stamp into the build log — this is the string /healthz reports,
+# so the deployer knows exactly what to look for when verifying.
+RUN echo "==> task-man build stamped: ${GIT_DESCRIBE}"
 
 EXPOSE 3030
 CMD ["node", "dist/index.js", "serve", "--bind", "0.0.0.0", "--port", "3030"]

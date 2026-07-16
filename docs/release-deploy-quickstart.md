@@ -25,10 +25,13 @@ git fetch --tags --force && git checkout deploy-vN
 # on an annotated version tag (vX.Y.Z-0-g<sha>, not bare vX.Y.Z). Do NOT use
 # `--tags` (that would resolve to the lightweight deploy-vN and stamp
 # "deploy-vN").
-GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
+GIT_DESCRIBE=$(git describe --long --always --dirty)
+GIT_DESCRIBE=$GIT_DESCRIBE docker compose -f deploy/docker-compose.yml up -d --build
+echo "deployed build stamp: $GIT_DESCRIBE — /healthz must report exactly this"
 
-# 3. verify — build string is the discriminator (version alone doesn't move
-#    between releases); watch for cloudflared "Registered tunnel connection"
+# 3. verify — /healthz build must equal the stamp echoed above (the Dockerfile
+#    also prints it during the build: "==> task-man build stamped: ...");
+#    watch for cloudflared "Registered tunnel connection"
 docker compose -f deploy/docker-compose.yml exec -T task-man \
   node -e 'fetch("http://localhost:3030/healthz").then(r=>r.json()).then(j=>console.log(JSON.stringify(j)))'
 docker compose -f deploy/docker-compose.yml logs -f
@@ -37,7 +40,7 @@ docker compose -f deploy/docker-compose.yml logs -f
 Note: `task-man whoami` is not on the container's PATH (the entrypoint runs the
 server directly), so verify via `/healthz` above, not `whoami`.
 
-**Rollback:** `git checkout deploy-v(N-1) && GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build`.
+**Rollback:** `git checkout deploy-v(N-1) && GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build`. Same rule: `/healthz` must report the rolled-back stamp.
 
 **Restart only (no code change):** `docker compose -f deploy/docker-compose.yml restart task-man` — data persists, TUI reconnects on its own.
 
