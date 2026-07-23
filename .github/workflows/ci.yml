@@ -26,6 +26,33 @@ jobs:
           npm run build
           npm test
 
+  # Enforce that every PR declares its version intent: a changeset file (or an
+  # explicit empty one, `changeset add --empty`, for changes that need no
+  # release). Release PRs (branch `release/*`) consume changesets and add none,
+  # so the gate is skipped for them — but the job still runs and reports success
+  # so it stays a valid required status check (a skipped required check would
+  # block the merge forever).
+  changeset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: require a changeset (skipped on release/* PRs)
+        run: |
+          if [[ "${{ github.head_ref }}" == release/* ]]; then
+            echo "release PR — changeset gate skipped"
+            exit 0
+          fi
+          git fetch origin main
+          npx changeset status --since=origin/main
+
   # Full image build — validates that the production bundle (cli + web)
   # actually compiles into the deployable image. This is the check that
   # catches a broken/stale web bundle before it can ship.
