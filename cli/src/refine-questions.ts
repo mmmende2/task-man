@@ -1,6 +1,6 @@
 import type { Task, TaskScope } from './types.js';
 import { filterByScope } from './task-filters.js';
-import { isStaleTodo } from './refine-queue.js';
+import { isStaleTodo, needsClaudeRefine } from './refine-queue.js';
 
 // The "question brain" for Refine, extracted from the TUI so the web can
 // drive the exact same card sequence. Pure — no React, no I/O — and
@@ -181,10 +181,13 @@ export function buildQuestions(
     });
   }
 
-  // 3. Priority review. isStaleTodo is the same predicate that admits a task
-  // to the queue as stale_todo — shared so a task queued only for staleness
-  // always has this card to show (see the invariant note in refine-queue.ts).
-  if (task.created_by === 'claude' || isStaleTodo(task)) {
+  // 3. Priority review. Both gates are the same predicates that admit a task to
+  // the queue (needsClaudeRefine → from_claude, isStaleTodo → stale_todo),
+  // shared so a task queued for either always has this card to show (see the
+  // invariant note in refine-queue.ts). needsClaudeRefine clears once the task
+  // has a time estimate + vibe, so an already-refined Claude task stops being
+  // re-asked its priority — the old `created_by === 'claude'` gate never did.
+  if (needsClaudeRefine(task) || isStaleTodo(task)) {
     list.push({
       type: 'list',
       prompt: 'How urgent is this, really?',
