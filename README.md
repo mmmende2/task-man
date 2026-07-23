@@ -64,7 +64,8 @@ Just want to try it on one machine with plain file storage? Skip all the hosting
 
 ```bash
 git clone https://github.com/mmmende2/task-man.git
-cd task-man/cli && npm install && npm run build && npm link
+cd task-man && npm install && npm run build -w task-man    # workspace root
+cd cli && npm link                                          # expose `task-man` globally
 
 task-man --version    # confirm install
 task-man              # launch the TUI — tasks live in ~/.task-man/tasks.json
@@ -105,7 +106,8 @@ The TUI and MCP code against one async `Store` interface. `LocalStore` (the defa
 
 ## Documentation
 
-- [`docs/phase2-manual-setup-guide.md`](./docs/phase2-manual-setup-guide.md) — deploy behind Cloudflare Tunnel + Access, and the release/tagging workflow
+- [`docs/release-deploy-quickstart.md`](./docs/release-deploy-quickstart.md) — versioning (Changesets), writing a changeset, cutting a release, and deploying
+- [`docs/phase2-manual-setup-guide.md`](./docs/phase2-manual-setup-guide.md) — deploy behind Cloudflare Tunnel + Access, and the release workflow in full
 - [`cli/README.md`](./cli/README.md) — CLI, TUI keybindings, `task-man serve`, remote config
 - [`web/README.md`](./web/README.md) — web dev and build flow
 - [`mcp/README.md`](./mcp/README.md) — MCP setup and full tool reference

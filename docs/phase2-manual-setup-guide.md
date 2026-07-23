@@ -232,31 +232,33 @@ Deploys are pinned to immutable tags named after the app version — one new tag
 per release, **never moved, never reused**. This keeps a permanent record of
 what shipped and makes rollback trivial.
 
-**Cut a release (laptop):** use `npm version`, which bumps the version in
-**both** `cli/package.json` and `cli/package-lock.json`, commits them together,
-and creates the matching `vX.Y.Z` tag — all in one step, so the two files can't
-drift (hand-editing just `package.json` leaves the lock file stale).
+**Cut a release (laptop):** versions are managed by [Changesets](https://github.com/changesets/changesets). Every merged PR carries a changeset (CI enforces it); a release consumes the accumulated changesets into one shared version bump for `cli` + `web` (a `fixed` group) plus `CHANGELOG.md`, then tags it. Because `main` is protected, the version bump lands via a short `release/*` PR (the changeset gate auto-skips those).
 ```bash
-cd cli
-npm version patch      # 0.2.0 → 0.2.1  (use `minor`/`major` as appropriate)
-cd ..
-git push origin main --follow-tags   # pushes the release commit + the new tag
+git checkout main && git pull
+git checkout -b release/next
+npx changeset version               # bumps the shared version + writes CHANGELOG.md
+git commit -am "release"
+git push -u origin release/next
+gh pr create --title "release" --body "version bump + changelog"
+# merge it, then tag the release commit on main (annotated -> git describe anchors here):
+git checkout main && git pull
+VERSION="v$(node -p "require('./cli/package.json').version")"
+git tag -a "$VERSION" -m "$VERSION" && git push origin "$VERSION"
 ```
-`npm version` needs a clean working tree — commit or stash other changes first.
-`--follow-tags` pushes the annotated tag it created alongside the commit.
+The `vX.Y.Z` tag is immutable — one per release, never moved, never reused.
 
 **Redeploy on the droplet** — check out the specific version:
 ```bash
 git fetch --tags
-git checkout v0.2.1
-GIT_DESCRIBE=$(git describe --tags --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
+git checkout v0.5.0                  # the tag you just pushed
+GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
 ```
 Prefer one command without remembering the name? Check out the highest version
 tag automatically:
 ```bash
 git fetch --tags
 git checkout "$(git tag -l 'v*' --sort=-v:refname | head -1)"
-GIT_DESCRIBE=$(git describe --tags --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
+GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
 **Roll back** to a previous release the same way — the old code is still there
