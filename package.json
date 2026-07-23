@@ -1,8 +1,14 @@
 {
   "name": "task-man-workspace",
   "private": true,
+  "workspaces": [
+    "cli",
+    "web"
+  ],
   "scripts": {
-    "dev": "concurrently -k -n api,web -c magenta,cyan \"task-man serve\" \"npm run dev --prefix web\""
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"task-man serve\" \"npm run dev -w task-man-web\"",
+    "build": "npm run build -w task-man && npm run build -w task-man-web",
+    "test": "npm run test -w task-man && npm run test -w task-man-web"
   },
   "devDependencies": {
     "concurrently": "^9.2.0"

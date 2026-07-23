@@ -78,10 +78,12 @@ For the critique of this design, see [`critical-review-2026-07.md`](./critical-r
 
 ## Key cross-package seams
 
-- `web` and `mcp` depend on `cli` via `"task-man": "file:../cli"` + the `exports`
-  map in `cli/package.json` (not npm workspaces — `file:` deps snapshot at
-  install; `cli` must be built before `web`/`mcp` install picks it up; the
-  Dockerfile encodes this ordering).
+- npm workspace rooted at the repo (`workspaces: ["cli", "web"]`, one root
+  lockfile). `web` depends on `cli` via `"task-man": "*"` + the `exports` map in
+  `cli/package.json`; npm symlinks `node_modules/task-man` → `cli`, so `web`
+  resolves `task-man/*` against the live `cli/dist`. `cli` must still be built
+  before `web` (the symlink points at `dist`); the root `build` script and the
+  Dockerfile both encode that ordering.
 - Web build output lands directly in `cli/dist-web/` (vite `outDir`), which
   `mountStatic` serves with SPA fallback. No copy step anymore.
 - Claude session identity: `sessions.ts` walks process ancestry / `CLAUDE_SESSION_ID`

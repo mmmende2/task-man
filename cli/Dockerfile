@@ -1,6 +1,6 @@
-# Builds task-man from source (the package isn't published to npm) and bundles
-# the web frontend's static build into dist-web, exactly as `npm run build:all`
-# does locally. Build context must be the repo root, e.g.:
+# Builds task-man from source (not published to npm) and bundles the web
+# frontend's static build into dist-web. Build context must be the repo root
+# (the npm workspace root), e.g.:
 #   docker build -f cli/Dockerfile -t task-man:0.1.1 .
 #
 # For a reproducible/pinned build, check out the desired tag or commit in the
@@ -10,40 +10,38 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /repo
 
-# ALL dependency layers come before any source copy: they invalidate only
-# when a package.json/lockfile changes, so a source-only deploy skips every
-# npm ci below and re-runs just tsc + vite. Ordered the other way (deps
-# interleaved with source), each deploy re-installed everything — which is
-# what froze the 1GB droplet for ~40 minutes building deploy-v8.
-COPY cli/package.json cli/package-lock.json ./cli/
-RUN npm ci --prefix cli
+# Dependency layer before any source copy: it invalidates only when a manifest
+# or the lockfile changes, so a source-only deploy skips npm ci and re-runs
+# just tsc + vite. (Interleaving deps with source is what froze the 1GB droplet
+# for ~40 minutes on deploy-v8.) One root `npm ci` installs every workspace's
+# deps into a single hoisted tree and symlinks web -> cli, so the web build
+# resolves task-man/* against the live cli/dist below — no snapshot to refresh.
+COPY package.json package-lock.json ./
+COPY cli/package.json ./cli/
+COPY web/package.json ./web/
+RUN npm ci
 
-# web's `file:../cli` dependency is snapshotted by npm at install time (plain
-# npm, no workspaces — it copies rather than symlinks). cli/dist doesn't exist
-# yet, so this snapshot is dist-less; it's refreshed after the cli build below.
-COPY web/package.json web/package-lock.json ./web/
-RUN npm ci --prefix web
-
-# Production-only deps for the runtime image, installed into a parallel dir so
-# this layer is also cache-stable across source changes.
-COPY cli/package.json cli/package-lock.json ./cli-prod/
-RUN npm ci --prefix cli-prod --omit=dev
-
+# Source + build. cli first: web imports task-man/* which resolve to cli/dist
+# through the workspace symlink.
 COPY cli/tsconfig*.json ./cli/
 COPY cli/src ./cli/src
-RUN npm run build --prefix cli
-
-# Refresh the snapshotted file:../cli dep with the freshly built dist so the
-# web build resolves task-man/* imports (and their .d.ts) normally.
-RUN rm -rf web/node_modules/task-man \
-  && mkdir -p web/node_modules/task-man \
-  && cp cli/package.json web/node_modules/task-man/ \
-  && cp -R cli/dist web/node_modules/task-man/dist
+RUN npm run build -w task-man
 
 COPY web/tsconfig*.json web/vite.config.ts web/index.html ./web/
 COPY web/src ./web/src
 COPY web/public ./web/public
-RUN npm run build --prefix web
+RUN npm run build -w task-man-web
+
+# Production-only deps for the runtime image, in a separate stage so it caches
+# independently of the source build. cli's runtime deps and web's don't
+# version-conflict, so --omit=dev hoists everything the server needs into
+# /repo/node_modules.
+FROM node:22-bookworm-slim AS prod-deps
+WORKDIR /repo
+COPY package.json package-lock.json ./
+COPY cli/package.json ./cli/
+COPY web/package.json ./web/
+RUN npm ci --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
@@ -57,9 +55,13 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /repo/cli/package.json ./package.json
-COPY --from=build /repo/cli-prod/node_modules ./node_modules
+COPY --from=prod-deps /repo/node_modules ./node_modules
 COPY --from=build /repo/cli/dist ./dist
 COPY --from=build /repo/cli/dist-web ./dist-web
+
+# Drop the workspace self-symlinks (task-man -> ../cli, task-man-web -> ../web);
+# they dangle here and nothing at runtime imports task-man by package name.
+RUN rm -rf node_modules/task-man node_modules/task-man-web
 
 # Matches Config's default task file location (~/.task-man); the compose file
 # mounts a volume here so tasks survive container recreation.
