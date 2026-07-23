@@ -21,17 +21,24 @@ The app has **no auth of its own** (the old 4-digit PIN screen is gone). In loca
 
 ## Develop
 
+Install once from the repo root — this is an npm workspace, so a single
+`npm install` sets up both `cli` and `web`:
+
+```bash
+npm install      # from the repo root
+```
+
+Then:
+
 ```bash
 # Terminal 1: run the API (binds 127.0.0.1 by default)
 task-man serve
 
 # Terminal 2: run the SPA dev server (proxies /api to :3030)
-cd web
-npm install
-npm run dev
+npm run dev -w task-man-web
 ```
 
-Or, from the repo root:
+Or, from the repo root, both at once:
 
 ```bash
 npm run dev      # starts `task-man serve` + web dev concurrently
@@ -42,11 +49,10 @@ Open the URL Vite prints (`:5173`, not `:3030`) — saves hot-reload in <100ms, 
 ## Build
 
 ```bash
-cd web
-npm run build    # tsc -b + vite build → ../cli/dist-web/
+npm run build -w task-man-web    # tsc -b + vite build → ../cli/dist-web/
 ```
 
-The build writes straight into `cli/dist-web/` (see `vite.config.ts`) — there is no separate copy step. `npm run build:all` from `cli/` rebuilds both packages in one go.
+The build writes straight into `cli/dist-web/` (see `vite.config.ts`) — there is no separate copy step. `web` imports resolve against `cli/dist`, so `cli` must be built first; `npm run build` at the repo root does both in order (cli, then web).
 
 If you start `task-man serve` without a built `cli/dist-web/`, the server returns `503` with a "frontend not built" hint instead of pretending it's fine.
 
@@ -55,12 +61,11 @@ If you start `task-man serve` without a built `cli/dist-web/`, the server return
 ## Test
 
 ```bash
-cd web
-npm test         # vitest + jsdom + @testing-library/react
+npm test -w task-man-web    # vitest + jsdom + @testing-library/react
 ```
 
 ## Tech
 
 - Vite 8, React 19, React Router 7
-- Imports types and the shared HTTP client from the CLI (`task-man/types`, `task-man/api-client`) via the `file:../cli` dependency
+- Imports types and the shared HTTP client from the CLI (`task-man/types`, `task-man/api-client`). This is an npm workspace: `task-man` is a `"*"` dependency that npm symlinks to `../cli`, so imports resolve against the live `cli/dist` — build `cli` first (the root `build` script does)
 - Idempotency keys on writes — `crypto.randomUUID()` when available, a short pseudo-random fallback for plain-HTTP contexts (Safari mobile on `http://laptop.local`)

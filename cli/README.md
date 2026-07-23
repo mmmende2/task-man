@@ -13,11 +13,12 @@ Also re-exports the `TaskStore` and related modules used by `web/` at build time
 
 ### From source
 
+This repo is an npm workspace, so install once from the root:
+
 ```bash
-cd cli
-npm install
-npm run build
-npm link        # exposes `task-man` globally
+npm install                  # from the repo root — sets up cli + web
+npm run build -w task-man    # build the CLI (add web with `npm run build` at root)
+cd cli && npm link           # exposes `task-man` globally
 ```
 
 Verify:
@@ -231,7 +232,24 @@ npm test        # vitest run
 npm run test:watch
 ```
 
-`build:all` rebuilds the web SPA and copies `web/dist` into `cli/dist-web/`, which the Hono server mounts at runtime.
+`build:all` rebuilds the web SPA into `cli/dist-web/` (vite writes there directly — no copy step), which the Hono server mounts at runtime.
+
+### Versioning (Changesets)
+
+`cli` and `web` share one version (a Changesets `fixed` group), so `task-man`'s
+version is the whole app's version. Every PR must include a changeset — CI's
+`changeset` job enforces it:
+
+```bash
+npx changeset            # pick a bump level, write a summary
+npx changeset add --empty   # for a change that needs no release (docs, CI)
+```
+
+Convention for this repo: **write changesets against `task-man`** (list it in
+the frontmatter), even for web-only changes — that keeps `cli/CHANGELOG.md` as
+the single product changelog. The fixed group bumps `web` in lockstep either
+way. Cutting a release (`changeset version` + `vX.Y.Z` tag) is in
+[`docs/release-deploy-quickstart.md`](../docs/release-deploy-quickstart.md).
 
 ## Exports
 

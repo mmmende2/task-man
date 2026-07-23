@@ -14,6 +14,37 @@ Terse reference. First-time infra + full detail: [`phase2-manual-setup-guide.md`
   is the git-describe anchor and the droplet deploy target. (There are no more
   `deploy-vN` tags.)
 
+## Writing a changeset (per PR)
+
+```sh
+npx changeset              # interactive: pick package(s), bump level, write a summary
+npx changeset add --empty  # for a change that needs no release (docs, CI, chores)
+```
+
+A changeset is frontmatter (which packages + bump level) plus a summary line:
+
+```markdown
+---
+"task-man": minor
+---
+Session dots now show on parent tasks.
+```
+
+How the two workspaces interact — the part that trips people up:
+
+- **The version always moves together.** With the `fixed` group, listing *one*
+  package bumps *both* to the same number. You never list both just to keep
+  versions in sync.
+- **The frontmatter decides which `CHANGELOG.md` the summary lands in.**
+  Changesets writes a changelog per package; a summary only appears in the
+  changelog of a package it names.
+- **Convention: always write against `task-man`.** That makes `cli/CHANGELOG.md`
+  the single product changelog (web is private and never published, so its own
+  changelog carries no meaning). List `task-man-web` too *only* if you want a
+  web-only note recorded in `web/CHANGELOG.md` as well — optional.
+- **Bump level:** `patch` = fix, `minor` = feature, `major` = breaking. The
+  highest level among the pending changesets sets the release bump.
+
 ## Preflight (laptop)
 
 ```sh
