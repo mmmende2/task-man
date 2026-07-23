@@ -5,10 +5,11 @@ on:
     branches: [main]
 
 jobs:
-  # cli + web unit tests and typechecks. web depends on cli's build output
-  # (its `file:../cli` dependency snapshots cli/dist at install time, since
-  # this repo doesn't use npm workspaces), so cli is built first — same
-  # ordering as cli/Dockerfile.
+  # cli + web unit tests and typechecks. One npm workspace: `npm ci` at the
+  # root installs both packages into a single hoisted tree, and the root
+  # `build`/`test` scripts run cli before web (web imports task-man/* which
+  # resolve to cli/dist through the workspace symlink) — same ordering as
+  # cli/Dockerfile.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -17,19 +18,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: |
-            cli/package-lock.json
-            web/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: cli — install, build (typecheck), test
-        working-directory: cli
-        run: |
-          npm ci
-          npm run build
-          npm test
-
-      - name: web — install, build (typecheck), test
-        working-directory: web
+      - name: install, build (typecheck), test
         run: |
           npm ci
           npm run build
