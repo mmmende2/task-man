@@ -5,6 +5,7 @@ import {
   buildRefineQueue,
   countUnrefined,
   buildRefineQueueWithReasons,
+  needsClaudeRefine,
 } from '../refine-queue.js';
 import { buildQuestions, deriveCategories } from '../refine-questions.js';
 import type { Task } from '../types.js';
@@ -149,6 +150,55 @@ describe('countUnrefined vs buildRefineQueue cap', () => {
     const tasks = Array.from({ length: 25 }, () => makeTask({ vibe: null }));
     expect(countUnrefined(tasks)).toBe(25);
     expect(buildRefineQueue(tasks)).toHaveLength(20);
+  });
+});
+
+describe('needsClaudeRefine — refined Claude tasks stop being re-asked', () => {
+  const PRIORITY_PROMPT = 'How urgent is this, really?';
+
+  it('predicate: false once a Claude task has both time estimate and vibe', () => {
+    expect(needsClaudeRefine(makeTask({ created_by: 'claude', time_estimate: '20m', vibe: 'ok' }))).toBe(false);
+    expect(needsClaudeRefine(makeTask({ created_by: 'claude', time_estimate: '20m', vibe: null }))).toBe(true);
+    expect(needsClaudeRefine(makeTask({ created_by: 'claude', time_estimate: null, vibe: 'ok' }))).toBe(true);
+    // Not a Claude task → never a Claude-review candidate.
+    expect(needsClaudeRefine(makeTask({ created_by: 'human', time_estimate: null, vibe: null }))).toBe(false);
+  });
+
+  it('a refined Claude task is no longer queued via from_claude (drops out entirely)', () => {
+    const reasons = isRefineCandidate(
+      makeTask({ created_by: 'claude', time_estimate: '20m', vibe: 'ok' }),
+      { anyCategoriesExist: true },
+    );
+    expect(reasons).not.toContain('from_claude');
+    expect(reasons).toHaveLength(0);
+  });
+
+  it('an unrefined Claude task still gets from_claude', () => {
+    const reasons = isRefineCandidate(
+      makeTask({ created_by: 'claude', time_estimate: '20m', vibe: null }),
+      { anyCategoriesExist: true },
+    );
+    expect(reasons).toContain('from_claude');
+  });
+
+  it('does NOT show the priority card once a Claude task is refined', () => {
+    // This is the reported bug: priority was re-asked forever because the gate
+    // was `created_by === 'claude'`. A refined Claude task now shows no cards.
+    const task = makeTask({ created_by: 'claude', time_estimate: '20m', vibe: 'ok' });
+    const prompts = buildQuestions(task, [task], 0, null, ['home'], true).map(q => q.prompt);
+    expect(prompts).not.toContain(PRIORITY_PROMPT);
+  });
+
+  it('still shows the priority card while a Claude task is unrefined', () => {
+    const task = makeTask({ created_by: 'claude', time_estimate: '20m', vibe: null });
+    const prompts = buildQuestions(task, [task], 0, null, ['home'], true).map(q => q.prompt);
+    expect(prompts).toContain(PRIORITY_PROMPT);
+  });
+
+  it('still shows the priority card for a stale non-Claude todo (unchanged)', () => {
+    const task = makeTask({ created_by: 'human', created_at: '2020-01-01T00:00:00.000Z', priority: 'low' });
+    const prompts = buildQuestions(task, [task], 0, null, ['home'], true).map(q => q.prompt);
+    expect(prompts).toContain(PRIORITY_PROMPT);
   });
 });
 

@@ -42,6 +42,22 @@ export function isStaleTodo(t: Task): boolean {
 }
 
 /**
+ * A Claude-created task still warrants an origin review until the user has
+ * given it the core metadata. "Refined" = both a time estimate AND a vibe are
+ * set; until then the `from_claude` queue reason and the priority card stay
+ * live, and once refined they clear so Refine stops re-asking.
+ *
+ * This exists because `created_by === 'claude'` is permanent and `priority`
+ * always has a value (defaults to 'medium'), so nothing else could tell "this
+ * Claude task was already reviewed" apart. Shared by isRefineCandidate (the
+ * `from_claude` reason) and buildQuestions (the priority card) so the queue and
+ * the cards use one definition and can't drift.
+ */
+export function needsClaudeRefine(t: Task): boolean {
+  return t.created_by === 'claude' && (t.time_estimate == null || t.vibe == null);
+}
+
+/**
  * Reasons a single task needs refinement (empty = doesn't).
  *
  * `anyCategoriesExist` gates the `no_category` reason and mirrors the
@@ -59,7 +75,7 @@ export function isRefineCandidate(
   if (t.status === 'done') return [];
   const reasons: RefineReason[] = [];
   if (!t.scope) reasons.push('no_scope');
-  if (t.created_by === 'claude') reasons.push('from_claude');
+  if (needsClaudeRefine(t)) reasons.push('from_claude');
   if (isStaleTodo(t)) reasons.push('stale_todo');
   if (t.time_estimate == null) reasons.push('no_time_estimate');
   if (t.vibe == null) reasons.push('no_vibe');
