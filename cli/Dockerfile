@@ -56,6 +56,12 @@ RUN apt-get update \
 
 COPY --from=build /repo/cli/package.json ./package.json
 COPY --from=prod-deps /repo/node_modules ./node_modules
+# Deps npm did NOT hoist to the root tree stay in the workspace's own
+# node_modules and must travel too. `npm ci --omit=dev` drops the devDep that
+# was the only thing pulling chalk up to root, so cli's chalk@5 is left stranded
+# in cli/node_modules — without this it's absent at runtime and `serve` crashes
+# on `import chalk` (MODULE_NOT_FOUND → exit 1 → restart loop → 502).
+COPY --from=prod-deps /repo/cli/node_modules ./node_modules
 COPY --from=build /repo/cli/dist ./dist
 COPY --from=build /repo/cli/dist-web ./dist-web
 
