@@ -4,6 +4,16 @@ on:
   pull_request:
     branches: [main]
 
+# Least privilege: CI only reads the repo (it never publishes — that's
+# publish.yml's job).
+permissions:
+  contents: read
+
+# One in-flight run per branch; a new push cancels the old run.
+concurrency:
+  group: ci-${{ github.head_ref }}
+  cancel-in-progress: true
+
 jobs:
   # cli + web unit tests and typechecks. One npm workspace: `npm ci` at the
   # root installs both packages into a single hoisted tree, and the root
@@ -12,6 +22,7 @@ jobs:
   # cli/Dockerfile.
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,10 +66,26 @@ jobs:
 
   # Full image build — validates that the production bundle (cli + web)
   # actually compiles into the deployable image. This is the check that
-  # catches a broken/stale web bundle before it can ship.
+  # catches a broken/stale web bundle before it can ship. Uses buildx with a
+  # GitHub Actions layer cache so a source-only PR reuses the npm ci layers
+  # (see cli/Dockerfile's layer ordering). Does not push — publish.yml does.
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: docker build
-        run: docker build -f cli/Dockerfile --build-arg GIT_SHA="$(git rev-parse --short HEAD)" -t task-man:ci .
+        with:
+          fetch-depth: 0 # full history + tags so git describe resolves the release anchor
+      - uses: docker/setup-buildx-action@v3
+      - name: describe build
+        id: describe
+        run: echo "value=$(git describe --long --always)" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: cli/Dockerfile
+          push: false
+          tags: task-man:ci
+          build-args: GIT_DESCRIBE=${{ steps.describe.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

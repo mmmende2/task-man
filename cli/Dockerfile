@@ -19,7 +19,7 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY cli/package.json ./cli/
 COPY web/package.json ./web/
-RUN npm ci
+RUN npm ci --no-audit --no-fund
 
 # Source + build. cli first: web imports task-man/* which resolve to cli/dist
 # through the workspace symlink.
@@ -41,7 +41,7 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY cli/package.json ./cli/
 COPY web/package.json ./web/
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
