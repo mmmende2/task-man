@@ -69,6 +69,10 @@ git tag -a "$VERSION" -m "$VERSION" && git push origin "$VERSION"
 echo "release $VERSION — deploy this tag"
 ```
 
+Pushing the `vX.Y.Z` tag fires `publish.yml`, which builds and pushes a clean
+`ghcr.io/mmmende2/task-man:vX.Y.Z` image (it does not move `:latest`). Wait for
+that Publish run to go green, then deploy with `TASK_MAN_TAG=vX.Y.Z` below.
+
 ## Deploy (droplet) — pull-based
 
 CI (`publish.yml`) builds and pushes the image to GHCR on every merge to main.
@@ -80,8 +84,12 @@ ssh mario@<droplet-ip>
 cd /opt/task-man/src
 git pull                       # only needed when deploy/ files changed
 
-# Default: deploy :latest (the most recent merge to main). To pin an exact
-# build, export TASK_MAN_TAG (a vX.Y.Z-N-g<sha> stamp or a sha-<short> tag).
+# Default is :latest (most recent main merge). Be deliberate by exporting
+# TASK_MAN_TAG — a published image tag:
+#   vX.Y.Z          clean release tag (pushing the git tag publishes it)
+#   sha-<short>     immutable, one per commit
+#   vX.Y.Z-N-g<sha> the git-describe stamp
+export TASK_MAN_TAG=v0.5.1        # e.g. deploy the 0.5.1 release exactly
 docker compose -f deploy/docker-compose.yml pull task-man
 docker compose -f deploy/docker-compose.yml up -d
 
@@ -98,12 +106,15 @@ docker image prune -f          # reclaim old layers (esp. after the first pull-d
 Note: `task-man whoami` is not on the container's PATH (the entrypoint runs the
 server directly), so verify via `/healthz` above, not `whoami`.
 
-**Rollback:** point `TASK_MAN_TAG` at a previous published tag and re-up — no rebuild:
+**Rollback:** point `TASK_MAN_TAG` at a previous published tag (`vX.Y.Z` or `sha-<short>`) and re-up — no rebuild:
 ```sh
-TASK_MAN_TAG=sha-<old-short-sha> docker compose -f deploy/docker-compose.yml pull task-man
-TASK_MAN_TAG=sha-<old-short-sha> docker compose -f deploy/docker-compose.yml up -d
+export TASK_MAN_TAG=v0.5.0        # or sha-<old-short>
+docker compose -f deploy/docker-compose.yml pull task-man
+docker compose -f deploy/docker-compose.yml up -d
 ```
-`/healthz` must report the rolled-back stamp. (`export` it so both commands see it.)
+`/healthz` must report the rolled-back stamp. Only tags published since this
+pull-based flow went live exist in GHCR — to roll back to an older release,
+use the emergency on-box build below.
 
 **Restart only (no code change):** `docker compose -f deploy/docker-compose.yml restart task-man` — data persists, TUI reconnects on its own.
 

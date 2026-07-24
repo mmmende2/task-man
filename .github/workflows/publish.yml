@@ -1,11 +1,16 @@
 name: Publish
 
-# Build the deployable image once per merge to main and push it to GHCR, so
-# the droplet only ever pulls (no on-box builds — a cold build thrashes the
-# 1GB box). workflow_dispatch allows a manual re-publish of the current main.
+# Build the deployable image and push it to GHCR, so the droplet only ever
+# pulls (no on-box builds — a cold build thrashes the 1GB box). Fires on:
+#   - merge to main        -> tags :latest + :sha-<short> + :<git-describe>
+#   - push of a vX.Y.Z tag -> tags :vX.Y.Z + :sha-<short> + :<git-describe>
+#     (this is what `git push origin vX.Y.Z` at release time triggers, giving a
+#      clean :vX.Y.Z image to deploy deliberately; does NOT move :latest)
+#   - workflow_dispatch    -> manual re-publish of whatever's checked out
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 # Read the repo; write packages (push to GHCR via the built-in GITHUB_TOKEN —
@@ -28,11 +33,24 @@ jobs:
         with:
           fetch-depth: 0 # full history + tags so git describe resolves the release anchor
 
-      - name: describe build
-        id: describe
+      # Assemble the image tag list. Always: sha-<short> (immutable rollback
+      # target) + the git-describe stamp (matches /healthz). Plus one moving
+      # ref depending on the trigger — :latest for a main merge, or the clean
+      # :vX.Y.Z for a release-tag push (so releases deploy by their bare tag).
+      - name: image tags + describe
+        id: meta
         run: |
-          echo "value=$(git describe --long --always)" >> "$GITHUB_OUTPUT"
-          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          IMAGE=ghcr.io/mmmende2/task-man
+          DESCRIBE=$(git describe --long --always)
+          TAGS="${IMAGE}:sha-$(git rev-parse --short HEAD),${IMAGE}:${DESCRIBE}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAGS="${TAGS},${IMAGE}:${{ github.ref_name }}"
+          else
+            TAGS="${TAGS},${IMAGE}:latest"
+          fi
+          echo "describe=${DESCRIBE}" >> "$GITHUB_OUTPUT"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "==> publishing: ${TAGS}"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -42,19 +60,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # amd64 only — matches the droplet. Three tags: latest (default deploy),
-      # sha-<short> (immutable rollback target), and the git-describe string
-      # (release anchor, matches /healthz).
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: cli/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/amd64 # matches the droplet
           push: true
-          tags: |
-            ghcr.io/mmmende2/task-man:latest
-            ghcr.io/mmmende2/task-man:sha-${{ steps.describe.outputs.short_sha }}
-            ghcr.io/mmmende2/task-man:${{ steps.describe.outputs.value }}
-          build-args: GIT_DESCRIBE=${{ steps.describe.outputs.value }}
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: GIT_DESCRIBE=${{ steps.meta.outputs.describe }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
