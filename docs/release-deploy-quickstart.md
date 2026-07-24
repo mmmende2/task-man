@@ -69,35 +69,60 @@ git tag -a "$VERSION" -m "$VERSION" && git push origin "$VERSION"
 echo "release $VERSION — deploy this tag"
 ```
 
-## Deploy (droplet)
+Pushing the `vX.Y.Z` tag fires `publish.yml`, which builds and pushes a clean
+`ghcr.io/mmmende2/task-man:vX.Y.Z` image (it does not move `:latest`). Wait for
+that Publish run to go green, then deploy with `TASK_MAN_TAG=vX.Y.Z` below.
+
+## Deploy (droplet) — pull-based
+
+CI (`publish.yml`) builds and pushes the image to GHCR on every merge to main.
+The droplet **only pulls** — no on-box builds (a cold build thrashes the 1GB
+box). **Wait for the Publish action to go green** before deploying.
 
 ```sh
 ssh mario@<droplet-ip>
 cd /opt/task-man/src
-git fetch --tags --force && git checkout "$VERSION"     # the vX.Y.Z you just tagged
+git pull                       # only needed when deploy/ files changed
 
-# GIT_DESCRIBE stamps the build string /healthz reports. REQUIRED — compose
-# reads it (${GIT_DESCRIBE:-dev}); omit it and the build reports "dev".
-# At a clean release tag this is vX.Y.Z-0-g<sha>; anything ahead/dirty shows
-# as vX.Y.Z-N-g<sha>[-dirty], which is your signal you deployed off-release.
-GIT_DESCRIBE=$(git describe --long --always --dirty)
-GIT_DESCRIBE=$GIT_DESCRIBE docker compose -f deploy/docker-compose.yml up -d --build
-echo "deployed build stamp: $GIT_DESCRIBE — /healthz must report exactly this"
+# Default is :latest (most recent main merge). Be deliberate by exporting
+# TASK_MAN_TAG — a published image tag:
+#   vX.Y.Z          clean release tag (pushing the git tag publishes it)
+#   sha-<short>     immutable, one per commit
+#   vX.Y.Z-N-g<sha> the git-describe stamp
+export TASK_MAN_TAG=v0.5.1        # e.g. deploy the 0.5.1 release exactly
+docker compose -f deploy/docker-compose.yml pull task-man
+docker compose -f deploy/docker-compose.yml up -d
 
-# verify — /healthz build must equal the stamp echoed above (the Dockerfile
-# also prints it during the build: "==> task-man build stamped: ...");
-# watch for cloudflared "Registered tunnel connection"
+# verify — /healthz build must equal the merge commit's `git describe`
+# (also visible in the Publish action log); watch for cloudflared
+# "Registered tunnel connection"
 docker compose -f deploy/docker-compose.yml exec -T task-man \
   node -e 'fetch("http://localhost:3030/healthz").then(r=>r.json()).then(j=>console.log(JSON.stringify(j)))'
 docker compose -f deploy/docker-compose.yml logs -f
+
+docker image prune -f          # reclaim old layers (esp. after the first pull-deploy)
 ```
 
 Note: `task-man whoami` is not on the container's PATH (the entrypoint runs the
 server directly), so verify via `/healthz` above, not `whoami`.
 
-**Rollback:** `git checkout <previous vX.Y.Z> && GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build`. Same rule: `/healthz` must report the rolled-back stamp.
+**Rollback:** point `TASK_MAN_TAG` at a previous published tag (`vX.Y.Z` or `sha-<short>`) and re-up — no rebuild:
+```sh
+export TASK_MAN_TAG=v0.5.0        # or sha-<old-short>
+docker compose -f deploy/docker-compose.yml pull task-man
+docker compose -f deploy/docker-compose.yml up -d
+```
+`/healthz` must report the rolled-back stamp. Only tags published since this
+pull-based flow went live exist in GHCR — to roll back to an older release,
+use the emergency on-box build below.
 
 **Restart only (no code change):** `docker compose -f deploy/docker-compose.yml restart task-man` — data persists, TUI reconnects on its own.
+
+**Emergency on-box build** (CI/GHCR down, or testing an un-merged change) — layer the build override; this is the *old* slow path, so add a swapfile first:
+```sh
+GIT_DESCRIBE=$(git describe --long --always --dirty) \
+  docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
+```
 
 ## `deploy/.env` (droplet, `chmod 600`, never commit)
 

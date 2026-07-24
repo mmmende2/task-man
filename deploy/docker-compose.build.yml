@@ -1,0 +1,23 @@
+# Escape hatch: build the task-man image ON the droplet instead of pulling it
+# from GHCR. Normal deploys pull (publish.yml builds in CI) — use this only
+# when CI/GHCR is unavailable or you're testing an un-merged local change.
+#
+# WARNING: a cold build thrashes the 1GB droplet (~40 min, can freeze the box).
+# Prefer pulling. If you must build here, add a swapfile first.
+#
+# Usage (layer this over the base file):
+#   GIT_DESCRIBE=$(git describe --long --always --dirty) \
+#     docker compose -f deploy/docker-compose.yml \
+#                    -f deploy/docker-compose.build.yml up -d --build
+services:
+  task-man:
+    build:
+      context: ..
+      dockerfile: cli/Dockerfile
+      args:
+        # `git describe` of the deploying checkout stamps /healthz. `--long`
+        # keeps the SHA even exactly on a release tag; anything ahead/dirty
+        # shows as vX.Y.Z-N-g<sha>[-dirty]. Falls back to 'dev' if unset.
+        GIT_DESCRIBE: ${GIT_DESCRIBE:-dev}
+    # Override the GHCR image ref from the base file with a local build tag.
+    image: task-man:local
