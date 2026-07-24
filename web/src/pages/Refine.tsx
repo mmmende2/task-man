@@ -4,7 +4,7 @@ import { api, ApiError, reloadForAuth } from '../api';
 import type { Task, TaskPriority, TaskScope } from '../types';
 import { NavMenu } from '../components/NavMenu';
 import { buildRefineCandidates } from 'task-man/refine-queue';
-import { buildQuestions, deriveCategories, type QuestionDef } from 'task-man/refine-questions';
+import { buildQuestions, deriveCategories, type QuestionDef, type RefineReason } from 'task-man/refine-questions';
 import { localDateString } from 'task-man/local-date';
 import { ScopeChip, loadScopeFilter, saveScopeFilter, matchesScope, type ScopeFilter } from '../components/ScopeChip';
 import './Refine.css';
@@ -53,17 +53,19 @@ function saveFocusAsks(today: string, count: number): void {
   }
 }
 
-// Which task field an answer writes, keyed off the question's prompt — the
-// exact same prefix routing the TUI uses (RefineMode.tsx), kept identical so
-// the two surfaces can't drift on what a card means.
-function answerToChange(prompt: string, value: string, task: Task): Partial<Task> | null {
-  if (prompt.startsWith('Quick fix')) return { title: value };
-  if (prompt.startsWith('Work thing')) return { scope: value as TaskScope };
-  if (prompt.startsWith('How long')) return { time_estimate: value as Task['time_estimate'] };
-  if (prompt.startsWith('Vibe check')) return { vibe: value as Task['vibe'] };
-  if (prompt.startsWith('How urgent')) return { priority: value as TaskPriority };
-  if (prompt.startsWith('File this')) return { categories: [...task.categories, value] };
-  return null;
+// Which task field an answer writes, keyed off the question's stable `reason`
+// (the same id the TUI routes on, so the two surfaces can't drift on what a
+// card means).
+function answerToChange(reason: RefineReason, value: string, task: Task): Partial<Task> | null {
+  switch (reason) {
+    case 'title_fix': return { title: value };
+    case 'scope_review': return { scope: value as TaskScope };
+    case 'no_time_estimate': return { time_estimate: value as Task['time_estimate'] };
+    case 'no_vibe': return { vibe: value as Task['vibe'] };
+    case 'priority_review': return { priority: value as TaskPriority };
+    case 'no_category': return { categories: [...task.categories, value] };
+    default: return null;
+  }
 }
 
 export function RefinePage() {
@@ -226,7 +228,7 @@ export function RefinePage() {
     // 3-question slice (a task with 3 earlier questions may have it sliced
     // off — don't spend the budget on an unshown card). Persist immediately so
     // the cap holds across sessions. Undo does not refund the ask (accepted).
-    if (qs.some((q) => q.prompt.startsWith('Pull this into'))) {
+    if (qs.some((q) => q.reason === 'focus')) {
       focusAsksUsed.current += 1;
       saveFocusAsks(localDateString(), focusAsksUsed.current);
     }
@@ -334,7 +336,7 @@ export function RefinePage() {
   const onPick = (value: string, label: string) => {
     if (!currentQuestion || !currentTask) return;
     if (value === '__skip') return skipQuestion();
-    const change = answerToChange(currentQuestion.prompt, value, currentTask);
+    const change = answerToChange(currentQuestion.reason, value, currentTask);
     if (change) void applyChange(change, label);
   };
 
@@ -548,7 +550,7 @@ function CardBody({
   // number / list — a button per option. The category card ("File this
   // under…?") also gets a dropdown of *every* category, since its quick
   // buttons only surface the first few and the one you want may not be listed.
-  const isCategory = q.prompt.startsWith('File this');
+  const isCategory = q.reason === 'no_category';
   const buttonValues = new Set((q.options ?? []).map((o) => o.value));
   const extraCategories = isCategory ? allCategories.filter((c) => !buttonValues.has(c)) : [];
   return (

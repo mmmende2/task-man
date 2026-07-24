@@ -115,10 +115,9 @@ describe('buildQuestions', () => {
     expect(suppressed).not.toContain("Pull this into tomorrow's focus?");
   });
 
-  it('leads a blank Claude task with scope, time, and vibe (cap keeps later cards out)', () => {
-    // The "does it belong?" confirm card only fires for a no-engagement
-    // Claude task — but such a task already trips scope + time + vibe, which
-    // fill all three slots first. So the earliest, highest-signal cards win.
+  it('leads a brand-new Claude task with the gaps, then a review (cap keeps the rest out)', () => {
+    // New order: gaps first (information to capture), then the Claude scope
+    // review. Priority review, "does it belong?", and focus fall past the cap.
     const claudeTask = makeTask({
       created_by: 'claude',
       description: null,
@@ -128,9 +127,9 @@ describe('buildQuestions', () => {
       vibe: null,
     });
     expect(prompts(claudeTask)).toEqual([
-      'Work thing or personal thing?',
       'How long will this take?',
       'Vibe check?',
+      'Work thing or personal thing?',
     ]);
   });
 
