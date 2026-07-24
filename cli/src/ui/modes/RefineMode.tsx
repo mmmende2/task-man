@@ -172,7 +172,7 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     const qs = buildQuestions(currentTask, all, focused, config.focus.maxFocused, cats, focusAsksUsed.current >= 2);
     // Charge an ask only for a focus card that survived the question slice
     // (see the web's matching note in Refine.tsx). Undo doesn't refund it.
-    if (qs.some(q => q.prompt.startsWith('Pull this into'))) focusAsksUsed.current += 1;
+    if (qs.some(q => q.reason === 'focus')) focusAsksUsed.current += 1;
     debugLog('refine.freeze', {
       taskId: currentTask.id.slice(0, 8), title: currentTask.title,
       prompts: qs.map(q => q.prompt), focusAsksUsed: focusAsksUsed.current,
@@ -336,7 +336,7 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
           const picked = currentQuestion.options[listCursor];
           if (picked.value === '__skip') {
             skipQuestion();
-          } else if (currentQuestion.prompt.startsWith('How urgent')) {
+          } else if (currentQuestion.reason === 'priority_review') {
             applyChange({ priority: picked.value as TaskPriority }, `priority: ${picked.value}`);
           }
           setListCursor(0);
@@ -351,13 +351,13 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
           const picked = currentQuestion.options[n - 1];
           if (picked.value === '__skip') {
             skipQuestion();
-          } else if (currentQuestion.prompt.startsWith('Work thing')) {
+          } else if (currentQuestion.reason === 'scope_review') {
             applyChange({ scope: picked.value as TaskScope }, `scope: ${picked.value}`);
-          } else if (currentQuestion.prompt.startsWith('How long')) {
+          } else if (currentQuestion.reason === 'no_time_estimate') {
             applyChange({ time_estimate: picked.value as TimeEstimate }, `time: ${picked.value}`);
-          } else if (currentQuestion.prompt.startsWith('Vibe check')) {
+          } else if (currentQuestion.reason === 'no_vibe') {
             applyChange({ vibe: picked.value as Vibe }, `vibe: ${picked.value}`);
-          } else if (currentQuestion.prompt.startsWith('File this')) {
+          } else if (currentQuestion.reason === 'no_category') {
             const nextCats = [...(currentTask?.categories ?? []), picked.value];
             applyChange({ categories: nextCats }, `filed: ${picked.value}`);
           }

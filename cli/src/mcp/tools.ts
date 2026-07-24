@@ -356,7 +356,7 @@ export function registerTools(server: McpServer, opts: RegisterToolsOptions): vo
   server.registerTool(
     'task_refine_queue',
     {
-      description: 'List tasks that need refinement: missing scope/time/vibe/category, created by Claude, or stuck in todo >30 days. Returns { total, queue }: `total` is the uncapped count of tasks needing refinement; `queue` is the priority-sorted list capped at 20 (mirrors the TUI Refine session). Pass scope to restrict both to personal or professional tasks.',
+      description: 'List tasks that need refinement. A task is flagged for its missing/unreviewed aspects, each surfaced as a reason: no_time_estimate, no_vibe, no_category (gaps), plus scope_review / priority_review for a brand-new Claude-created task (verify the scope/priority Claude guessed), and priority_review for a stale todo (>30 days, not high). Returns { total, queue }: `total` is the uncapped count needing refinement; `queue` is the priority-sorted list capped at 20 (mirrors the TUI Refine session), each entry `{ task, reasons }`. Pass scope to restrict both to personal or professional tasks.',
       inputSchema: {
         scope: z.enum(['personal', 'professional']).optional().describe('Restrict to tasks of this scope'),
       },
