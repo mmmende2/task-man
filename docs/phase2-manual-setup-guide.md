@@ -216,11 +216,17 @@ straight from a checkout of the repo.
    `TZ` makes the server's idea of "today" match yours. Containers default
    to UTC, so without it evening completions fall on tomorrow's date and
    disappear from the web Metrics page until UTC midnight passes.
-4. `GIT_DESCRIBE=$(git describe --tags --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build`.
-   `GIT_DESCRIBE` stamps the running build so `/healthz` and the web menu footer
-   report exactly what's live (e.g. `v0.3.1-2-ge7d4e7d`, or `v0.3.1` right on a
+4. Pull the prebuilt image from GHCR and start (deploys are pull-based — CI
+   builds the image, the droplet never builds; see `docs/ci-build-deploy-plan-2026-07-12.md`):
+   ```bash
+   export TASK_MAN_TAG=v0.2.0   # REQUIRED — the version to deploy (compose has no default)
+   docker compose -f deploy/docker-compose.yml pull task-man
+   docker compose -f deploy/docker-compose.yml up -d
+   ```
+   The image is stamped at build time, so `/healthz` and the web menu footer
+   report exactly what's live (e.g. `v0.3.1-2-ge7d4e7d`, or the clean `v0.3.1`
    tag) — that's how you confirm a redeploy landed instead of guessing about
-   browser cache. Omit it and the stamp falls back to `dev`.
+   browser cache.
 5. `docker compose -f deploy/docker-compose.yml logs -f` — look for `cloudflared`
    logging a successful connection ("Registered tunnel connection") and
    `task-man` logging that it's listening on port 3030. Ctrl-C to stop tailing
@@ -247,24 +253,29 @@ git tag -a "$VERSION" -m "$VERSION" && git push origin "$VERSION"
 ```
 The `vX.Y.Z` tag is immutable — one per release, never moved, never reused.
 
-**Redeploy on the droplet** — check out the specific version:
+Pushing the `vX.Y.Z` tag triggers `publish.yml`, which builds and pushes a
+clean `ghcr.io/mmmende2/task-man:vX.Y.Z` image. The droplet just pulls it — no
+on-box build. See `docs/release-deploy-quickstart.md` for the canonical deploy
+runbook; the short version:
+
+**Redeploy on the droplet** — pull the image tag you want:
 ```bash
-git fetch --tags
-git checkout v0.5.0                  # the tag you just pushed
-GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
-```
-Prefer one command without remembering the name? Check out the highest version
-tag automatically:
-```bash
-git fetch --tags
-git checkout "$(git tag -l 'v*' --sort=-v:refname | head -1)"
-GIT_DESCRIBE=$(git describe --long --always --dirty) docker compose -f deploy/docker-compose.yml up -d --build
+export TASK_MAN_TAG=v0.5.0            # REQUIRED — the release you just published
+docker compose -f deploy/docker-compose.yml pull task-man
+docker compose -f deploy/docker-compose.yml up -d
 ```
 
-**Roll back** to a previous release the same way — the old code is still there
-under its own tag, so `git checkout v0.2.0 && docker compose … up -d --build`
-puts it back. No `--force` anywhere: immutable tags are only ever *added* on
-`git fetch --tags`, never rewritten.
+**Roll back** the same way — every published tag stays in GHCR, so point
+`TASK_MAN_TAG` at a prior `vX.Y.Z` (or `sha-<short>`), `pull`, `up -d`. No
+rebuild; task data lives in the `task-man-data` volume, untouched.
+
+**Emergency on-box build** (CI/GHCR unavailable, or an un-merged local change)
+— layer the build override; this is the old slow path and thrashes the 1GB
+droplet, so add swap first:
+```bash
+GIT_DESCRIBE=$(git describe --long --always --dirty) \
+  docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
+```
 
 ### 3a. Seed the droplet with your current data
 

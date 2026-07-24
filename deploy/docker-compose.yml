@@ -2,11 +2,14 @@ services:
   task-man:
     # Pull-based deploy: CI (publish.yml) builds and pushes the image to GHCR
     # on every merge to main; the droplet only pulls (no on-box builds — a cold
-    # build thrashes the 1GB box). TASK_MAN_TAG selects which image:
-    #   latest (default), sha-<short> for rollback, or a vX.Y.Z-N-g<sha> stamp.
+    # build thrashes the 1GB box). TASK_MAN_TAG is REQUIRED and names the image
+    # to deploy — deliberately no default, so a bare `up -d` can't silently ship
+    # "whatever latest is". Set it every deploy (export it so pull/up/logs/ps all
+    # see it): a vX.Y.Z release tag, or a sha-<short> / vX.Y.Z-N-g<sha> stamp.
+    #   export TASK_MAN_TAG=v0.5.1
     # To build on-box instead (emergency/local), add the override file:
     #   -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml
-    image: ghcr.io/mmmende2/task-man:${TASK_MAN_TAG:-latest}
+    image: ghcr.io/mmmende2/task-man:${TASK_MAN_TAG:?set TASK_MAN_TAG to the version to deploy, e.g. v0.5.1}
     restart: unless-stopped
     environment:
       # Origin-side verification of the Access JWT that Cloudflare attaches
