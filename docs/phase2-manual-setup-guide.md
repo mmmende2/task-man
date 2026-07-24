@@ -219,7 +219,7 @@ straight from a checkout of the repo.
 4. Pull the prebuilt image from GHCR and start (deploys are pull-based — CI
    builds the image, the droplet never builds; see `docs/ci-build-deploy-plan-2026-07-12.md`):
    ```bash
-   export TASK_MAN_TAG=v0.2.0   # the version you want live; default is latest
+   export TASK_MAN_TAG=v0.2.0   # REQUIRED — the version to deploy (compose has no default)
    docker compose -f deploy/docker-compose.yml pull task-man
    docker compose -f deploy/docker-compose.yml up -d
    ```
@@ -260,7 +260,7 @@ runbook; the short version:
 
 **Redeploy on the droplet** — pull the image tag you want:
 ```bash
-export TASK_MAN_TAG=v0.5.0            # the release you just published (default: latest)
+export TASK_MAN_TAG=v0.5.0            # REQUIRED — the release you just published
 docker compose -f deploy/docker-compose.yml pull task-man
 docker compose -f deploy/docker-compose.yml up -d
 ```

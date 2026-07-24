@@ -84,12 +84,13 @@ ssh mario@<droplet-ip>
 cd /opt/task-man/src
 git pull                       # only needed when deploy/ files changed
 
-# Default is :latest (most recent main merge). Be deliberate by exporting
-# TASK_MAN_TAG — a published image tag:
+# TASK_MAN_TAG is REQUIRED — compose has no default, so you name the version
+# every deploy (this is deliberate; typing it is the point). Export it so
+# pull/up/logs/ps all see the same value. A published image tag:
 #   vX.Y.Z          clean release tag (pushing the git tag publishes it)
 #   sha-<short>     immutable, one per commit
 #   vX.Y.Z-N-g<sha> the git-describe stamp
-export TASK_MAN_TAG=v0.5.1        # e.g. deploy the 0.5.1 release exactly
+export TASK_MAN_TAG=v0.5.1        # the version you're deploying
 docker compose -f deploy/docker-compose.yml pull task-man
 docker compose -f deploy/docker-compose.yml up -d
 
