@@ -1,0 +1,60 @@
+name: Publish
+
+# Build the deployable image once per merge to main and push it to GHCR, so
+# the droplet only ever pulls (no on-box builds — a cold build thrashes the
+# 1GB box). workflow_dispatch allows a manual re-publish of the current main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Read the repo; write packages (push to GHCR via the built-in GITHUB_TOKEN —
+# no repo secrets needed).
+permissions:
+  contents: read
+  packages: write
+
+# Never cancel a publish mid-push; let each merge publish in order.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags so git describe resolves the release anchor
+
+      - name: describe build
+        id: describe
+        run: |
+          echo "value=$(git describe --long --always)" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # amd64 only — matches the droplet. Three tags: latest (default deploy),
+      # sha-<short> (immutable rollback target), and the git-describe string
+      # (release anchor, matches /healthz).
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: cli/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/mmmende2/task-man:latest
+            ghcr.io/mmmende2/task-man:sha-${{ steps.describe.outputs.short_sha }}
+            ghcr.io/mmmende2/task-man:${{ steps.describe.outputs.value }}
+          build-args: GIT_DESCRIBE=${{ steps.describe.outputs.value }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
