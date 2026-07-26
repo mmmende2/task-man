@@ -121,7 +121,7 @@ use the emergency on-box build below.
 
 **Emergency on-box build** (CI/GHCR down, or testing an un-merged change) — layer the build override; this is the *old* slow path, so add a swapfile first:
 ```sh
-GIT_DESCRIBE=$(git describe --long --always --dirty) \
+GIT_DESCRIBE=$(git describe --tags --long --always --dirty --match 'v[0-9]*') \
   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
 ```
 

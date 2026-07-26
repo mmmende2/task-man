@@ -75,7 +75,7 @@ ENV HOME=/root
 VOLUME /root/.task-man
 
 # `git describe` of the source this image was built from, passed by the
-# deploy (`--build-arg GIT_DESCRIBE=$(git describe --long --always --dirty)`).
+# deploy (`--build-arg GIT_DESCRIBE=$(git describe --tags --long --always --dirty --match 'v[0-9]*')`).
 # Surfaced at /healthz and in the web footer so you can confirm what's live.
 # Defaults to 'dev' for an un-stamped local build. Declared LAST so a new
 # stamp only rebuilds these final layers — everything above stays cached.

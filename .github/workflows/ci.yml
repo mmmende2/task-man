@@ -77,9 +77,12 @@ jobs:
         with:
           fetch-depth: 0 # full history + tags so git describe resolves the release anchor
       - uses: docker/setup-buildx-action@v3
+      # --tags/--match mirror publish.yml exactly — see the long note there on
+      # why a bare `git describe` mis-anchors a tag build. Kept identical so CI
+      # exercises the same stamp the publish will bake in.
       - name: describe build
         id: describe
-        run: echo "value=$(git describe --long --always)" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(git describe --tags --long --always --match 'v[0-9]*')" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .

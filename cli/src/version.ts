@@ -53,9 +53,22 @@ export function parseDescribe(describe: string): BuildInfo | null {
   return null;
 }
 
+/** The footer version, split so the two halves can be colored separately. */
+export interface VersionParts {
+  /** Always present, e.g. "v0.6.0". Rendered grey. */
+  version: string;
+  /**
+   * The build token — "+3 fd86c26", "fd86c26*" — present ONLY when the running
+   * code differs from the release. Rendered YELLOW: its whole job is to catch
+   * the eye and say "this is not the release". `null` on a clean release, which
+   * is what keeps that case entirely grey.
+   */
+  build: string | null;
+}
+
 /**
- * The version label for the footer: leads with the compiled `VERSION`, then
- * appends a suffix ONLY when the running code differs from that release.
+ * Split the footer version into its grey version and (when the running code
+ * isn't the release) its yellow build token.
  *
  *   v0.6.0                  → sitting exactly on the release tag, clean tree
  *   v0.6.0 · +3 fd86c26     → 3 commits past v0.6.0
@@ -65,20 +78,27 @@ export function parseDescribe(describe: string): BuildInfo | null {
  * Why this is needed: `VERSION` comes from package.json, which Changesets only
  * bumps at RELEASE time. On a feature branch whose changesets haven't been
  * consumed yet, package.json still reads the previous release — so a bare
- * "v0.6.0" is actively misleading about what you're running. The suffix is the
- * "this is not the release" signal, and the sha pins exactly which commit.
+ * "v0.6.0" is actively misleading about what you're running. The build token is
+ * the "this is not the release" signal, and the sha pins exactly which commit.
  *
  * Leading with VERSION rather than the raw describe string is deliberate, and
  * mirrors web's formatVersionLabel: a describe tag anchor can lag the real
  * release, so "v0.5.1-5-g939826d" would read as 0.5.1 on a 0.6.0 build.
  */
-export function formatBuildLabel(version: string, info: BuildInfo | null): string {
-  if (!info) return `v${version}`;
+export function formatVersionParts(version: string, info: BuildInfo | null): VersionParts {
+  const plain = { version: `v${version}`, build: null };
+  if (!info) return plain;
   const star = info.dirty ? '*' : '';
-  if (info.ahead === 0 && !info.dirty) return `v${version}`;
-  if (!info.sha) return `v${version}${star}`;
+  if (info.ahead === 0 && !info.dirty) return plain;
+  if (!info.sha) return { version: `v${version}`, build: star || null };
   const ahead = info.ahead > 0 ? `+${info.ahead} ` : '';
-  return `v${version} · ${ahead}${info.sha}${star}`;
+  return { version: `v${version}`, build: `${ahead}${info.sha}${star}` };
+}
+
+/** The flat one-line form, for anywhere that can't color its output. */
+export function formatBuildLabel(version: string, info: BuildInfo | null): string {
+  const { version: v, build } = formatVersionParts(version, info);
+  return build ? `${v} · ${build}` : v;
 }
 
 /**
@@ -103,7 +123,11 @@ export function resolveBuildInfo(): BuildInfo | null {
   if (here.includes('node_modules')) return null;
 
   try {
-    const out = execFileSync('git', ['describe', '--tags', '--always', '--long', '--dirty'], {
+    // --tags counts lightweight tags (a tag ref that actions/checkout has
+    // force-fetched onto the commit is no longer annotated); --match keeps
+    // stray non-release tags out of the anchor. Same flags as the workflows.
+    const args = ['describe', '--tags', '--always', '--long', '--dirty', '--match', 'v[0-9]*'];
+    const out = execFileSync('git', args, {
       cwd: here,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -115,11 +139,17 @@ export function resolveBuildInfo(): BuildInfo | null {
   }
 }
 
-// Resolved once at module load — the footer re-renders on every pulse tick and
+// Resolved once on first use — the footer re-renders on every pulse tick and
 // must not shell out to git each time. A restart picks up new commits, which is
 // the right granularity for a long-lived TUI session.
-let cached: string | null = null;
-export function versionLabel(): string {
-  cached ??= formatBuildLabel(VERSION, resolveBuildInfo());
+let cached: VersionParts | null = null;
+export function versionParts(): VersionParts {
+  cached ??= formatVersionParts(VERSION, resolveBuildInfo());
   return cached;
+}
+
+/** The flat one-line form of the resolved build (logs, non-colored surfaces). */
+export function versionLabel(): string {
+  const { version, build } = versionParts();
+  return build ? `${version} · ${build}` : version;
 }
