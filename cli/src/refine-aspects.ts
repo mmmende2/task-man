@@ -132,9 +132,15 @@ function hasEngagement(task: Task, ctx: AspectContext): boolean {
 }
 
 /**
- * The refinable aspects, IN ASK ORDER: quick title fix, then the gaps
- * (information not yet captured), then the Claude reviews, then the
- * "does it belong?" escape hatch, then the focus nomination.
+ * The refinable aspects, IN ASK ORDER: quick title fix, the core gaps (time,
+ * vibe), then the Claude reviews (scope, priority), then the category gap, the
+ * "does it belong?" escape hatch, and finally the focus nomination.
+ *
+ * The Claude reviews sit ABOVE the category gap deliberately: they're
+ * glance-once, so if the 3-card cap bumped them they'd never be re-offered —
+ * putting them ahead of the lower-value category gap lets the scope review
+ * surface on a brand-new Claude task, and the category question rides a later
+ * pass instead.
  */
 export const ASPECTS: readonly RefineAspect[] = [
   {
@@ -185,21 +191,6 @@ export const ASPECTS: readonly RefineAspect[] = [
     }),
   },
   {
-    reason: 'no_category',
-    kind: 'gap',
-    scope: 'all',
-    missing: (t, ctx) => t.categories.length === 0 && ctx.anyCategoriesExist,
-    buildCard: (_t, ctx) => ({
-      reason: 'no_category',
-      type: 'number',
-      prompt: 'File this under...?',
-      options: [
-        ...ctx.knownCategories.slice(0, 5).map((c) => ({ label: c, value: c })),
-        { label: 'skip', value: '__skip' },
-      ],
-    }),
-  },
-  {
     reason: 'scope_review',
     kind: 'review',
     scope: 'claude',
@@ -228,6 +219,21 @@ export const ASPECTS: readonly RefineAspect[] = [
         { label: 'high', value: 'high' },
         { label: 'medium', value: 'medium' },
         { label: 'low', value: 'low' },
+      ],
+    }),
+  },
+  {
+    reason: 'no_category',
+    kind: 'gap',
+    scope: 'all',
+    missing: (t, ctx) => t.categories.length === 0 && ctx.anyCategoriesExist,
+    buildCard: (_t, ctx) => ({
+      reason: 'no_category',
+      type: 'number',
+      prompt: 'File this under...?',
+      options: [
+        ...ctx.knownCategories.slice(0, 5).map((c) => ({ label: c, value: c })),
+        { label: 'skip', value: '__skip' },
       ],
     }),
   },

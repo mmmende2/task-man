@@ -115,9 +115,10 @@ describe('buildQuestions', () => {
     expect(suppressed).not.toContain("Pull this into tomorrow's focus?");
   });
 
-  it('leads a brand-new Claude task with the gaps, then a review (cap keeps the rest out)', () => {
-    // New order: gaps first (information to capture), then the Claude scope
-    // review. Priority review, "does it belong?", and focus fall past the cap.
+  it('leads a brand-new Claude task with time, vibe, then the scope review — ahead of the category gap', () => {
+    // Even though categories exist (so the category card WOULD fire), the
+    // glance-once scope review is ordered ahead of it and takes the third slot;
+    // the category question rides a later pass.
     const claudeTask = makeTask({
       created_by: 'claude',
       description: null,
@@ -126,7 +127,7 @@ describe('buildQuestions', () => {
       time_estimate: null,
       vibe: null,
     });
-    expect(prompts(claudeTask)).toEqual([
+    expect(prompts(claudeTask, 0, null, ['work', 'home'])).toEqual([
       'How long will this take?',
       'Vibe check?',
       'Work thing or personal thing?',
