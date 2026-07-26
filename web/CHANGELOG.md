@@ -1,5 +1,17 @@
 # task-man-web
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [1e25189]
+- Updated dependencies [fbd8717]
+- Updated dependencies [fbd8717]
+- Updated dependencies [fbd8717]
+- Updated dependencies [fbd8717]
+- Updated dependencies [0c44ad7]
+  - task-man@0.6.1
+
 ## 0.6.0
 
 ### Patch Changes
