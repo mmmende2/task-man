@@ -203,24 +203,27 @@ describe('RefineMode interaction', () => {
     }, { timeout: 3000, interval: 60 });
   });
 
-  // Regression: stale high-priority refined tasks were queued (stale_todo)
-  // but built ZERO cards — the priority card is gated off for already-high
-  // tasks and their focus card dies once the 2-ask budget is spent. Each
-  // zero-card task was auto-advanced, chaining into a no-input fast-forward
-  // through the rest of the queue ("cards flash past on their own"). With the
-  // gates shared (isStaleTodo), such tasks never enter the queue at all.
-  it('does not queue stale high-priority tasks that have nothing to ask', async () => {
+  // Regression: stale refined tasks were queued (stale_todo) with nothing worth
+  // asking. High-priority ones built ZERO cards — the priority card is gated off
+  // for already-high tasks and their focus card dies once the 2-ask budget is
+  // spent — so each was auto-advanced, chaining into a no-input fast-forward
+  // through the queue ("cards flash past on their own"). Non-high ones were
+  // worse: they built a priority card whose only satisfying answer was "high",
+  // so answering anything else requeued them and refine asked the identical
+  // question every session. Staleness is now a ride-along; neither kind queues.
+  it('does not queue stale but fully-refined tasks, at any priority', async () => {
     for (let i = 1; i <= 6; i++) {
       await store.add({
         title: `stale-${i}`, scope: 'personal', time_estimate: '20m', vibe: 'ok',
-        categories: ['home'], focused: false, priority: 'high',
+        categories: ['home'], focused: false, priority: i <= 3 ? 'high' : 'low',
       });
     }
-    // Backdate them past the staleness threshold.
+    // Backdate them past the staleness threshold. updated_at is what isStaleTodo
+    // reads; created_at is moved too so neither field can mask the other.
     const tasksPath = join(tmpDir, 'tasks.json');
     const raw = JSON.parse(readFileSync(tasksPath, 'utf-8')) as Task[];
     const old = new Date(Date.now() - (STALE_TODO_DAYS + 10) * 24 * 3600 * 1000).toISOString();
-    for (const t of raw) t.created_at = old;
+    for (const t of raw) { t.created_at = old; t.updated_at = old; }
     writeFileSync(tasksPath, JSON.stringify(raw, null, 2));
 
     const result = render();

@@ -57,15 +57,24 @@ describe('isRefineCandidate — no_category', () => {
   });
 });
 
-describe('isRefineCandidate — stale todo → priority_review', () => {
+describe('isRefineCandidate — a stale todo is never a queue reason', () => {
   const old = '2020-01-01T00:00:00.000Z';
 
-  it('flags an old non-high todo for a priority review', () => {
-    expect(isRefineCandidate(makeTask({ created_at: old }))).toContain('priority_review');
+  // Refine exists to capture metadata we don't have. Staleness is a recurring
+  // condition, not a gap, and it has no "answered" state to reach — so it rides
+  // along on tasks queued for a real gap and never queues one itself. See the
+  // ride-along tests in refine-aspects.test.ts for the card-level behavior.
+  it('does NOT flag an untouched non-high todo that is otherwise refined', () => {
+    expect(isRefineCandidate(makeTask({ updated_at: old }))).toHaveLength(0);
   });
 
-  it('does NOT flag an old high-priority todo (its urgency is already answered)', () => {
-    expect(isRefineCandidate(makeTask({ created_at: old, priority: 'high' }))).not.toContain('priority_review');
+  it('does NOT flag an untouched high-priority todo either', () => {
+    expect(isRefineCandidate(makeTask({ updated_at: old, priority: 'high' }))).toHaveLength(0);
+  });
+
+  it('an untouched todo WITH a gap queues for the gap alone', () => {
+    const reasons = isRefineCandidate(makeTask({ updated_at: old, vibe: null }));
+    expect(reasons).toEqual(['no_vibe']);
   });
 });
 
@@ -79,8 +88,8 @@ describe('queue ↔ questions invariant', () => {
     const old = '2020-01-01T00:00:00.000Z';
     const tasks = [
       makeTask({ title: 'refined' }),
-      makeTask({ title: 'stale-high', created_at: old, priority: 'high' }),
-      makeTask({ title: 'stale-low', created_at: old, priority: 'low' }),
+      makeTask({ title: 'stale-high', updated_at: old, priority: 'high' }),
+      makeTask({ title: 'stale-low', updated_at: old, priority: 'low' }),
       makeTask({ title: 'no-vibe', vibe: null }),
       makeTask({ title: 'no-time', time_estimate: null }),
       makeTask({ title: 'no-cat', categories: [] }),
@@ -89,8 +98,10 @@ describe('queue ↔ questions invariant', () => {
     ];
     const queued = buildRefineCandidates(tasks);
 
-    // The stale-but-already-high task has nothing to ask — it must not queue.
+    // Neither stale task has a gap, so neither queues — staleness is a
+    // ride-along, not a queue reason.
     expect(queued.map((t) => t.title)).not.toContain('stale-high');
+    expect(queued.map((t) => t.title)).not.toContain('stale-low');
     expect(queued.length).toBeGreaterThan(0);
 
     const cats = deriveCategories(tasks);
@@ -209,10 +220,12 @@ describe('needsClaudeReview — glance-once on brand-new Claude tasks', () => {
     expect(prompts).not.toContain(PRIORITY_PROMPT);
   });
 
-  it('still shows the priority card for a stale non-Claude todo (separate trigger)', () => {
-    const task = makeTask({ created_by: 'human', created_at: '2020-01-01T00:00:00.000Z', priority: 'low' });
+  it('still offers the priority card for a stale non-Claude todo (ride-along trigger)', () => {
+    const task = makeTask({ created_by: 'human', updated_at: '2020-01-01T00:00:00.000Z', priority: 'low' });
     const prompts = buildQuestions(task, [task], 0, null, ['home'], true).map(q => q.prompt);
     expect(prompts).toContain(PRIORITY_PROMPT);
+    // ...but offering is not queueing.
+    expect(isRefineCandidate(task, { anyCategoriesExist: true })).toHaveLength(0);
   });
 });
 
