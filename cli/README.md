@@ -52,7 +52,7 @@ Code changes only take effect after `npm run build`:
 
 ```bash
 cd cli && npm run build           # CLI only
-cd cli && npm run build:all       # CLI + web (regenerates dist-web/)
+npm run build                     # from the repo root: CLI + web (regenerates cli/dist-web/)
 ```
 
 ## Quick start
@@ -232,7 +232,9 @@ npm test        # vitest run
 npm run test:watch
 ```
 
-`build:all` rebuilds the web SPA into `cli/dist-web/` (vite writes there directly — no copy step), which the Hono server mounts at runtime.
+`npm run build` from the repo root rebuilds the web SPA into `cli/dist-web/` (vite writes there directly — no copy step), which the Hono server mounts at runtime.
+
+Production runs from the Docker image on the droplet (see `docs/release-deploy-quickstart.md`); building and serving locally is for development.
 
 ### Versioning (Changesets)
 
