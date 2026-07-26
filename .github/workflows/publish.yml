@@ -41,7 +41,16 @@ jobs:
         id: meta
         run: |
           IMAGE=ghcr.io/mmmende2/task-man
-          DESCRIBE=$(git describe --long --always)
+          # --tags is REQUIRED, not cosmetic. actions/checkout resolves a tag
+          # push by force-fetching the triggering SHA straight into
+          # refs/tags/<tag> ("git fetch --no-tags origin +<sha>:refs/tags/v0.6.0"),
+          # which REPLACES the annotated tag object with a lightweight one.
+          # Bare `git describe` only considers annotated tags, so it then walked
+          # back to the PREVIOUS release: the v0.6.0 tag build stamped itself
+          # "v0.5.1-5-g939826d" and published that as :v0.6.0. --tags counts
+          # lightweight tags too, so the clobbered tag is still found.
+          # --match keeps stray non-release tags out of the anchor.
+          DESCRIBE=$(git describe --tags --long --always --match 'v[0-9]*')
           TAGS="${IMAGE}:sha-$(git rev-parse --short HEAD),${IMAGE}:${DESCRIBE}"
           if [ "${{ github.ref_type }}" = "tag" ]; then
             TAGS="${TAGS},${IMAGE}:${{ github.ref_name }}"
@@ -51,6 +60,28 @@ jobs:
           echo "describe=${DESCRIBE}" >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "==> publishing: ${TAGS}"
+
+      # Turn a mis-stamped release into a RED build instead of a wrong image.
+      # On a vX.Y.Z tag push the describe anchor must be that exact tag with
+      # zero commits past it, and package.json must carry the same version —
+      # the release image's stamp, its :vX.Y.Z name and its /healthz `version`
+      # all have to agree, or you cannot trust what's deployed.
+      - name: verify the release stamp
+        if: github.ref_type == 'tag'
+        run: |
+          TAG="${{ github.ref_name }}"
+          DESCRIBE="${{ steps.meta.outputs.describe }}"
+          PKG="v$(node -p "require('./cli/package.json').version")"
+          fail=0
+          case "$DESCRIBE" in
+            "${TAG}-0-g"*) ;;
+            *) echo "::error::describe '${DESCRIBE}' is not anchored to ${TAG}-0-g<sha>"; fail=1 ;;
+          esac
+          if [ "$PKG" != "$TAG" ]; then
+            echo "::error::cli/package.json is ${PKG} but the tag is ${TAG}"; fail=1
+          fi
+          [ "$fail" -eq 0 ] && echo "==> stamp verified: ${DESCRIBE} (package.json ${PKG})"
+          exit "$fail"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -63,7 +94,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: cli/Dockerfile
+          file: Dockerfile
           platforms: linux/amd64 # matches the droplet
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -72,8 +103,16 @@ jobs:
           cache-to: type=gha,mode=max
           # Never serve the `runtime` stage from cache: it bakes GIT_DESCRIBE
           # into TASK_MAN_BUILD, and a release (tag) build runs right after the
-          # merge-to-main build of the SAME commit — with the shared gha cache
-          # the tag image was inheriting main's pre-tag stamp (a v0.6.0 deploy
-          # read as "v0.5.1-5-g…"). Forcing this small stage to rebuild pins the
-          # stamp to the actual build; the heavy `build` stage stays cached.
+          # merge-to-main build of the SAME commit. Those two runs can legitimately
+          # compute different stamps (the merge build may check out before the
+          # release tag is pushed), so a shared cache layer keyed on the same
+          # commit would let one inherit the other's stamp. Forcing this small
+          # stage to rebuild pins the stamp to the actual build; the heavy
+          # `build` stage stays cached.
+          #
+          # NOTE: this alone did NOT fix the "v0.6.0 deploy reads as v0.5.1-5-g…"
+          # bug it was originally added for — that was a bare `git describe`
+          # ignoring the lightweight tag actions/checkout leaves behind, fixed in
+          # the `meta` step above. Kept because the cache hazard is real and
+          # separate.
           no-cache-filters: runtime

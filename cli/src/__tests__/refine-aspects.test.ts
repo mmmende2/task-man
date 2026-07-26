@@ -5,10 +5,14 @@ import {
   isRefined,
   needsClaudeReview,
   baseCtx,
+  STALE_TODO_DAYS,
   type AspectContext,
 } from '../refine-aspects.js';
 import { isRefineCandidate } from '../refine-queue.js';
 import type { Task } from '../types.js';
+
+/** Untouched long enough to count as stale (see isStaleTodo). */
+const STALE_ISO = new Date(Date.now() - (STALE_TODO_DAYS + 5) * 24 * 3600 * 1000).toISOString();
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   const now = new Date().toISOString();
@@ -94,6 +98,44 @@ describe('ride-along aspects never admit a task to the queue', () => {
     const offered = missingAspects(t, fullCtx()).map((a) => a.reason);
     expect(offered).toEqual(expect.arrayContaining(['title_fix', 'focus']));
     expect(isRefineCandidate(t, { anyCategoriesExist: true })).toHaveLength(0);
+  });
+
+  // The repeat-question bug: staleness was a `review`, so a fully-refined stale
+  // todo was admitted to the queue for a priority card whose only satisfying
+  // answer was "high". Answer "medium" and it requeued immediately — the same
+  // question, every session, forever. As a ride-along it offers the card but
+  // cannot queue the task.
+  it('a stale but fully-refined todo offers the priority card yet never queues', () => {
+    const t = makeTask({ updated_at: STALE_ISO, priority: 'low' });
+    const offered = missingAspects(t, fullCtx()).map((a) => a.reason);
+    expect(offered).toContain('priority_review');
+    expect(isRefineCandidate(t, { anyCategoriesExist: true })).toHaveLength(0);
+  });
+
+  it('answering the stale priority card ends the loop (updated_at moves forward)', () => {
+    const answered = makeTask({ updated_at: new Date().toISOString(), priority: 'low' });
+    const offered = missingAspects(answered, fullCtx()).map((a) => a.reason);
+    expect(offered).not.toContain('priority_review');
+  });
+});
+
+describe('priority_review — one card from two triggers', () => {
+  it('the Claude review still queues a brand-new Claude task', () => {
+    const t = makeTask({ created_by: 'claude', time_estimate: null, vibe: null });
+    expect(isRefineCandidate(t, { anyCategoriesExist: true })).toContain('priority_review');
+  });
+
+  it('collapses to a single aspect when both triggers fire, keeping the review kind', () => {
+    // Brand-new from Claude AND stale: shared routing key, so exactly one card
+    // — and the `review` entry wins, so the task still queues.
+    const t = makeTask({
+      created_by: 'claude', time_estimate: null, vibe: null,
+      updated_at: STALE_ISO, priority: 'low',
+    });
+    const hits = missingAspects(t, fullCtx()).filter((a) => a.reason === 'priority_review');
+    expect(hits).toHaveLength(1);
+    expect(hits[0].kind).toBe('review');
+    expect(isRefineCandidate(t, { anyCategoriesExist: true })).toContain('priority_review');
   });
 });
 

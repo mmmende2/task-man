@@ -171,7 +171,7 @@ if so, flip it to orange in Cloudflare → DNS → Records.
 
 ## 3. Deploy the app to the droplet
 
-`cli/Dockerfile` and `deploy/docker-compose.yml` already exist in the repo — no
+`Dockerfile` and `deploy/docker-compose.yml` already exist in the repo — no
 npm registry involved (task-man isn't published there), the image builds
 straight from a checkout of the repo.
 
@@ -273,7 +273,7 @@ rebuild; task data lives in the `task-man-data` volume, untouched.
 — layer the build override; this is the old slow path and thrashes the 1GB
 droplet, so add swap first:
 ```bash
-GIT_DESCRIBE=$(git describe --long --always --dirty) \
+GIT_DESCRIBE=$(git describe --tags --long --always --dirty --match 'v[0-9]*') \
   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up -d --build
 ```
 

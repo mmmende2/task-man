@@ -6,6 +6,10 @@ import type { Task } from './types.js';
 // the questions can't drift because they read the same list. Pure — imports
 // only ./types.js, so refine-queue.ts and refine-questions.ts can both depend
 // on it without a cycle.
+//
+// One entry per TRIGGER, not per question: two entries may share a `reason`
+// when they raise the same card from different conditions (priority_review
+// does). missingAspects dedupes by reason so the human is asked once.
 
 export type RefineReason =
   | 'title_fix'
@@ -48,12 +52,19 @@ function daysSince(iso: string): number {
 }
 
 /**
- * A stale todo warrants a priority re-check. Already-high tasks are exempt
- * (their urgency is answered). NOT AI-specific — fires for any origin, and is
- * the only non-Claude trigger for the priority card.
+ * A todo that has sat UNTOUCHED for a month warrants a priority re-check.
+ * Already-high tasks are exempt (their urgency is answered). NOT AI-specific —
+ * fires for any origin, and is the only non-Claude trigger for the priority card.
+ *
+ * Measured from `updated_at`, NOT `created_at`. created_at is immutable, so a
+ * created_at-based check has no termination condition: answering the card wrote
+ * a priority, the task was instantly stale again, and refine re-asked the same
+ * question every session forever. Answering bumps updated_at, which buys the
+ * nudge another STALE_TODO_DAYS of quiet. Skipping the card writes nothing, so
+ * a skipped task correctly stays stale and is offered again next session.
  */
 export function isStaleTodo(t: Task): boolean {
-  return t.status === 'todo' && daysSince(t.created_at) > STALE_TODO_DAYS && t.priority !== 'high';
+  return t.status === 'todo' && daysSince(t.updated_at) > STALE_TODO_DAYS && t.priority !== 'high';
 }
 
 /**
@@ -105,13 +116,30 @@ export interface AspectContext {
   hasSubtasks: boolean;
 }
 
+/** The priority card, shared by the two aspects that can raise it (the
+    glance-once Claude review and the stale-todo nudge) — same prompt, same
+    options, same field written, so they share the `priority_review` key. */
+function priorityCard(): QuestionDef {
+  return {
+    reason: 'priority_review',
+    type: 'list',
+    prompt: 'How urgent is this, really?',
+    options: [
+      { label: 'high', value: 'high' },
+      { label: 'medium', value: 'medium' },
+      { label: 'low', value: 'low' },
+    ],
+  };
+}
+
 export interface RefineAspect {
   reason: RefineReason;
   /**
    * `gap` = information not yet captured (drives "refined").
    * `review` = a human sanity-check of a value Claude set.
    * `ride_along` = offered when a task is already queued, but never admits a
-   * task to the queue on its own (title fix, delete-suspicious, focus nudge).
+   * task to the queue on its own (title fix, stale-priority nudge,
+   * delete-suspicious, focus nudge).
    */
   kind: AspectKind;
   /** Descriptive: which tasks this concerns. `missing()` is authoritative. */
@@ -134,13 +162,15 @@ function hasEngagement(task: Task, ctx: AspectContext): boolean {
 /**
  * The refinable aspects, IN ASK ORDER: quick title fix, the core gaps (time,
  * vibe), then the Claude reviews (scope, priority), then the category gap, the
- * "does it belong?" escape hatch, and finally the focus nomination.
+ * stale-priority nudge, the "does it belong?" escape hatch, and finally the
+ * focus nomination.
  *
  * The Claude reviews sit ABOVE the category gap deliberately: they're
  * glance-once, so if the 3-card cap bumped them they'd never be re-offered —
  * putting them ahead of the lower-value category gap lets the scope review
  * surface on a brand-new Claude task, and the category question rides a later
- * pass instead.
+ * pass instead. The ride-alongs sit BELOW it for the mirror reason: they recur,
+ * so losing one to the cap costs nothing.
  */
 export const ASPECTS: readonly RefineAspect[] = [
   {
@@ -210,17 +240,8 @@ export const ASPECTS: readonly RefineAspect[] = [
     reason: 'priority_review',
     kind: 'review',
     scope: 'claude',
-    missing: (t) => needsClaudeReview(t) || isStaleTodo(t),
-    buildCard: () => ({
-      reason: 'priority_review',
-      type: 'list',
-      prompt: 'How urgent is this, really?',
-      options: [
-        { label: 'high', value: 'high' },
-        { label: 'medium', value: 'medium' },
-        { label: 'low', value: 'low' },
-      ],
-    }),
+    missing: (t) => needsClaudeReview(t),
+    buildCard: () => priorityCard(),
   },
   {
     reason: 'no_category',
@@ -236,6 +257,19 @@ export const ASPECTS: readonly RefineAspect[] = [
         { label: 'skip', value: '__skip' },
       ],
     }),
+  },
+  {
+    // Same card as the Claude priority review above, different trigger — and
+    // deliberately a RIDE-ALONG, not a review. Staleness is a recurring
+    // condition, not a gap in the metadata refine exists to capture, so it must
+    // never drag a fully-refined task into the queue on its own; it only rides
+    // a task queued for a real gap. It sits below the gaps for the same reason:
+    // if the 3-card cap has to drop something, drop the nudge, not the gap.
+    reason: 'priority_review',
+    kind: 'ride_along',
+    scope: 'all',
+    missing: (t) => isStaleTodo(t),
+    buildCard: () => priorityCard(),
   },
   {
     reason: 'belongs',
@@ -281,9 +315,23 @@ export function baseCtx(anyCategoriesExist: boolean): AspectContext {
   };
 }
 
-/** The aspects whose info a task still lacks, in ask order. */
+/**
+ * The aspects whose info a task still lacks, in ask order.
+ *
+ * Deduped by `reason`, first match wins: two aspects may share a routing key
+ * when they raise the SAME card from different triggers (priority_review does —
+ * the Claude review and the stale nudge), and the human should be asked once,
+ * not twice. First-wins matters: the review entry sits earlier in ASPECTS, so a
+ * task that is both brand-new-from-Claude and stale keeps the `review` kind and
+ * stays queue-admitting.
+ */
 export function missingAspects(task: Task, ctx: AspectContext): RefineAspect[] {
-  return ASPECTS.filter((a) => a.missing(task, ctx));
+  const seen = new Set<RefineReason>();
+  return ASPECTS.filter((a) => {
+    if (!a.missing(task, ctx) || seen.has(a.reason)) return false;
+    seen.add(a.reason);
+    return true;
+  });
 }
 
 /**

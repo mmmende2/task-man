@@ -70,10 +70,23 @@ describe('buildQuestions', () => {
     expect(prompts(makeTask({ vibe: null }))).toContain('Vibe check?');
   });
 
-  it('reviews priority on a stale todo', () => {
+  it('rides along with a priority card on a stale todo', () => {
     const old = new Date(Date.now() - (STALE_TODO_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString();
-    expect(prompts(makeTask({ created_at: old, priority: 'low' }))).toContain('How urgent is this, really?');
+    expect(prompts(makeTask({ updated_at: old, priority: 'low' }))).toContain('How urgent is this, really?');
   });
+
+  it('staleness is measured from updated_at, not created_at', () => {
+    // A long-lived task that was touched recently is NOT stale — this is what
+    // gives the nudge a termination condition. Answering the card writes a
+    // priority, which bumps updated_at and buys another STALE_TODO_DAYS of
+    // quiet. Keyed on created_at it could never be satisfied, and refine
+    // re-asked the same question every session forever.
+    const old = new Date(Date.now() - (STALE_TODO_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+    expect(prompts(makeTask({ created_at: old, updated_at: now, priority: 'low' })))
+      .not.toContain('How urgent is this, really?');
+  });
+
 
   it('offers the focus card for an unfocused task', () => {
     expect(prompts(makeTask({ focused: false }))).toContain("Pull this into tomorrow's focus?");

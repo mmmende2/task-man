@@ -51,7 +51,7 @@ The same working set as a tap-driven web app — add it to your home screen and 
 
 This is the real experience: terminal + phone + Claude, in sync from anywhere.
 
-1. **Deploy the server.** `cli/Dockerfile` + `deploy/docker-compose.yml` build the Hono API + web app straight from a checkout — no npm registry involved. A $6 droplet is plenty.
+1. **Deploy the server.** `Dockerfile` + `deploy/docker-compose.yml` build the Hono API + web app straight from a checkout — no npm registry involved. A $6 droplet is plenty.
 2. **Put it behind Cloudflare Access.** A Cloudflare Tunnel exposes it with no open ports, and Access gates the hostname; the server *also* verifies Access's signed JWT on every API request, so nothing is reachable unauthenticated.
 3. **Point your laptop at it.** Set the TUI/MCP to remote mode (`client.mode = "remote"`, `remote_url = "https://tasks.<your-domain>"`) — the same binaries now read and write the hosted store.
 4. **Add the web app to your phone's home screen** and you're live on all three surfaces.

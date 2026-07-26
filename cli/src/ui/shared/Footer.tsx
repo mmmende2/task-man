@@ -2,7 +2,7 @@ import { Box, Text } from 'ink';
 import type { AppMode, WriteSubMode } from '../types.js';
 import type { VimMode } from '../hooks/useVimKeys.js';
 import { useServerStatus } from '../hooks/useServerStatus.js';
-import { VERSION } from '../../version.js';
+import { versionParts } from '../../version.js';
 
 interface Props {
   mode?: AppMode;
@@ -16,6 +16,9 @@ interface Props {
 
 export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSubMode, planFocus }: Props) {
   const server = useServerStatus();
+  // Grey version + yellow build token. The token is present only when the code
+  // isn't the release, so a clean release stays entirely grey (see version.ts).
+  const { version, build } = versionParts();
   let navContent: string;
   let pageContent: string;
 
@@ -62,7 +65,9 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
           {server.running && (
             <Text color="#ff79c6" dimColor>● {server.remoteUrl ? 'remote' : `web :${server.port}`}  </Text>
           )}
-          <Text dimColor>v{VERSION}  </Text>
+          <Text dimColor>{version}</Text>
+          {build && <Text color="yellow"> · {build}</Text>}
+          <Text>  </Text>
         </Box>
       </Box>
       <Text color="#00a5a5">  {pageContent || ' '}</Text>
