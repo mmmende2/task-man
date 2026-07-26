@@ -74,3 +74,19 @@ export interface HealthResponse {
   build?: string;
   time: string;
 }
+
+/**
+ * Human label for what's deployed. Leads with `version` (compiled from
+ * package.json — the reliable, cache-proof signal) and appends the short commit
+ * hash parsed from the git-describe `build` stamp, e.g. "v0.6.0 · 939826d". We
+ * deliberately do NOT show the full describe string: its tag anchor can lag the
+ * release (a CI build-cache artifact), so `v0.5.1-5-g939826d` would misleadingly
+ * read as 0.5.1 on a 0.6.0 deploy. Falls back to the raw build for a 'dev' build.
+ */
+export function formatVersionLabel(h: { version?: string; build?: string }): string {
+  if (h.version) {
+    const sha = h.build?.match(/g([0-9a-f]{7,40})/)?.[1];
+    return sha ? `v${h.version} · ${sha}` : `v${h.version}`;
+  }
+  return h.build ?? '—';
+}
