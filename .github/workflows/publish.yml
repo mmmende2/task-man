@@ -70,3 +70,10 @@ jobs:
           build-args: GIT_DESCRIBE=${{ steps.meta.outputs.describe }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Never serve the `runtime` stage from cache: it bakes GIT_DESCRIBE
+          # into TASK_MAN_BUILD, and a release (tag) build runs right after the
+          # merge-to-main build of the SAME commit — with the shared gha cache
+          # the tag image was inheriting main's pre-tag stamp (a v0.6.0 deploy
+          # read as "v0.5.1-5-g…"). Forcing this small stage to rebuild pins the
+          # stamp to the actual build; the heavy `build` stage stays cached.
+          no-cache-filters: runtime
