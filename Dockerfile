@@ -1,7 +1,12 @@
 # Builds task-man from source (not published to npm) and bundles the web
-# frontend's static build into dist-web. Build context must be the repo root
-# (the npm workspace root), e.g.:
-#   docker build -f cli/Dockerfile -t task-man:0.1.1 .
+# frontend's static build into dist-web.
+#
+# Lives at the repo root ON PURPOSE: the build context must be the repo root
+# (the npm workspace root — the COPYs below reach into cli/ and web/), and
+# .dockerignore is only ever read from the context root. Keeping the Dockerfile
+# beside them means the conventional invocation just works from a fresh clone,
+# with no -f and nothing to remember:
+#   docker build -t task-man:0.1.1 .
 #
 # For a reproducible/pinned build, check out the desired tag or commit in the
 # repo clone *before* running `docker build` — this Dockerfile always builds

@@ -13,7 +13,7 @@ services:
   task-man:
     build:
       context: ..
-      dockerfile: cli/Dockerfile
+      dockerfile: Dockerfile
       args:
         # `git describe` of the deploying checkout stamps /healthz. `--long`
         # keeps the SHA even exactly on a release tag; anything ahead/dirty

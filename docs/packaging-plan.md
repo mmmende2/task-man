@@ -6,7 +6,7 @@ version 0.2.0). **Publishing is ON HOLD per Mario (2026-07-04)** — steps
 3–4 below are parked, not abandoned: the package is publish-ready
 (`npm publish` from `cli/` + `npm login` is all that remains), and the
 npm-based Dockerfile stays gated on that publish. Until then the deploy
-path is the existing build-from-source `cli/Dockerfile`, and the npm name
+path is the existing build-from-source `Dockerfile`, and the npm name
 `task-man` remains unclaimed (known risk, accepted).
 (Originally proposed same day; revised after Mario challenged the separate
 MCP package — he was right.) Answers: does `npm install task-man` still
@@ -134,7 +134,7 @@ had no package. Once `task-man@0.2.0` is on the registry, replace it:
 - `docs/phase2-manual-setup-guide.md` step 3 shrinks by half: no repo clone
   or tag checkout on the droplet — just `.env` + `docker compose up -d`.
   Redeploys become "bump the pinned version, rebuild."
-- Delete `cli/Dockerfile` (the build-from-source path) once the npm path is
+- Delete `Dockerfile` (the build-from-source path) once the npm path is
   proven on the droplet — unreleased testing is what `task-man serve` on the
   laptop is for.
 

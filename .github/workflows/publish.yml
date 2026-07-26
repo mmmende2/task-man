@@ -94,7 +94,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: cli/Dockerfile
+          file: Dockerfile
           platforms: linux/amd64 # matches the droplet
           push: true
           tags: ${{ steps.meta.outputs.tags }}

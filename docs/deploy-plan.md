@@ -108,7 +108,7 @@ Wire it in:
 ### 2b. Compose stack on the droplet
 
 `/opt/task-man/docker-compose.yml`:
-- `task-man` service: image built from `cli/Dockerfile` with a `TASK_MAN_VERSION` build arg (e.g. `RUN npm i -g task-man@${TASK_MAN_VERSION}`) — pin to the exact published version, never `@latest`, so a droplet rebuild can't silently pull an untested release. `CMD ["task-man","serve","--bind","0.0.0.0","--port","3030"]`. Mount `/var/lib/task-man` → `/root/.task-man`. Internal network only — no published ports. `restart: unless-stopped`.
+- `task-man` service: image built from `Dockerfile` with a `TASK_MAN_VERSION` build arg (e.g. `RUN npm i -g task-man@${TASK_MAN_VERSION}`) — pin to the exact published version, never `@latest`, so a droplet rebuild can't silently pull an untested release. `CMD ["task-man","serve","--bind","0.0.0.0","--port","3030"]`. Mount `/var/lib/task-man` → `/root/.task-man`. Internal network only — no published ports. `restart: unless-stopped`.
 - `cloudflared` service: official `cloudflare/cloudflared:latest`, `command: tunnel run`, `TUNNEL_TOKEN` from `.env`. Joined to the same internal network so it can reach `task-man:3030`. `restart: unless-stopped`.
 
 `/opt/task-man/.env`:

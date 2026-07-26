@@ -171,7 +171,7 @@ if so, flip it to orange in Cloudflare → DNS → Records.
 
 ## 3. Deploy the app to the droplet
 
-`cli/Dockerfile` and `deploy/docker-compose.yml` already exist in the repo — no
+`Dockerfile` and `deploy/docker-compose.yml` already exist in the repo — no
 npm registry involved (task-man isn't published there), the image builds
 straight from a checkout of the repo.
 

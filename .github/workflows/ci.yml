@@ -19,7 +19,7 @@ jobs:
   # root installs both packages into a single hoisted tree, and the root
   # `build`/`test` scripts run cli before web (web imports task-man/* which
   # resolve to cli/dist through the workspace symlink) — same ordering as
-  # cli/Dockerfile.
+  # Dockerfile.
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -68,7 +68,7 @@ jobs:
   # actually compiles into the deployable image. This is the check that
   # catches a broken/stale web bundle before it can ship. Uses buildx with a
   # GitHub Actions layer cache so a source-only PR reuses the npm ci layers
-  # (see cli/Dockerfile's layer ordering). Does not push — publish.yml does.
+  # (see Dockerfile's layer ordering). Does not push — publish.yml does.
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -86,7 +86,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          file: cli/Dockerfile
+          file: Dockerfile
           push: false
           tags: task-man:ci
           build-args: GIT_DESCRIBE=${{ steps.describe.outputs.value }}
