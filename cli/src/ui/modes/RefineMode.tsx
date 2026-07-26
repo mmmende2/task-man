@@ -196,7 +196,26 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     }
   }, [phase, questionIndex, activeQuestions.length]);
 
-  const applyChange = useCallback(async (changes: Partial<Task>, flashLabel: string) => {
+  // Owns the outcome of an optimistic write. The callers below are all keypress
+  // handlers, which can't await — so left alone these promises float, and a
+  // rejected one surfaces as an unhandledRejection. interactive.ts nets the
+  // transport-shaped ones, but a plain Error is rethrown and kills the TUI, and
+  // "Task <id> not found" is a plain Error: delete a task from the web while
+  // its card is on screen, answer the card, and the session dies. These writes
+  // are fire-and-forget BY DESIGN (see applyChange) — the 2s poll is what
+  // re-syncs truth — so a failure is logged and tolerated, not fatal.
+  // Also what kept the suite honest: without this the writes outlived their
+  // test and rejected against the next test's store, failing the run at random.
+  const settleWrite = useCallback((write: Promise<unknown>, label: string) => {
+    write.then(() => reload()).catch((err: unknown) => {
+      debugLog('refine.writeFailed', {
+        label,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }, [reload]);
+
+  const applyChange = useCallback((changes: Partial<Task>, flashLabel: string) => {
     if (!currentTask) return;
     debugLog('refine.applyChange', { taskId: currentTask.id.slice(0, 8), changes, flashLabel });
     const prev: Partial<Task> = {};
@@ -211,9 +230,11 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     // The write is fire-and-forget: on failure the 2s poll re-syncs truth.
     setQueue(q => q.map(t => t.id === currentTask.id ? { ...t, ...changes } as Task : t));
     advanceQuestion(flashLabel);
-    await store.update(currentTask.id, changes as Parameters<typeof store.update>[1]);
-    reload();
-  }, [currentTask, store, reload, advanceQuestion]);
+    settleWrite(
+      store.update(currentTask.id, changes as Parameters<typeof store.update>[1]),
+      `apply:${flashLabel}`,
+    );
+  }, [currentTask, store, settleWrite, advanceQuestion]);
 
   const skipQuestion = useCallback(() => {
     setLastAction(null);
@@ -227,7 +248,7 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     advanceTask();
   }, [advanceTask]);
 
-  const undoLast = useCallback(async () => {
+  const undoLast = useCallback(() => {
     if (!lastAction) return;
     // Same optimistic ordering as applyChange: reflect the undo immediately,
     // let the write land behind the flash.
@@ -236,9 +257,11 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
     setFlash('undone');
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlash(null), FLASH_MS);
-    await store.update(lastAction.taskId, lastAction.changes as Parameters<typeof store.update>[1]);
-    reload();
-  }, [lastAction, store, reload]);
+    settleWrite(
+      store.update(lastAction.taskId, lastAction.changes as Parameters<typeof store.update>[1]),
+      'undo',
+    );
+  }, [lastAction, store, settleWrite]);
 
   useInput((input, key) => {
     debugLog('refine.input', {
@@ -317,7 +340,7 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
           debugLog('refine.delete', { taskId: currentTask.id.slice(0, 8) });
           setLastAction(null);
           advanceTask();
-          store.remove(currentTask.id).then(() => reload());
+          settleWrite(store.remove(currentTask.id), 'delete');
         } else if (input === 'e') {
           setEditText(currentTask?.title ?? '');
           setEditCursor(currentTask?.title.length ?? 0);

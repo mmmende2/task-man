@@ -203,6 +203,44 @@ describe('RefineMode interaction', () => {
     }, { timeout: 3000, interval: 60 });
   });
 
+  // Regression: a rejected optimistic write must not escape as an unhandled
+  // rejection. These writes are fire-and-forget (keypress handlers can't await),
+  // so nothing owned their failure: interactive.ts nets transport-shaped errors
+  // but rethrows a plain Error, and "Task <id> not found" — what a concurrent
+  // delete elsewhere produces — is a plain Error, so answering a card for a
+  // task deleted from the web killed the TUI. It also made this suite flaky:
+  // writes outlived their test and rejected against the next test's store.
+  it('survives a store write that rejects, and keeps advancing', async () => {
+    await store.add({
+      title: 'clean title', scope: 'personal', time_estimate: '20m',
+      categories: ['home'], focused: true,
+    });
+    const rejecting = new LocalStore(store);
+    rejecting.update = () => Promise.reject(new Error('Task abc123 not found'));
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (err: unknown) => unhandled.push(err);
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const result = render({ store: rejecting });
+      cleanup = result.cleanup;
+
+      await vi.waitFor(() => expect(result.text()).toContain('Vibe check?'), { timeout: 2000 });
+      // Answer it — the write rejects underneath, the session must carry on.
+      await vi.waitFor(() => {
+        result.stdin.write('2');
+        expect(result.text()).toContain('REFINE COMPLETE');
+      }, { timeout: 3000, interval: 60 });
+
+      // Give any escaped rejection a turn of the event loop to surface.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
   // Regression: stale refined tasks were queued (stale_todo) with nothing worth
   // asking. High-priority ones built ZERO cards — the priority card is gated off
   // for already-high tasks and their focus card dies once the 2-ask budget is
