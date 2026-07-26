@@ -8,16 +8,17 @@ how to bump the version, and its body becomes the `cli/CHANGELOG.md` entry
 verbatim at release time. Nobody edits that changelog by hand — what you write
 here is what ships.
 
-Write the file directly with the Write tool. Don't run `npx changeset`: it's an
-interactive prompt that will hang. (`npx changeset add --empty` is safe and
-non-interactive, but it emits a random name like `giant-lights-sit.md` that you
-then have to rename, so writing the file yourself is simpler.)
+Write the file directly with the Write tool. Don't run bare `npx changeset` — it's
+an interactive prompt that will hang a non-interactive session. (`npx changeset
+add --empty` is non-interactive and safe, if you'd rather it create the file.)
 
 ## The file
 
-Path: `.changeset/<descriptive-slug>.md`. The slug names the change —
-`refine-stale-todo-loop.md`, `tui-version-stamp.md`, `web-version-display.md` —
-so the pending-release directory can be read at a glance.
+Path: `.changeset/<name>.md`. The filename doesn't matter and isn't worth
+deliberating over: Changesets consumes and deletes the file at release time, so
+it never reaches a reader. Keep whatever `--empty` generated. When writing one by
+hand, a slug that names the change (`refine-stale-todo-loop.md`) is a reasonable
+default, since it makes the pending directory easier to skim.
 
 ## Frontmatter
 
@@ -39,6 +40,7 @@ Bump level:
 
 | Level | Use for |
 |-------|---------|
+| `major` | A breaking change to a published surface — see below |
 | `minor` | New user-visible capability, or a behavior-changing refactor |
 | `patch` | Bug fixes and behavior corrections — the common case |
 | *(empty)* | No runtime change at all |
@@ -49,7 +51,7 @@ Empty frontmatter is two `---` lines with nothing between them:
 ---
 ---
 
-CI: publish.yml no longer serves the Docker `runtime` stage from the gha cache…
+CI: cache the npm install in the test job so PR runs finish faster.
 ```
 
 That satisfies CI's `changeset` job without cutting a release. Use it for CI,
@@ -57,7 +59,32 @@ deploy infra, docs, and repo tooling — anything that can't change what a user
 experiences from the app. If a change touches infra *and* fixes user-visible
 behavior, it's a `patch`, not empty.
 
-`major` is unused pre-1.0.
+### When it's `major`
+
+task-man's compatibility contract covers three surfaces with consumers that
+can't be fixed in the same commit: the **MCP tools** (tool names, argument
+names, response shapes — Claude sessions call these), the **HTTP API** under
+`/api` (the web SPA and any remote CLI talk to it, and a droplet deploy briefly
+serves an old front end against a new server), and the **`task-man/*` exports**
+listed in `cli/README.md`.
+
+Breaking any of those is `major`, even below 1.0 — renaming an MCP tool
+argument, changing a response's shape, removing an export. The version is the
+signal a consumer has that they need to look; burying that in a `minor` because
+the number is still 0.x defeats the point.
+
+Not breaking: adding an optional argument, adding a response field, adding a new
+tool or export. Those are `minor`.
+
+Internal refactors aren't `major` no matter how large — if nothing outside the
+repo has to change, it isn't a break. And say what broke in the entry itself: a
+`major` whose text doesn't name the incompatibility leaves the reader to diff
+the release themselves.
+
+One consequence to flag when you write the first one: Changesets increments with
+plain semver, so a `major` against today's 0.x takes the app straight to
+`1.0.0`. That's a real declaration about stability, not just a number — surface
+it to the user rather than letting a release cut it silently.
 
 ## Naming the surface: `Web:` / `TUI:`
 
@@ -151,7 +178,6 @@ and it isn't obvious what to lose.
 ## Before you're done
 
 - Frontmatter names `task-man` (or is empty), never `task-man-web`.
-- Filename is a descriptive slug, not the auto-generated random one.
 - Opening sentence is under 20 words and leads with the outcome.
 - `Web:`/`TUI:` present if and only if the change is confined to that surface.
 - Entry is under 120 words, or the extra length is carrying facts a reader acts on.
