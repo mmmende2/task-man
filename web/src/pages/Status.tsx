@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError, reloadForAuth } from '../api';
+import { api, ApiError, reloadForAuth, formatVersionLabel } from '../api';
 import { NavMenu } from '../components/NavMenu';
 import './Status.css';
 
@@ -74,7 +74,7 @@ export function StatusPage() {
 
         <dl className="status-grid">
           <dt>Version</dt>
-          <dd className="mono">{check?.build && check.build !== 'dev' ? check.build : check?.version ? `v${check.version}` : '—'}</dd>
+          <dd className="mono">{check ? formatVersionLabel(check) : '—'}</dd>
 
           <dt>Server time</dt>
           <dd className="mono">{check?.serverTime ? new Date(check.serverTime).toLocaleString() : '—'}</dd>

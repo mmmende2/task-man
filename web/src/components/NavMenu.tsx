@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, formatVersionLabel } from '../api';
 import { countUnrefined } from 'task-man/refine-queue';
 import { loadScopeFilter, matchesScope } from './ScopeChip';
 import './NavMenu.css';
@@ -69,12 +69,11 @@ export function NavMenu({ current }: Props) {
     let live = true;
     api
       .getHealth()
-      // Prefer the `git describe` build string (e.g. "v0.3.1-2-ge7d4e7d") — it
-      // pins the exact deployed commit. Fall back to bare version for an
-      // un-stamped 'dev' build.
+      // Show the package version + short commit (formatVersionLabel), not the
+      // raw git-describe — its tag anchor can lag the release.
       .then((h) => {
         if (!live) return;
-        setVersion(h.build && h.build !== 'dev' ? h.build : `v${h.version}`);
+        setVersion(formatVersionLabel(h));
       })
       .catch(() => {});
     return () => { live = false; };
