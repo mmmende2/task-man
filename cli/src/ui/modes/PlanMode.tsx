@@ -13,6 +13,8 @@ import { PriorityDot } from '../shared/PriorityDot.js';
 import { SessionDot } from '../shared/SessionDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
+import { insertChar, deleteBack, moveCursor, type TextBuffer } from '../shared/textInput.js';
+import { getAllCategories, suggestPrefix } from '../hooks/useCategoryMatch.js';
 import { CURSOR_GLYPH } from '../shared/selection.js';
 
 interface Props {
@@ -54,9 +56,15 @@ export function PlanMode({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState({ text: '', cursor: 0 });
   const [creatingAt, setCreatingAt] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  // Search is a text buffer for the same reason the edit fields are — see
+  // ui/shared/textInput.ts. `searchQuery` stays derived so the filters are
+  // untouched.
+  const [searchBuf, setSearchBuf] = useState<TextBuffer>({ text: '', cursor: 0 });
+  const searchQuery = searchBuf.text;
+  const setSearchQuery = (next: string) => setSearchBuf({ text: next, cursor: next.length });
   const [isSearching, setIsSearching] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [catScrollOffset, setCatScrollOffset] = useState(0);
 
   // Category panel state
   const [panelFocus, setPanelFocusState] = useState<'tasks' | 'categories'>('tasks');
@@ -71,6 +79,12 @@ export function PlanMode({
   // not by index into the alphabetically-sorted list, which reshuffles when
   // categories appear/disappear.
   const [categoryCursor, setCategoryCursor] = useState<string | null>(null);
+  // Set to the category being renamed in place. Reuses editState/vimMode so it
+  // gets the shared cursor editing for free.
+  const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
+  // `c` — retag one task. Distinct from renamingCategory, which rewrites the
+  // category itself everywhere it appears.
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
 
   const persistHiddenCategories = (next: Set<string>) => {
     setHiddenCategories(next);
@@ -165,6 +179,17 @@ export function PlanMode({
     return counts;
   }, [focusedTasks]);
 
+  // Prefix completion for the `c` editor, matching Write's review pane —
+  // categories are typed constantly, so the ghost is what keeps them from
+  // drifting into near-duplicates.
+  const categoryGhost = useMemo(() => {
+    if (!editingCategoryId || !editText) return null;
+    const known = getAllCategories([...focusedTasks, ...backlogTasks]);
+    const { top } = suggestPrefix(editText, known);
+    if (!top || top.name.length <= editText.length) return null;
+    return top.name.slice(editText.length);
+  }, [editingCategoryId, editText, focusedTasks, backlogTasks]);
+
   const totalCount = orderedTasks.length;
 
   // Resolve the id-anchored cursors to positions in the current lists, fresh
@@ -221,6 +246,16 @@ export function PlanMode({
         if (allCategories.length === 0) return;
         const pos = action.to === 'top' ? 0 : allCategories.length - 1;
         setCategoryCursor(allCategories[pos] ?? null);
+        return;
+      }
+      if (action.type === 'edit') {
+        const cat = allCategories[catPos];
+        // Uncategorized isn't a real category — renaming it would silently
+        // categorize every loose task, which is a different operation.
+        if (!cat) return;
+        setRenamingCategory(cat);
+        setEditState({ text: cat, cursor: action.variant === 'start' ? 0 : cat.length });
+        setVimMode('insert');
         return;
       }
       if (action.type === 'cancel') {
@@ -351,6 +386,16 @@ export function PlanMode({
         break;
       }
 
+      case 'edit-category': {
+        const task = getSelectedTask();
+        if (!task) return;
+        const current = task.categories?.[0] ?? '';
+        setEditingCategoryId(task.id);
+        setEditState({ text: current, cursor: current.length });
+        setVimMode('insert');
+        break;
+      }
+
       case 'create': {
         const idx = action.above ? selPos : selPos + 1;
         setCreatingAt(idx);
@@ -402,25 +447,75 @@ export function PlanMode({
         break;
       }
 
-      case 'toggle-scope': {
-        const task = getSelectedTask();
-        if (!task) return;
-        const prevScope = task.scope;
-        const nextScope = prevScope === 'personal' ? 'professional' : 'personal';
-        store.update(task.id, { scope: nextScope }).then(() => {
-          undoStack.push({
-            undo: async () => { await store.update(task.id, { scope: prevScope }); },
-          });
-          reload();
-        });
-        break;
-      }
     }
+  };
+
+  /**
+   * Rename a category everywhere it appears — across BOTH scopes, not just the
+   * scope currently filtered into the panel. Renaming half of a category would
+   * silently split it in two, which is worse than not offering the rename.
+   */
+  const renameCategory = (from: string, to: string) => {
+    store.load().then((all) => {
+      const hits = all.filter(t => (t.categories ?? []).includes(from));
+      if (hits.length === 0) return;
+      const swap = (cats: string[], a: string, b: string) => cats.map(c => (c === a ? b : c));
+      return Promise.all(
+        hits.map(t => store.update(t.id, { categories: swap(t.categories ?? [], from, to) })),
+      ).then(() => {
+        undoStack.push({
+          undo: async () => {
+            for (const t of hits) {
+              await store.update(t.id, { categories: t.categories ?? [] });
+            }
+          },
+        });
+        // Carry the hidden flag and the panel cursor onto the new name.
+        if (hiddenCategories.has(from)) {
+          const next = new Set(hiddenCategories);
+          next.delete(from);
+          next.add(to);
+          persistHiddenCategories(next);
+        }
+        setCategoryCursor(to);
+        reload();
+      });
+    });
   };
 
   const saveEdit = () => {
     if (isSearching) {
       setIsSearching(false);
+      setVimMode('normal');
+      return;
+    }
+
+    if (editingCategoryId) {
+      const task = orderedTasks.find(t => t.id === editingCategoryId);
+      const next = editText.trim();
+      const prev = task?.categories ?? [];
+      const nextCats = next ? [next] : [];
+      if (task && JSON.stringify(prev) !== JSON.stringify(nextCats)) {
+        const id = task.id;
+        store.update(id, { categories: nextCats }).then(() => {
+          undoStack.push({ undo: async () => { await store.update(id, { categories: prev }); } });
+          reload();
+        });
+      }
+      setEditingCategoryId(null);
+      setEditState({ text: '', cursor: 0 });
+      setVimMode('normal');
+      return;
+    }
+
+    if (renamingCategory !== null) {
+      const next = editText.trim();
+      // Empty cancels rather than dumping the category's tasks into
+      // uncategorized — that's a destructive move to reach by holding
+      // backspace.
+      if (next && next !== renamingCategory) renameCategory(renamingCategory, next);
+      setRenamingCategory(null);
+      setEditState({ text: '', cursor: 0 });
       setVimMode('normal');
       return;
     }
@@ -477,27 +572,22 @@ export function PlanMode({
     isActive: true,
     onAction: handleAction,
     onInsertChar: (char) => {
-      if (isSearching) {
-        setSearchQuery(prev => prev + char);
-      } else {
-        setEditState(prev => ({
-          text: prev.text.slice(0, prev.cursor) + char + prev.text.slice(prev.cursor),
-          cursor: prev.cursor + 1,
-        }));
-      }
+      if (isSearching) setSearchBuf(prev => insertChar(prev, char));
+      else setEditState(prev => insertChar(prev, char));
     },
     onInsertBackspace: () => {
-      if (isSearching) {
-        setSearchQuery(prev => prev.slice(0, -1));
-      } else {
-        setEditState(prev => {
-          if (prev.cursor <= 0) return prev;
-          return {
-            text: prev.text.slice(0, prev.cursor - 1) + prev.text.slice(prev.cursor),
-            cursor: prev.cursor - 1,
-          };
-        });
-      }
+      if (isSearching) setSearchBuf(prev => deleteBack(prev));
+      else setEditState(prev => deleteBack(prev));
+    },
+    onInsertCursor: (to) => {
+      if (isSearching) setSearchBuf(prev => moveCursor(prev, to));
+      else setEditState(prev => moveCursor(prev, to));
+    },
+    onInsertTab: () => {
+      if (categoryGhost) setEditState(prev => {
+        const text = prev.text + categoryGhost;
+        return { text, cursor: text.length };
+      });
     },
     onInsertEnter: saveEdit,
     onInsertEscape: saveEdit,
@@ -569,6 +659,17 @@ export function PlanMode({
           <Box key={task.id}>
             <Text dimColor>{'  '}{connector} </Text>
             <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
+          </Box>
+        );
+      } else if (editingCategoryId === task.id) {
+        taskRows.push(
+          <Box key={task.id}>
+            <Text dimColor>{'  '}{connector} </Text>
+            <Text dimColor>{'category: '}</Text>
+            <Text>{editText.slice(0, cursorPos)}</Text>
+            <Text backgroundColor="magenta" color="white">{editText[cursorPos] ?? ' '}</Text>
+            <Text>{editText.slice(cursorPos + 1)}</Text>
+            {categoryGhost && <Text dimColor>{categoryGhost}</Text>}
           </Box>
         );
       } else {
@@ -646,11 +747,31 @@ export function PlanMode({
   const hasBelow = target + availableRows < taskRows.length;
   const visibleRows = taskRows.slice(target, target + availableRows);
 
+  // The category panel gets the same windowed treatment as the task tree.
+  // Without it the list just ran off the bottom of the (overflow: hidden)
+  // app frame and the tail categories were unreachable — the cursor could
+  // move onto them but nothing ever scrolled them into view.
+  // Reserved: Header(3) + Footer(4) + panel border(2) + panel title(1)
+  // + 2 rows for the optional scroll hints.
+  const catRows = Math.max(1, termHeight - 12);
+  const maxCatScroll = Math.max(0, allCategories.length - catRows);
+  let catTarget = Math.min(Math.max(catScrollOffset, 0), maxCatScroll);
+  if (catPos < catTarget) catTarget = catPos;
+  else if (catPos >= catTarget + catRows) catTarget = catPos - catRows + 1;
+
+  useEffect(() => {
+    if (catTarget !== catScrollOffset) setCatScrollOffset(catTarget);
+  }, [catTarget, catScrollOffset]);
+
+  const catHasAbove = catTarget > 0;
+  const catHasBelow = catTarget + catRows < allCategories.length;
+  const visibleCategories = allCategories.slice(catTarget, catTarget + catRows);
+
   return (
     <Box flexDirection="row" flexShrink={0}>
       <Box flexDirection="column" flexGrow={1}>
         <Text> </Text>
-        {isSearching && <SearchBar query={searchQuery} />}
+        {isSearching && <SearchBar query={searchQuery} cursor={searchBuf.cursor} />}
         {searchQuery && !isSearching && (
           <Text dimColor>  filter: {searchQuery}</Text>
         )}
@@ -687,13 +808,23 @@ export function PlanMode({
         {allCategories.length === 0 && (
           <Text dimColor>(none)</Text>
         )}
-        {allCategories.map((cat, i) => {
+        {catHasAbove && <Text dimColor>{'  ↑ '}{catTarget} more</Text>}
+        {visibleCategories.map((cat, offset) => {
+          const i = catTarget + offset;
           const label = cat || 'uncategorized';
           const hidden = hiddenCategories.has(cat);
           const selected = panelFocus === 'categories' && catPos === i;
           const count = categoryCounts.get(cat) ?? 0;
           const focusedCount = focusedCountByCategory.get(cat) ?? 0;
           const mark = hidden ? '○' : '●';
+          if (renamingCategory === cat) {
+            return (
+              <Box key={cat}>
+                <Text color="cyan">{` ${CURSOR_GLYPH} `}</Text>
+                <InlineEdit text={editText} cursorPos={cursorPos} prefix="" />
+              </Box>
+            );
+          }
           return (
             <Text key={cat || '__empty'}>
               <Text color={selected ? 'cyan' : undefined} dimColor={!selected}>
@@ -709,6 +840,9 @@ export function PlanMode({
             </Text>
           );
         })}
+        {catHasBelow && (
+          <Text dimColor>{'  ↓ '}{allCategories.length - catTarget - catRows} more</Text>
+        )}
       </Box>
     </Box>
   );

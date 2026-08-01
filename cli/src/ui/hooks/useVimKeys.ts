@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { useInput } from 'ink';
+import { cursorMoveFor, type CursorMove } from '../shared/textInput.js';
 
 export type VimMode = 'normal' | 'insert' | 'holding';
 
@@ -11,13 +12,13 @@ export type VimAction =
   | { type: 'edit'; variant: 'start' | 'end' }
   | { type: 'edit-date' }
   | { type: 'edit-description' }
+  | { type: 'edit-category' }
   | { type: 'create'; above: boolean }
   | { type: 'mark-done' }
   | { type: 'undo' }
   | { type: 'search' }
   | { type: 'cancel' }
   | { type: 'toggle-focus' }
-  | { type: 'toggle-scope' }
   | { type: 'tab' };
 
 export interface UseVimKeysOptions {
@@ -27,6 +28,10 @@ export interface UseVimKeysOptions {
   onInsertBackspace?: () => void;
   onInsertEnter?: () => void;
   onInsertEscape?: () => void;
+  /** Arrow/Home/End/Ctrl-A/Ctrl-E while editing — see ui/shared/textInput.ts. */
+  onInsertCursor?: (to: CursorMove) => void;
+  /** Tab while editing — accepts a completion ghost where one is offered. */
+  onInsertTab?: () => void;
 }
 
 const SEQUENCE_TIMEOUT = 300;
@@ -69,10 +74,15 @@ export function useVimKeys(
 
     // --- Insert mode ---
     if (mode === 'insert') {
+      const move = cursorMoveFor(input, key);
       if (key.escape) {
         opts.onInsertEscape?.();
       } else if (key.return) {
         opts.onInsertEnter?.();
+      } else if (key.tab) {
+        opts.onInsertTab?.();
+      } else if (move) {
+        opts.onInsertCursor?.(move);
       } else if (key.backspace || key.delete) {
         opts.onInsertBackspace?.();
       } else if (input && !key.ctrl && !key.meta) {
@@ -148,11 +158,12 @@ export function useVimKeys(
       opts.onAction({ type: 'edit-date' });
     } else if (input === 'e') {
       opts.onAction({ type: 'edit-description' });
+    } else if (input === 'c') {
+      // `c` for category — the same key Write's review pane uses. No `cc`
+      // sequence here (Triage edits titles with `i`), so no timeout.
+      opts.onAction({ type: 'edit-category' });
     } else if (input === 'x') {
       opts.onAction({ type: 'mark-done' });
-    } else if (input === 'S') {
-      // Capital S — Scope. Same binding in Write's review pane.
-      opts.onAction({ type: 'toggle-scope' });
     } else if (input === 'G') {
       opts.onAction({ type: 'jump', to: 'bottom' });
     } else if (input === 'u') {

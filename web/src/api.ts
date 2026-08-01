@@ -33,6 +33,10 @@ export const api = {
     for (const [k, v] of Object.entries(params)) if (v !== undefined) qs.set(k, v);
     return client.req<Task[]>(`/api/tasks?${qs}`);
   },
+  /** One task plus its subtasks — what the edit form loads to prefill itself. */
+  async getTask(id: string): Promise<Task & { subtasks: Task[] }> {
+    return client.req<Task & { subtasks: Task[] }>(`/api/tasks/${id}`);
+  },
   async createTask(input: Record<string, unknown>, key: string = idempotencyKey()): Promise<Task> {
     return client.req<Task>('/api/tasks', {
       method: 'POST',

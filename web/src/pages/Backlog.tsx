@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError, reloadForAuth } from '../api';
 import type { Task } from '../types';
 import { usePoll } from '../lib/use-poll';
+import { useLongPress } from '../lib/use-long-press';
 import { NavMenu } from '../components/NavMenu';
 import { sortTasks } from 'task-man/handlers';
 import { isLocalToday } from 'task-man/local-date';
@@ -130,6 +131,7 @@ export function BacklogPage() {
       expanded={expandedId === t.id}
       busy={acting.has(t.id)}
       onToggleExpand={() => setExpandedId(expandedId === t.id ? null : t.id)}
+      onEdit={() => nav(`/task/${t.id}`)}
       onToggleFocus={() =>
         withAction(t.id, async () => {
           if (t.focused) {
@@ -236,6 +238,8 @@ interface RowProps {
   /** Render a dim personal/professional tag — set when the scope filter is 'all'. */
   showScope?: boolean;
   onToggleExpand: () => void;
+  /** Press-and-hold, or the Edit button in the open row. */
+  onEdit: () => void;
   onToggleFocus: () => void;
   onComplete: () => void;
   onReopen: () => void;
@@ -245,9 +249,10 @@ interface RowProps {
 
 function BacklogRow({
   task, subtasks, expanded, busy, showScope,
-  onToggleExpand, onToggleFocus, onComplete, onReopen, onSubtaskToggle, onAddSubtask,
+  onToggleExpand, onEdit, onToggleFocus, onComplete, onReopen, onSubtaskToggle, onAddSubtask,
 }: RowProps) {
   const isDone = task.status === 'done';
+  const longPress = useLongPress(onEdit);
   const subDone = subtasks.filter((s) => s.status === 'done').length;
   const subTotal = subtasks.length;
 
@@ -284,7 +289,7 @@ function BacklogRow({
       className={`backlog-row${task.focused ? ' is-focused' : ''}${expanded ? ' expanded' : ''}${busy ? ' busy' : ''}${isDone ? ' done' : ''}`}
     >
       <div className="row-main">
-        <button className="row-tap" onClick={onToggleExpand}>
+        <button className="row-tap" onClick={onToggleExpand} {...longPress}>
           <PriorityDot priority={task.priority} status={task.status} />
           <div className="row-title-block">
             <div className="row-title mono">{task.title}</div>
@@ -361,6 +366,9 @@ function BacklogRow({
             ) : (
               <button className="act primary" onClick={onComplete} disabled={busy}>Mark done</button>
             )}
+            {/* The hold gesture has no affordance — this is what makes edit
+                discoverable, and what makes it reachable without a pointer. */}
+            <button className="act ghost" onClick={onEdit} disabled={busy}>Edit</button>
           </div>
         </div>
       )}

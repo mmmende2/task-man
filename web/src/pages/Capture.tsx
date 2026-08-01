@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, reloadForAuth } from '../api';
 import type { TaskPriority, TaskScope } from '../types';
 import { NavMenu } from '../components/NavMenu';
@@ -11,8 +11,43 @@ const TIME_ESTIMATES = ['<5m', '20m', '45m', '>1h', '>3h'] as const;
 type TimeEstimate = (typeof TIME_ESTIMATES)[number];
 const SCOPES: TaskScope[] = ['personal', 'professional'];
 
+/**
+ * The scope a fresh capture starts on: whatever the app-wide filter is set to
+ * ('all' → no pre-selection). Used for the initial state AND for the reset
+ * after each capture — resetting to null instead made scope the one field you
+ * had to re-pick every single time.
+ */
+function defaultScope(): TaskScope | null {
+  const f = loadScopeFilter();
+  return f === 'all' ? null : f;
+}
+
+/**
+ * Back out of the edit form. Normally that's the row you came from, but a
+ * deep-linked /task/:id has nothing behind it — `nav(-1)` there walks out of
+ * the app entirely, so fall back to the list.
+ */
+function useGoBack() {
+  const nav = useNavigate();
+  return () => {
+    // react-router stamps its history index onto history.state.
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) nav(-1);
+    else nav('/');
+  };
+}
+
+/**
+ * Capture, and — when the route carries a task id (`/task/:id`) — edit.
+ * Deliberately one component: an edit form that drifts from the capture form
+ * is how the two end up disagreeing about what a task even has.
+ */
 export function CapturePage() {
   const nav = useNavigate();
+  const goBack = useGoBack();
+  const { id: editId } = useParams();
+  const editing = !!editId;
+  const [loading, setLoading] = useState(editing);
   const [title, setTitle] = useState('');
   // Priority is now nullable — no implicit default. Tap a segment to
   // set it, tap the active segment again to clear. When null we omit
@@ -21,14 +56,11 @@ export function CapturePage() {
   const [time, setTime] = useState<TimeEstimate | null>(null);
   // Scope follows the priority pattern: nullable, tap-again-to-clear.
   // When null we omit it and the server defaults to 'personal'.
-  // Seed from the app-wide scope filter so a capture inherits whatever scope
-  // you're currently viewing ('all' → no pre-selection). Note: the Segmented
-  // control only sets THIS task's scope — it never writes back through
-  // saveScopeFilter, so capturing doesn't move the app-wide filter.
-  const [scope, setScope] = useState<TaskScope | null>(() => {
-    const f = loadScopeFilter();
-    return f === 'all' ? null : f;
-  });
+  // Note: the Segmented control only sets THIS task's scope — it never writes
+  // back through saveScopeFilter, so capturing doesn't move the app-wide
+  // filter. Changing it on an existing task moves that task out of the
+  // filtered view, which is the point.
+  const [scope, setScope] = useState<TaskScope | null>(defaultScope);
   const [focused, setFocused] = useState(true);
   const [categories, setCategories] = useState<string[]>([]);
   const [description, setDescription] = useState('');
@@ -56,9 +88,39 @@ export function CapturePage() {
       });
   }, [scope]);
 
+  // Edit mode: prefill from the task. Existing subtasks are managed from the
+  // row itself (tap to tick), so the subtask control here only ever queues
+  // NEW ones — same as capture.
   useEffect(() => {
-    titleRef.current?.focus();
-  }, []);
+    if (!editId) return;
+    let stale = false;
+    api.getTask(editId)
+      .then((t) => {
+        if (stale) return;
+        setTitle(t.title);
+        setPriority(t.priority);
+        setScope(t.scope);
+        setTime((t.time_estimate as TimeEstimate | null) ?? null);
+        setCategories(t.categories ?? []);
+        setFocused(t.focused);
+        setDescription(t.description ?? '');
+        setShowDesc(!!t.description);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) return reloadForAuth();
+        setToast('Could not load that task');
+        setLoading(false);
+      });
+    return () => { stale = true; };
+  }, [editId]);
+
+  useEffect(() => {
+    // Capture only. Autofocusing an edit pops the keyboard over a form you
+    // came to read, and parks the caret at the end of the title — which
+    // scrolls a long one so only its tail is visible.
+    if (!editing) titleRef.current?.focus();
+  }, [editing]);
 
   useEffect(() => {
     if (addingCategory) newCatRef.current?.focus();
@@ -94,7 +156,42 @@ export function CapturePage() {
 
   const removeSubtask = (i: number) => setSubtasks((s) => s.filter((_, idx) => idx !== i));
 
+  const save = async () => {
+    const cleanTitle = title.trim();
+    if (busy || !cleanTitle || !editId) return;
+    setBusy(true);
+    const newSubtasks = subtaskDraft.trim() ? [...subtasks, subtaskDraft.trim()] : subtasks;
+    try {
+      await api.patchTask(editId, {
+        title: cleanTitle,
+        // Every field is sent explicitly: this is an edit, so "unset" has to
+        // be able to travel. null clears the description; priority and scope
+        // aren't clearable while editing (a task always has both).
+        priority: priority ?? undefined,
+        scope: scope ?? undefined,
+        categories,
+        description: description.trim() || null,
+        focused,
+        time_estimate: time,
+      });
+      await Promise.allSettled(
+        newSubtasks.map((s) => api.createTask({ title: s, parent_id: editId, focused: false })),
+      );
+      goBack();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        reloadForAuth();
+        return;
+      }
+      setToast((err as Error).message || 'Failed to save');
+      setTimeout(() => setToast(null), 1800);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async () => {
+    if (editing) return save();
     const cleanTitle = title.trim();
     if (busy || !cleanTitle) return;
     setBusy(true);
@@ -131,7 +228,8 @@ export function CapturePage() {
       setCategories([]);
       setTime(null);
       setPriority(null);
-      setScope(null);
+      // Back to the app-wide scope, not to nothing — see defaultScope().
+      setScope(defaultScope());
       setFocused(true);
       setSubtasks([]);
       setSubtaskDraft('');
@@ -152,8 +250,14 @@ export function CapturePage() {
   return (
     <div className="capture-page">
       <header className="capture-header">
-        <button className="back-btn" onClick={() => nav('/')} aria-label="back">←</button>
-        <div className="capture-title">Capture</div>
+        <button
+          className="back-btn"
+          onClick={() => (editing ? goBack() : nav('/'))}
+          aria-label="back"
+        >
+          ←
+        </button>
+        <div className="capture-title">{editing ? 'Edit' : 'Capture'}</div>
         <NavMenu current="capture" />
       </header>
 
@@ -276,11 +380,13 @@ export function CapturePage() {
         <Segmented
           label="Priority"
           options={PRIORITIES}
+          // Only clearable on capture, where null means "let the server
+          // default apply". An existing task always has a priority, so there
+          // is nothing to clear it to.
           value={priority}
-          // Priority is nullable: tap the active segment again to clear.
-          onChange={(v) => setPriority(v === priority ? null : v)}
+          onChange={(v) => setPriority(v === priority && !editing ? null : v)}
           variant="priority"
-          clearable
+          clearable={!editing}
         />
 
         <Segmented
@@ -296,9 +402,9 @@ export function CapturePage() {
           label="Scope"
           options={SCOPES}
           value={scope}
-          onChange={(v) => setScope(v === scope ? null : v)}
+          onChange={(v) => setScope(v === scope && !editing ? null : v)}
           variant="scope"
-          clearable
+          clearable={!editing}
         />
 
         <div className="control control-row">
@@ -325,8 +431,10 @@ export function CapturePage() {
       </main>
 
       <nav className="capture-bottom">
-        <button className="capture-submit" onClick={submit} disabled={busy || !title.trim()}>
-          {busy ? 'Capturing…' : 'Capture'}
+        <button className="capture-submit" onClick={submit} disabled={busy || loading || !title.trim()}>
+          {editing
+            ? (busy ? 'Saving…' : 'Save')
+            : (busy ? 'Capturing…' : 'Capture')}
         </button>
       </nav>
 

@@ -9,6 +9,7 @@ import { TaskRow } from '../shared/TaskRow.js';
 import { TaskRowExpanded } from '../shared/TaskRowExpanded.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
+import { insertChar, deleteBack, moveCursor, type TextBuffer } from '../shared/textInput.js';
 import { loadConfig } from '../../config.js';
 import { localDateString } from '../../local-date.js';
 import { getSessionHexColor, getSessionName, isSessionActive } from '../../sessions.js';
@@ -60,7 +61,12 @@ export function FocusMode({
   const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
   const [editState, setEditState] = useState({ text: '', cursor: 0 });
   const [creatingAt, setCreatingAt] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  // The search field is a text buffer for the same reason the edit fields are
+  // — see ui/shared/textInput.ts. `searchQuery` stays derived so every filter
+  // that reads it is untouched.
+  const [searchBuf, setSearchBuf] = useState<TextBuffer>({ text: '', cursor: 0 });
+  const searchQuery = searchBuf.text;
+  const setSearchQuery = (next: string) => setSearchBuf({ text: next, cursor: next.length });
   const [isSearching, setIsSearching] = useState(false);
 
   const editText = editState.text;
@@ -352,22 +358,6 @@ export function FocusMode({
         break;
       }
 
-      case 'toggle-scope': {
-        // Parent tasks only — subtasks follow their parent conceptually.
-        if (navTarget !== 'tasks') return;
-        const task = selectedTask;
-        if (!task) return;
-        const prevScope = task.scope;
-        const nextScope = prevScope === 'personal' ? 'professional' : 'personal';
-        store.update(task.id, { scope: nextScope }).then(() => {
-          undoStack.push({
-            undo: async () => { await store.update(task.id, { scope: prevScope }); },
-          });
-          reload();
-        });
-        break;
-      }
-
       // toggle-focus not supported in focus mode
       default:
         break;
@@ -478,27 +468,16 @@ export function FocusMode({
     isActive: true,
     onAction: handleAction,
     onInsertChar: (char) => {
-      if (isSearching) {
-        setSearchQuery(prev => prev + char);
-      } else {
-        setEditState(prev => ({
-          text: prev.text.slice(0, prev.cursor) + char + prev.text.slice(prev.cursor),
-          cursor: prev.cursor + 1,
-        }));
-      }
+      if (isSearching) setSearchBuf(prev => insertChar(prev, char));
+      else setEditState(prev => insertChar(prev, char));
     },
     onInsertBackspace: () => {
-      if (isSearching) {
-        setSearchQuery(prev => prev.slice(0, -1));
-      } else {
-        setEditState(prev => {
-          if (prev.cursor <= 0) return prev;
-          return {
-            text: prev.text.slice(0, prev.cursor - 1) + prev.text.slice(prev.cursor),
-            cursor: prev.cursor - 1,
-          };
-        });
-      }
+      if (isSearching) setSearchBuf(prev => deleteBack(prev));
+      else setEditState(prev => deleteBack(prev));
+    },
+    onInsertCursor: (to) => {
+      if (isSearching) setSearchBuf(prev => moveCursor(prev, to));
+      else setEditState(prev => moveCursor(prev, to));
     },
     onInsertEnter: saveEdit,
     onInsertEscape: saveEdit,
@@ -583,7 +562,7 @@ export function FocusMode({
   return (
     <Box flexDirection="column">
       <Text> </Text>
-      {isSearching && <SearchBar query={searchQuery} />}
+      {isSearching && <SearchBar query={searchQuery} cursor={searchBuf.cursor} />}
       {searchQuery && !isSearching && (
         <Text dimColor>  filter: {searchQuery}</Text>
       )}

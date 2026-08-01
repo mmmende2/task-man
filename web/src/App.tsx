@@ -12,6 +12,9 @@ export function App() {
       <Routes>
         <Route path="/" element={<FocusPage />} />
         <Route path="/capture" element={<CapturePage />} />
+        {/* Same form, prefilled — see Capture.tsx. Keyed on the id so
+            navigating between two tasks remounts with fresh state. */}
+        <Route path="/task/:id" element={<CapturePage />} />
         <Route path="/backlog" element={<BacklogPage />} />
         <Route path="/refine" element={<RefinePage />} />
         <Route path="/metrics" element={<MetricsPage />} />

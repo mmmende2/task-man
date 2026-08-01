@@ -8,10 +8,10 @@ import { SessionDot } from '../../shared/SessionDot.js';
 import { InlineEdit } from '../../shared/InlineEdit.js';
 import { CURSOR_GLYPH, type CursorTone } from '../../shared/selection.js';
 
-export type EditingField = 'title' | 'category' | 'subtask-title' | 'subtask-create';
+export type EditingField = 'title' | 'category' | 'description' | 'subtask-title' | 'subtask-create';
 
 export interface EntryListEditing {
-  /** For title/category: parent task id. For subtask-title: subtask id. For subtask-create: parent id. */
+  /** For title/category/description: parent task id. For subtask-title: subtask id. For subtask-create: parent id. */
   id: string;
   type: EditingField;
   text: string;
@@ -29,8 +29,14 @@ export interface CaptureAnchor {
   parentId: string;
   /** True when the capture input starts with ':' (subtask mode). */
   isTypingSubtask: boolean;
-  /** Live title text parsed from capture input (empty when not typing). */
+  /**
+   * The raw capture buffer past the ':', echoed verbatim so the cursor drawn
+   * after it tracks every keystroke — including trailing spaces. The parsed
+   * result is summarised separately by CapturePane's preview line.
+   */
   previewText: string;
+  /** Caret position within `previewText`. */
+  previewCursor: number;
 }
 
 interface Props {
@@ -73,6 +79,12 @@ export function groupByCategory(tasks: Task[]): CategoryGroup[] {
   return keys.map(k => ({ category: k, tasks: map.get(k)! }));
 }
 
+/** Flatten a description onto one row — the list budgets one row per field. */
+function oneLine(text: string, max = 64): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+}
+
 export function orderedTaskIds(tasks: Task[]): string[] {
   const groups = groupByCategory(tasks);
   const ids: string[] = [];
@@ -112,6 +124,7 @@ export function EntryList({
       const selected = cursorId === task.id;
       const isEditingTitle = editing?.id === task.id && editing.type === 'title';
       const isEditingCategory = editing?.id === task.id && editing.type === 'category';
+      const isEditingDescription = editing?.id === task.id && editing.type === 'description';
       const sessionColor = getSessionHexColor(task.session_id, config);
       const isCurrent = !!currentSessionId && task.session_id === currentSessionId;
       const gutter = selected ? `  ${CURSOR_GLYPH}` : '    ';
@@ -178,6 +191,26 @@ export function EntryList({
         }
       }
 
+      // Description: the edit row while `e` is open, otherwise a dim echo so a
+      // `-d` capture is visible without expanding anything. Single line —
+      // Focus mode remains the place to read a long one.
+      if (isEditingDescription) {
+        rows.push(
+          <Box key={`edit-desc-${task.id}`}>
+            <Text dimColor>{'       desc: '}</Text>
+            <Text>{editing!.text.slice(0, editing!.cursor)}</Text>
+            <Text backgroundColor="magenta" color="white">{editing!.text[editing!.cursor] ?? ' '}</Text>
+            <Text>{editing!.text.slice(editing!.cursor + 1)}</Text>
+          </Box>,
+        );
+      } else if (task.description) {
+        rows.push(
+          <Box key={`desc-${task.id}`}>
+            <Text dimColor>{'       '}{oneLine(task.description)}</Text>
+          </Box>,
+        );
+      }
+
       const subs = subtaskMap.get(task.id) ?? [];
       for (const sub of subs) {
         const subSelected = subtaskCursorId === sub.id;
@@ -217,11 +250,20 @@ export function EntryList({
         isAnchor && !(editing?.id === task.id && editing.type === 'subtask-create');
       if (showCaptureGhost) {
         if (captureAnchor!.isTypingSubtask) {
+          const { previewText, previewCursor } = captureAnchor!;
+          const atEnd = previewCursor >= previewText.length;
           rows.push(
             <Box key={`capture-anchor-${task.id}`}>
               <Text color="magenta">{'       └─ '}</Text>
-              <Text color="magenta">{captureAnchor!.previewText}</Text>
-              <Text color="magenta">█</Text>
+              <Text color="magenta">{previewText.slice(0, previewCursor)}</Text>
+              {atEnd ? (
+                <Text color="magenta">█</Text>
+              ) : (
+                <>
+                  <Text backgroundColor="magenta" color="white">{previewText[previewCursor]}</Text>
+                  <Text color="magenta">{previewText.slice(previewCursor + 1)}</Text>
+                </>
+              )}
             </Box>,
           );
         } else {

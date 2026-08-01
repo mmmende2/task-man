@@ -142,6 +142,13 @@
   border-radius: 0;
   min-height: var(--tap-min);
   min-width: 0;
+  /* Press-and-hold opens the edit form (see lib/use-long-press.ts). iOS would
+     otherwise raise its selection callout over the gesture, and the double-tap
+     zoom delay would eat the tap. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
 }
 
 .prio-dot {
@@ -183,6 +190,24 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Tapping a row is how you read a title the list had to truncate — so the
+   expanded row drops the single-line clamp and wraps in full. */
+.backlog-row.expanded .row-title {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+.backlog-row.expanded .row-tap {
+  align-items: flex-start;
+}
+
+/* Keep the dot optically on the first line once the title wraps. */
+.backlog-row.expanded .prio-dot {
+  margin-top: 3px;
 }
 
 .row-meta {

@@ -285,4 +285,101 @@ describe('PlanMode interaction', () => {
       expect(result.lines().find(l => l.includes('▸'))).toContain('Focused-B');
     });
   });
+
+  it('renames a category from the panel, across every task carrying it', async () => {
+    // One task per scope so the rename has to reach past the panel's own view.
+    await store.add({ title: 'Personal-op', categories: ['ops'], scope: 'personal' });
+    await store.add({ title: 'Work-op', categories: ['ops'], scope: 'professional' });
+
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: store.load() }),
+    );
+    cleanup = result.cleanup;
+    await vi.waitFor(() => expect(result.text()).toContain('ops'));
+
+    result.stdin.write('l'); // focus the category panel
+    // Wait for the panel cursor, not for 'ops' — that string is already in the
+    // tree, so it would match before the focus switch had rendered.
+    await vi.waitFor(() => expect(result.text()).toMatch(/▸ ● ops/));
+    result.stdin.write('i'); // rename, cursor at the start
+    await vi.waitFor(() => expect(result.text()).toContain('> ops'));
+
+    result.stdin.write('\x05'); // ctrl-e — end of the name
+    for (const ch of '-dev') result.stdin.write(ch);
+    await vi.waitFor(() => expect(result.text()).toContain('ops-dev'));
+
+    result.stdin.write('\r');
+    await vi.waitFor(() => {
+      const cats = store.load().filter(t => t.title.endsWith('-op')).map(t => t.categories);
+      expect(cats).toEqual([['ops-dev'], ['ops-dev']]);
+    });
+  });
+
+  it('c retags the cursored task, tab-completing against known categories', async () => {
+    await store.add({ title: 'Has-cat', categories: ['opsdev'] });
+    await store.add({ title: 'No-cat' });
+
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: store.load() }),
+    );
+    cleanup = result.cleanup;
+    await vi.waitFor(() => expect(result.text()).toContain('No-cat'));
+
+    // Walk to the uncategorized task. 'opsdev' sorts before 'uncategorized',
+    // and Backlog-A/B share the latter group with No-cat.
+    await vi.waitFor(() => expect(result.lines().find(l => l.includes('▸'))).toBeTruthy());
+    for (let i = 0; i < 8; i++) {
+      if (result.lines().find(l => l.includes('▸'))?.includes('No-cat')) break;
+      result.stdin.write('j');
+      await new Promise(r => setTimeout(r, 25));
+    }
+    expect(result.lines().find(l => l.includes('▸'))).toContain('No-cat');
+
+    result.stdin.write('c');
+    await vi.waitFor(() => expect(result.text()).toContain('category:'));
+
+    // The ghost offers the rest of the only 'o…' category we know about.
+    // Match on the edit row, not on 'opsdev' — that also names a tree header.
+    result.stdin.write('o');
+    await vi.waitFor(() => expect(result.text()).toMatch(/category: o.*psdev/));
+    result.stdin.write('\t');
+    // Wait for the accepted completion to land in state before committing —
+    // Enter reads the buffer from the last rendered closure.
+    await vi.waitFor(() => expect(result.text()).toContain('category: opsdev'));
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const t = store.load().find(x => x.title === 'No-cat');
+      expect(t?.categories).toEqual(['opsdev']);
+    });
+  });
+
+  it('S no longer changes a task scope — the binding is gone', async () => {
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+    await vi.waitFor(() => expect(result.text()).toContain('Focused-A'));
+
+    const before = store.load().map(t => t.scope);
+    result.stdin.write('S');
+    await new Promise(r => setTimeout(r, 80));
+
+    expect(store.load().map(t => t.scope)).toEqual(before);
+  });
+
+  it('leaves the uncategorized row alone — renaming it is a different operation', async () => {
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    result.stdin.write('l');
+    await vi.waitFor(() => expect(result.text()).toMatch(/▸ ● uncategorized/));
+    result.stdin.write('i');
+
+    await new Promise(r => setTimeout(r, 60));
+    expect(result.text()).toContain('uncategorized');
+    expect(result.text()).not.toContain('> uncategorized');
+  });
 });

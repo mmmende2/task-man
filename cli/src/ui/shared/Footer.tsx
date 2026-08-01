@@ -33,19 +33,19 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
     pageContent = `-- cut: ${holdingTitle} -- p:put P:put esc:delete`;
   } else if (mode === 'focus') {
     navContent = 't:triage w:write m:metrics r:refine ~:scope';
-    pageContent = 'jk:nav gg/G:top/bot tab:sub x:done S:scope D:date e:desc dd:cut i:edit /:find';
+    pageContent = 'jk:nav gg/G:top/bot tab:sub x:done D:date e:desc dd:cut i:edit /:find';
   } else if (mode === 'plan' && planFocus === 'categories') {
     navContent = 'f:focus w:write m:metrics r:refine ~:scope';
-    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:toggle esc:tasks';
+    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:show/hide i:rename esc:tasks';
   } else if (mode === 'plan') {
     navContent = 'f:focus w:write m:metrics r:refine ~:scope';
-    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:focus/unfocus dd:cut x:done S:scope i:edit o:new /:find u:undo';
+    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:focus/unfocus dd:cut x:done i:edit c:cat o:new /:find u:undo';
   } else if (mode === 'write' && writeSubMode === 'review') {
     navContent = 'esc:focus  w:capture  T:time';
-    pageContent = 'jk:nav gg/G:top/bot tab:sub cc:title c:cat P:pri S:scope spc:focus dd:cut u:undo';
+    pageContent = 'jk:nav gg/G:top/bot tab:sub cc:title c:cat e:desc P:pri spc:focus dd:cut u:undo';
   } else if (mode === 'write') {
     navContent = 'esc:review  ~:scope';
-    pageContent = 'enter:add  tab:accept  :subtask  -p -c -s flags';
+    pageContent = 'enter:add  tab:accept  :subtask  -p -c -s -d -f flags';
   } else if (mode === 'metrics') {
     navContent = 'f:focus  t:triage  w:write  r:refine  ~:scope';
     pageContent = 'h/l:day  D:date';
