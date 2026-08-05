@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError, reloadForAuth } from '../api';
 import type { Task } from '../types';
 import { usePoll } from '../lib/use-poll';
+import { useLongPress } from '../lib/use-long-press';
 import { NavMenu } from '../components/NavMenu';
 import { Brand } from '../components/Brand';
 // 'focus' sort = priority desc, then updated_at desc. The server
@@ -123,6 +124,7 @@ export function FocusPage() {
             subtasks={subtasksByParent.get(t.id) ?? []}
             expanded={expandedId === t.id}
             onToggle={() => setExpandedId(expandedId === t.id ? null : t.id)}
+            onEdit={() => nav(`/task/${t.id}`)}
             busy={acting.has(t.id)}
             onComplete={() => withAction(t.id, async () => { await api.complete(t.id); flashToast('Done ✓'); })}
             onReopen={() => withAction(t.id, async () => { await api.patchTask(t.id, { status: 'todo' }); flashToast('Reopened'); })}
@@ -167,6 +169,8 @@ interface RowProps {
   /** Render a dim personal/professional tag — set when the scope filter is 'all'. */
   showScope?: boolean;
   onToggle: () => void;
+  /** Press-and-hold, or the Edit button in the open row. */
+  onEdit: () => void;
   onComplete: () => void;
   onReopen: () => void;
   onUnfocus: () => void;
@@ -174,8 +178,9 @@ interface RowProps {
   onAddSubtask: (title: string) => Promise<boolean>;
 }
 
-function FocusRow({ task, subtasks, expanded, busy, showScope, onToggle, onComplete, onReopen, onUnfocus, onSubtaskToggle, onAddSubtask }: RowProps) {
+function FocusRow({ task, subtasks, expanded, busy, showScope, onToggle, onEdit, onComplete, onReopen, onUnfocus, onSubtaskToggle, onAddSubtask }: RowProps) {
   const isDone = task.status === 'done';
+  const longPress = useLongPress(onEdit);
   const subDone = subtasks.filter((s) => s.status === 'done').length;
   const subTotal = subtasks.length;
   const [addingSub, setAddingSub] = useState(false);
@@ -211,7 +216,7 @@ function FocusRow({ task, subtasks, expanded, busy, showScope, onToggle, onCompl
 
   return (
     <div className={`focus-row${expanded ? ' expanded' : ''}${busy ? ' busy' : ''}${isDone ? ' done' : ''}`}>
-      <button className="row-head" onClick={onToggle}>
+      <button className="row-head" onClick={onToggle} {...longPress}>
         <PriorityDot priority={task.priority} status={task.status} />
         <div className="row-title-block">
           <div className="row-title mono">{task.title}</div>
@@ -281,6 +286,9 @@ function FocusRow({ task, subtasks, expanded, busy, showScope, onToggle, onCompl
               <button className="act primary" onClick={onComplete} disabled={busy}>Mark done</button>
             )}
             <button className="act ghost" onClick={onUnfocus} disabled={busy}>Unfocus</button>
+            {/* The hold gesture has no affordance — this is what makes edit
+                discoverable, and what makes it reachable without a pointer. */}
+            <button className="act ghost" onClick={onEdit} disabled={busy}>Edit</button>
           </div>
         </div>
       )}

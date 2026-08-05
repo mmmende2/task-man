@@ -18,6 +18,7 @@ import {
 } from '../hooks/useCategoryMatch.js';
 import { EntryList, orderedTaskIds, type EntryListEditing, type CategoryEditAssist, type CaptureAnchor } from './write/EntryList.js';
 import { CapturePane } from './write/CapturePane.js';
+import { cursorMoveFor, moveCursor, insertChar, deleteBack, isPrintable } from '../shared/textInput.js';
 
 export type TimeFilter = 'today' | 'all';
 
@@ -48,10 +49,6 @@ function formatPreview(parsed: ParsedEntry, isSubtask: boolean): string {
 
 function cyclePriority(p: TaskPriority): TaskPriority {
   return p === 'low' ? 'medium' : p === 'medium' ? 'high' : 'low';
-}
-
-function toggleScope(s: TaskScope): TaskScope {
-  return s === 'personal' ? 'professional' : 'personal';
 }
 
 function cycleTimeFilter(f: TimeFilter): TimeFilter {
@@ -108,7 +105,12 @@ export function WriteMode({
     else setLocalSubMode(next);
   };
 
-  const [inputText, setInputText] = useState('');
+  // The capture line is a full text buffer, not an append-only string — see
+  // ui/shared/textInput.ts. `inputText` stays derived so everything that reads
+  // the line (parsing, category match, submit) is unchanged.
+  const [capture, setCapture] = useState({ text: '', cursor: 0 });
+  const inputText = capture.text;
+  const setInputText = (next: string) => setCapture({ text: next, cursor: next.length });
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [cursorId, setCursorId] = useState<string | null>(null);
   const [navTarget, setNavTarget] = useState<'tasks' | 'subtasks'>('tasks');
@@ -196,6 +198,14 @@ export function WriteMode({
   const liveParsed = cleanInput.length > 0 ? parseWriteInput(cleanInput) : null;
   const preview = liveParsed ? formatPreview(liveParsed, false) : '';
 
+  // The live buffer the inline subtask row echoes, with trailing whitespace
+  // INTACT. Only the leading side is trimmed (past the ':'), so the rendered
+  // cursor sits exactly where the next character lands — feeding it a parsed,
+  // trimmed title is what made a typed space look like a dead key.
+  const subtaskPrefixLen = isSubtaskInput ? (inputText.match(/^\s*:\s*/)?.[0].length ?? 0) : 0;
+  const subtaskBuffer = isSubtaskInput ? inputText.slice(subtaskPrefixLen) : '';
+  const subtaskCursor = Math.max(0, Math.min(subtaskBuffer.length, capture.cursor - subtaskPrefixLen));
+
   const categoryMatch = useCategoryMatch(inputText, allTasks);
 
   const anchorTitle = useMemo(() => {
@@ -208,9 +218,10 @@ export function WriteMode({
     return {
       parentId: cursorId,
       isTypingSubtask: isSubtaskInput,
-      previewText: isSubtaskInput ? (liveParsed?.title ?? '') : '',
+      previewText: subtaskBuffer,
+      previewCursor: subtaskCursor,
     };
-  }, [subMode, cursorId, isSubtaskInput, liveParsed]);
+  }, [subMode, cursorId, isSubtaskInput, subtaskBuffer, subtaskCursor]);
 
   const categoriesList = useMemo(() => getAllCategories(allTasks), [allTasks]);
   const reviewCategoryAssist: CategoryEditAssist | null = useMemo(() => {
@@ -302,6 +313,15 @@ export function WriteMode({
     setEditing({ id: task.id, type: 'category', text: current, cursor: current.length });
   };
 
+  // `e` for description, same binding as Focus mode — capture's `-d` flag can
+  // only set one at creation time, so this is the way to add one afterwards.
+  const startEditDescription = () => {
+    const task = getSelectedTask();
+    if (!task) return;
+    const current = task.description ?? '';
+    setEditing({ id: task.id, type: 'description', text: current, cursor: current.length });
+  };
+
   const saveEdit = () => {
     if (!editing) return;
 
@@ -362,6 +382,17 @@ export function WriteMode({
         const id = task.id;
         store.update(id, { categories: nextCats }).then(() => {
           undoStack.push({ undo: async () => { await store.update(id, { categories: prev }); } });
+          localReload();
+        });
+      }
+    } else if (editing.type === 'description') {
+      // Empty clears it — same convention as Focus mode's `e`.
+      const next = editing.text.trim() === '' ? null : editing.text;
+      const prev = task.description ?? null;
+      if (next !== prev) {
+        const id = task.id;
+        store.update(id, { description: next }).then(() => {
+          undoStack.push({ undo: async () => { await store.update(id, { description: prev }); } });
           localReload();
         });
       }
@@ -540,24 +571,17 @@ export function WriteMode({
       if (key.escape) { cancelEdit(); return; }
       if (key.return) { saveEdit(); return; }
       if (key.tab && editing.type === 'category') { acceptEditCategoryGhost(); return; }
-      if (key.backspace || key.delete) {
-        setEditing(prev => {
-          if (!prev) return prev;
-          if (prev.cursor <= 0) return prev;
-          return {
-            ...prev,
-            text: prev.text.slice(0, prev.cursor - 1) + prev.text.slice(prev.cursor),
-            cursor: prev.cursor - 1,
-          };
-        });
+      const editMove = cursorMoveFor(input, key);
+      if (editMove) {
+        setEditing(prev => prev ? { ...prev, ...moveCursor(prev, editMove) } : prev);
         return;
       }
-      if (!key.ctrl && !key.meta && input && input.length === 1) {
-        setEditing(prev => prev ? {
-          ...prev,
-          text: prev.text.slice(0, prev.cursor) + input + prev.text.slice(prev.cursor),
-          cursor: prev.cursor + 1,
-        } : prev);
+      if (key.backspace || key.delete) {
+        setEditing(prev => prev ? { ...prev, ...deleteBack(prev) } : prev);
+        return;
+      }
+      if (isPrintable(input, key)) {
+        setEditing(prev => prev ? { ...prev, ...insertChar(prev, input) } : prev);
       }
       return;
     }
@@ -595,12 +619,14 @@ export function WriteMode({
       if (input === '~') { onCycleScope(); return; }
       if (key.tab) { acceptCategoryGhost(); return; }
       if (key.return) { submitCapture(); return; }
+      const move = cursorMoveFor(input, key);
+      if (move) { setCapture(prev => moveCursor(prev, move)); return; }
       if (key.backspace || key.delete) {
-        setInputText(prev => prev.slice(0, -1));
+        setCapture(prev => deleteBack(prev));
         return;
       }
-      if (!key.ctrl && !key.meta && input && input.length === 1) {
-        setInputText(prev => prev + input);
+      if (isPrintable(input, key)) {
+        setCapture(prev => insertChar(prev, input));
       }
       return;
     }
@@ -664,12 +690,6 @@ export function WriteMode({
       if (task) updateSelected({ priority: cyclePriority(task.priority) });
       return;
     }
-    if (input === 'S' && navTarget === 'tasks') {
-      // Capital S — Scope, same binding as Focus/Plan.
-      const task = getSelectedTask();
-      if (task) updateSelected({ scope: toggleScope(task.scope) });
-      return;
-    }
     // Space — toggle focused, same as Plan mode. (Was `f`, which shadowed
     // the global switch-to-Focus key; see docs/controls-audit.md.)
     if (input === ' ' && navTarget === 'tasks') {
@@ -677,6 +697,7 @@ export function WriteMode({
       if (task) updateSelected({ focused: !task.focused });
       return;
     }
+    if (input === 'e' && navTarget === 'tasks') { startEditDescription(); return; }
     if (input === 'u') {
       undoStack.pop().then((didUndo) => { if (didUndo) localReload(); });
       return;
@@ -728,6 +749,7 @@ export function WriteMode({
           <Text> </Text>
           <CapturePane
             inputText={inputText}
+            cursor={capture.cursor}
             categoryMatch={categoryMatch}
             preview={preview}
             lastCreatedTitle={anchorTitle}

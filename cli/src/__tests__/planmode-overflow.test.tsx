@@ -149,4 +149,31 @@ describe('PlanMode at fixed terminal height', () => {
     // The selection cursor ▸ should be on a visible line.
     expect(lines.some(l => l.includes('▸') && l.includes('gamma-task-2'))).toBe(true);
   });
+
+  it('scrolls the category panel so the last category is reachable', async () => {
+    // More categories than the panel can show at this height — before the panel
+    // was windowed the tail just ran off the bottom of the app frame and could
+    // never be brought into view.
+    for (let i = 0; i < 14; i++) {
+      await store.add({ title: `extra-${i}`, categories: [`cat-${String(i).padStart(2, '0')}`] });
+    }
+    const result = renderWithDimensions(
+      createElement(FullAppHarness, { store, initialTasks: store.load(), termHeight: 18 }),
+      { height: 18 },
+    );
+    cleanup = result.cleanup;
+
+    // 'l' moves focus into the category panel, then 'G' jumps to the last one.
+    result.stdin.write('l');
+    await new Promise(r => setTimeout(r, 30));
+    result.stdin.write('G');
+    await new Promise(r => setTimeout(r, 30));
+
+    const lines = result.lines();
+    // 'gamma' sorts last of the seeded categories, after cat-00..cat-13.
+    expect(lines.some(l => l.includes('▸') && l.includes('gamma'))).toBe(true);
+    expect(lines.some(l => /↑\s*\d+ more/.test(l))).toBe(true);
+    // And every rendered line still fits inside the fixed-height frame.
+    expect(lines.length).toBeLessThanOrEqual(18);
+  });
 });

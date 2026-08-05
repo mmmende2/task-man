@@ -3,13 +3,16 @@ import type { CategoryMatchResult } from '../../hooks/useCategoryMatch.js';
 
 interface Props {
   inputText: string;
+  /** Caret position within `inputText`. At the end it renders as the trailing block. */
+  cursor: number;
   categoryMatch: CategoryMatchResult;
   preview: string;
   lastCreatedTitle: string | null;
   isSubtaskInput: boolean;
 }
 
-export function CapturePane({ inputText, categoryMatch, preview, lastCreatedTitle, isSubtaskInput }: Props) {
+export function CapturePane({ inputText, cursor, categoryMatch, preview, lastCreatedTitle, isSubtaskInput }: Props) {
+  const atEnd = cursor >= inputText.length;
   return (
     <Box flexDirection="column">
       <Box>
@@ -18,11 +21,19 @@ export function CapturePane({ inputText, categoryMatch, preview, lastCreatedTitl
           <Text color="magenta" dimColor italic>↓ subtask inline</Text>
         ) : (
           <>
-            <Text color="white">{inputText}</Text>
+            <Text color="white">{inputText.slice(0, cursor)}</Text>
+            {/* Mid-line the caret inverts the character it sits on; at the end
+                there is nothing to invert, so it stays the solid block. */}
+            {atEnd ? null : (
+              <>
+                <Text backgroundColor="magenta" color="white">{inputText[cursor]}</Text>
+                <Text color="white">{inputText.slice(cursor + 1)}</Text>
+              </>
+            )}
             {categoryMatch.ghost ? (
               <Text dimColor>{categoryMatch.ghost}</Text>
             ) : null}
-            <Text color="magenta">█</Text>
+            {atEnd ? <Text color="magenta">█</Text> : null}
           </>
         )}
       </Box>
@@ -31,7 +42,7 @@ export function CapturePane({ inputText, categoryMatch, preview, lastCreatedTitl
           <Text dimColor>  {preview}</Text>
         </Box>
       ) : (
-        <Text dimColor>  Type task title. Flags: -p priority -c category -s scope</Text>
+        <Text dimColor>  Type task title. Flags: -p pri -c cat -s scope -d "desc" -f focus</Text>
       )}
       {categoryMatch.active && categoryMatch.list.length > 1 && (
         <Box>

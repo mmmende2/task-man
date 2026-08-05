@@ -9,6 +9,7 @@ import { filterByScope } from '../../task-filters.js';
 import { buildQuestions, deriveCategories, type QuestionDef } from '../../refine-questions.js';
 import { usePulse, CYAN_PULSE } from '../hooks/usePulse.js';
 import { RefineQuestion } from './RefineQuestion.js';
+import { cursorMoveFor, moveCursor, insertChar, deleteBack, isPrintable } from '../shared/textInput.js';
 import { debugLog } from '../../debug-log.js';
 
 interface Props {
@@ -286,15 +287,17 @@ export function RefineMode({ store, reload, onExit, previousMode, scopeFilter = 
       } else if (key.return) {
         applyChange({ title: editText.trim() || currentTask!.title }, 'edited');
         setEditing(false);
+      } else if (cursorMoveFor(input, key)) {
+        const next = moveCursor({ text: editText, cursor: editCursor }, cursorMoveFor(input, key)!);
+        setEditCursor(next.cursor);
       } else if (key.backspace || key.delete) {
-        setEditText(t => {
-          if (editCursor <= 0) return t;
-          setEditCursor(c => c - 1);
-          return t.slice(0, editCursor - 1) + t.slice(editCursor);
-        });
-      } else if (input && !key.ctrl && !key.meta && input.length === 1) {
-        setEditText(t => t.slice(0, editCursor) + input + t.slice(editCursor));
-        setEditCursor(c => c + 1);
+        const next = deleteBack({ text: editText, cursor: editCursor });
+        setEditText(next.text);
+        setEditCursor(next.cursor);
+      } else if (isPrintable(input, key)) {
+        const next = insertChar({ text: editText, cursor: editCursor }, input);
+        setEditText(next.text);
+        setEditCursor(next.cursor);
       }
       return;
     }

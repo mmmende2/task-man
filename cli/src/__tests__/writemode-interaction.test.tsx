@@ -394,4 +394,99 @@ describe('WriteMode interaction', () => {
     // So we expect the "↓ N more below" hint to appear.
     expect(text).toMatch(/more below/);
   });
+
+  it('inline subtask preview echoes spaces so the cursor tracks every keystroke', async () => {
+    await store.add({
+      title: 'parent task',
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+    await vi.waitFor(() => expect(result.text()).toContain('parent task'));
+
+    typeChars(result.stdin, ':sub');
+    await vi.waitFor(() => expect(result.text()).toContain('└─ sub█'));
+
+    // Two spaces must land between the text and the cursor block. Feeding the
+    // row a parsed (trimmed) title instead made these keystrokes look dead.
+    typeChars(result.stdin, '  ');
+    await vi.waitFor(() => expect(result.text()).toContain('└─ sub  █'));
+
+    typeChars(result.stdin, 'two');
+    await vi.waitFor(() => expect(result.text()).toContain('└─ sub  two█'));
+  });
+
+  it('the capture line takes edits at the cursor, not only at the end', async () => {
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    typeChars(result.stdin, 'helo');
+    await vi.waitFor(() => expect(result.text()).toContain('helo'));
+
+    result.stdin.write('\x1B[D'); // left
+    await vi.waitFor(() => expect(result.text()).toContain('helo'));
+    typeChars(result.stdin, 'l');
+    await vi.waitFor(() => expect(result.text()).toContain('hello'));
+
+    result.stdin.write('\x01'); // ctrl-a — home
+    typeChars(result.stdin, 'S');
+    await vi.waitFor(() => expect(result.text()).toContain('Shello'));
+
+    result.stdin.write('\x05'); // ctrl-e — end
+    typeChars(result.stdin, '!');
+    await vi.waitFor(() => expect(result.text()).toContain('Shello!'));
+
+    result.stdin.write('\r');
+    await vi.waitFor(() => {
+      expect(store.load().map(t => t.title)).toContain('Shello!');
+    });
+  });
+
+  it('-d on capture stores a description, and the review pane echoes it', async () => {
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    typeChars(result.stdin, 'ship it -d "changelog too"');
+    await vi.waitFor(() => expect(result.text()).toContain('Desc: changelog too'));
+
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const task = store.load().find(t => t.title === 'ship it');
+      expect(task?.description).toBe('changelog too');
+    });
+    await vi.waitFor(() => expect(result.text()).toContain('changelog too'));
+  });
+
+  it('e in review edits the description of the cursored task', async () => {
+    await store.add({
+      title: 'needs notes',
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+    await vi.waitFor(() => expect(result.text()).toContain('needs notes'));
+
+    result.stdin.write('\x1B'); // capture -> review
+    await vi.waitFor(() => expect(result.text()).toContain('REVIEW'));
+
+    result.stdin.write('e');
+    await vi.waitFor(() => expect(result.text()).toContain('desc:'));
+
+    typeChars(result.stdin, 'why it matters');
+    await vi.waitFor(() => expect(result.text()).toContain('desc: why it matters'));
+
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const task = store.load().find(t => t.title === 'needs notes');
+      expect(task?.description).toBe('why it matters');
+    });
+  });
 });
