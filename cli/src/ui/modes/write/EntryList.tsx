@@ -20,6 +20,15 @@ export interface EntryListEditing {
 
 export interface CategoryEditAssist {
   ghost: string | null;
+  /**
+   * Full canonical name of the top prefix match.
+   *
+   * Accepting a completion must use this, never `typed + ghost`: the match is
+   * case-insensitive, so typing "house" against the category "House Work"
+   * produces the ghost " Work" and re-joining them yields "house Work" — a
+   * brand-new category one keystroke away from the real one.
+   */
+  topMatch: string | null;
   list: string[];
   didYouMean: string | null;
 }

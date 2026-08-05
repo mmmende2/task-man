@@ -1,22 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { existsSync, readFileSync } from 'node:fs';
 import { SERVER_PID_FILE, DEFAULT_SERVER_PORT } from '../../constants.js';
 import { loadConfig } from '../../config.js';
-import { authFromConfig, RemoteStore } from '../../remote-store.js';
 
 export interface ServerStatus {
   running: boolean;
-  /** Local-mode only — the bound port. Undefined in remote mode. */
-  port?: number;
-  /** Remote-mode only — the configured server URL. */
-  remoteUrl?: string;
+  /** The bound port. */
+  port: number;
 }
 
 /**
- * Read-only check for whether `task-man serve` is up. The pidfile +
+ * Read-only check for whether a local `task-man serve` is up. The pidfile +
  * signal-0 probe is the live signal; the port is read once at mount
  * because it only changes across a server restart, which kills the
  * TUI's parent shell anyway.
+ *
+ * Local mode only. This hook used to also probe the remote server with its
+ * own /healthz poll, which meant two independent notions of "is the store
+ * reachable" — and the ping could report "up" while the query that actually
+ * draws the task list was failing. Remote status now comes from
+ * useTaskStore's Connection, derived from those real loads.
  */
 function probePid(): boolean {
   if (!existsSync(SERVER_PID_FILE)) return false;
@@ -32,32 +35,13 @@ function probePid(): boolean {
 
 export function useServerStatus(): ServerStatus {
   const config = useState(() => loadConfig())[0];
-  const remote = config.client?.mode === 'remote' && config.client.remote_url;
-
   const port = useState(() => config.server?.port ?? DEFAULT_SERVER_PORT)[0];
-  const [running, setRunning] = useState<boolean>(() => (remote ? false : probePid()));
-
-  // Reused across polls so the cloudflared/service-token auth header
-  // cache in RemoteStore persists instead of re-fetching every 5s.
-  const remoteProbe = useRef<RemoteStore | null>(null);
-  if (remote && !remoteProbe.current) {
-    remoteProbe.current = new RemoteStore(config.client!.remote_url!, {
-      authHeaders: authFromConfig(config.client!),
-    });
-  }
+  const [running, setRunning] = useState<boolean>(() => probePid());
 
   useEffect(() => {
-    if (remote) {
-      const probe = remoteProbe.current!;
-      probe.ping().then(setRunning);
-      const id = setInterval(() => probe.ping().then(setRunning), 5000);
-      return () => clearInterval(id);
-    }
     const id = setInterval(() => setRunning(probePid()), 5000);
     return () => clearInterval(id);
-  }, [remote]);
+  }, []);
 
-  return remote
-    ? { running, remoteUrl: config.client!.remote_url }
-    : { running, port };
+  return { running, port };
 }

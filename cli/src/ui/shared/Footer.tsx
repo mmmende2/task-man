@@ -3,6 +3,7 @@ import type { AppMode, WriteSubMode } from '../types.js';
 import type { VimMode } from '../hooks/useVimKeys.js';
 import { useServerStatus } from '../hooks/useServerStatus.js';
 import { versionParts } from '../../version.js';
+import type { Connection } from '../hooks/useTaskStore.js';
 
 interface Props {
   mode?: AppMode;
@@ -12,10 +13,19 @@ interface Props {
   holdingTitle?: string;
   writeSubMode?: WriteSubMode;
   planFocus?: 'tasks' | 'categories';
+  /** Remote-mode store health. Omitted by non-store screens (preview). */
+  connection?: Connection;
 }
 
-export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSubMode, planFocus }: Props) {
+export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSubMode, planFocus, connection }: Props) {
   const server = useServerStatus();
+  // In remote mode the indicator tracks the connection that actually loads
+  // tasks — not a separate ping that could disagree with it. The failure
+  // states are carried by StatusBanner, which is impossible to miss.
+  const remote = connection && connection.state !== 'local';
+  const indicator = remote
+    ? (connection.state === 'connected' ? 'remote' : null)
+    : (server.running ? `web :${server.port}` : null);
   // Grey version + yellow build token. The token is present only when the code
   // isn't the release, so a clean release stays entirely grey (see version.ts).
   const { version, build } = versionParts();
@@ -33,16 +43,16 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
     pageContent = `-- cut: ${holdingTitle} -- p:put P:put esc:delete`;
   } else if (mode === 'focus') {
     navContent = 't:triage w:write m:metrics r:refine ~:scope';
-    pageContent = 'jk:nav gg/G:top/bot tab:sub x:done D:date e:desc dd:cut i:edit /:find';
+    pageContent = 'jk:nav gg/G:top/bot tab:sub x:done D:date e:desc dd:cut i/A:edit /:find';
   } else if (mode === 'plan' && planFocus === 'categories') {
     navContent = 'f:focus w:write m:metrics r:refine ~:scope';
     pageContent = 'jk:nav gg/G:top/bot hl:pane spc:show/hide i:rename esc:tasks';
   } else if (mode === 'plan') {
     navContent = 'f:focus w:write m:metrics r:refine ~:scope';
-    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:focus/unfocus dd:cut x:done i:edit c:cat o:new /:find u:undo';
+    pageContent = 'jk:nav gg/G:top/bot hl:pane spc:focus/unfocus dd:cut x:done i/A:edit c:cat o:new /:find u:undo';
   } else if (mode === 'write' && writeSubMode === 'review') {
     navContent = 'esc:focus  w:capture  T:time';
-    pageContent = 'jk:nav gg/G:top/bot tab:sub cc:title c:cat e:desc P:pri spc:focus dd:cut u:undo';
+    pageContent = 'jk:nav gg/G:top/bot tab:sub A:title c:cat e:desc P:pri spc:focus dd:cut u:undo';
   } else if (mode === 'write') {
     navContent = 'esc:review  ~:scope';
     pageContent = 'enter:add  tab:accept  :subtask  -p -c -s -d -f flags';
@@ -62,9 +72,7 @@ export function Footer({ mode, isWatch, interval, vimMode, holdingTitle, writeSu
       <Box justifyContent="space-between">
         <Text dimColor>  {navContent || ' '}</Text>
         <Box>
-          {server.running && (
-            <Text color="#ff79c6" dimColor>● {server.remoteUrl ? 'remote' : `web :${server.port}`}  </Text>
-          )}
+          {indicator && <Text color="#ff79c6" dimColor>● {indicator}  </Text>}
           <Text dimColor>{version}</Text>
           {build && <Text color="yellow"> · {build}</Text>}
           <Text>  </Text>

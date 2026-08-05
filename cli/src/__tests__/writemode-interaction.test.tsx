@@ -277,7 +277,7 @@ describe('WriteMode interaction', () => {
     });
   });
 
-  it('cc in review edits subtask title inline when tab-navigated to subtask', async () => {
+  it('A in review edits subtask title inline when tab-navigated to subtask', async () => {
     const parent = await store.add({
       title: 'Parent Task',
       scope: 'personal',
@@ -305,9 +305,8 @@ describe('WriteMode interaction', () => {
     result.stdin.write('\t');
     await new Promise(r => setTimeout(r, 20));
 
-    // cc starts editing the cursored subtask title
-    result.stdin.write('c');
-    result.stdin.write('c');
+    // A starts editing the cursored subtask title with the cursor at the end
+    result.stdin.write('A');
     await new Promise(r => setTimeout(r, 20));
 
     // Wipe old title and type new one
@@ -358,6 +357,96 @@ describe('WriteMode interaction', () => {
       const task = store.load().find(t => t.title === 'clean dishes');
       expect(task).toBeDefined();
       expect(task!.categories).toEqual(['House Work']);
+    });
+  });
+
+  it('review-pane category autocomplete keeps the stored casing', async () => {
+    // Typing "hou" against "House Work" produces the ghost "se Work".
+    // Accepting used to splice that onto what was typed, so a partial in the
+    // wrong case ("house") saved a second, near-identical category.
+    const target = await store.add({
+      title: 'existing',
+      categories: ['House Work'],
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('existing'));
+    result.stdin.write('\x1B');
+    await vi.waitFor(() => expect(result.text()).toContain('REVIEW'));
+
+    // `c` opens the category editor at the end of the line, so backspaces
+    // clear it.
+    result.stdin.write('c');
+    await new Promise(r => setTimeout(r, 100));
+    for (let i = 0; i < 'House Work'.length; i++) result.stdin.write('\x7f');
+
+    typeChars(result.stdin, 'house');
+    await new Promise(r => setTimeout(r, 100));
+    result.stdin.write('\t');
+    await new Promise(r => setTimeout(r, 100));
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const task = store.load().find(t => t.id === target.id);
+      expect(task!.categories).toEqual(['House Work']);
+    });
+  });
+
+  it('A opens the parent title editor at the end of the line', async () => {
+    await store.add({
+      title: 'abcd',
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('abcd'));
+    result.stdin.write('\x1B');
+    await vi.waitFor(() => expect(result.text()).toContain('REVIEW'));
+
+    result.stdin.write('A');
+    await new Promise(r => setTimeout(r, 100));
+    typeChars(result.stdin, 'e');
+    await new Promise(r => setTimeout(r, 100));
+    result.stdin.write('\r');
+    await vi.waitFor(() => {
+      expect(store.load().find(t => t.title === 'abcde')).toBeDefined();
+    });
+  });
+
+  // `cc` used to open this editor too; it was removed, and with it the
+  // sequence timeout that made a bare `c` wait 300ms before doing anything.
+  it('c opens the category editor without waiting for a second key', async () => {
+    const target = await store.add({
+      title: 'needs a category',
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('needs a category'));
+    result.stdin.write('\x1B');
+    await vi.waitFor(() => expect(result.text()).toContain('REVIEW'));
+
+    result.stdin.write('c');
+    await new Promise(r => setTimeout(r, 50));
+    typeChars(result.stdin, 'errands');
+    await new Promise(r => setTimeout(r, 100));
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      expect(store.load().find(t => t.id === target.id)!.categories).toEqual(['errands']);
     });
   });
 

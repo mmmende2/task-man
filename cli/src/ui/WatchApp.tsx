@@ -17,7 +17,7 @@ export function WatchApp({ interval }: Props) {
 }
 
 function WatchAppInner({ interval }: Props) {
-  const { tasks } = useTaskStore(undefined, interval);
+  const { tasks, connection } = useTaskStore(undefined, interval);
   const termHeight = useTerminalHeight();
 
   const subtaskMap = new Map<string, typeof tasks>();
@@ -84,7 +84,7 @@ function WatchAppInner({ interval }: Props) {
         <Box flexGrow={1} />
       </Box>
 
-      <Footer isWatch interval={interval} />
+      <Footer isWatch interval={interval} connection={connection} />
     </Box>
   );
 }

@@ -368,6 +368,35 @@ describe('FocusMode description editing', () => {
     }, { timeout: 3000 });
   });
 
+  it('i opens the title editor at the start of the line, A at the end', async () => {
+    const result = renderWithDimensions(
+      createElement(FocusModeHarness, { store, initialTasks: tasks }),
+    );
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('Alpha'));
+
+    // i: insert before the first character.
+    result.stdin.write('i');
+    await new Promise(r => setTimeout(r, 100));
+    for (const ch of 'The ') result.stdin.write(ch);
+    await new Promise(r => setTimeout(r, 100));
+    result.stdin.write('\r');
+    await vi.waitFor(() => {
+      expect(store.load().find(t => t.title === 'The Alpha')).toBeDefined();
+    }, { timeout: 3000 });
+
+    // A: append after the last character.
+    result.stdin.write('A');
+    await new Promise(r => setTimeout(r, 100));
+    for (const ch of ' Male') result.stdin.write(ch);
+    await new Promise(r => setTimeout(r, 100));
+    result.stdin.write('\r');
+    await vi.waitFor(() => {
+      expect(store.load().find(t => t.title === 'The Alpha Male')).toBeDefined();
+    }, { timeout: 3000 });
+  });
+
   it('clearing the description saves it as null', async () => {
     const result = renderWithDimensions(
       createElement(FocusModeHarness, { store, initialTasks: tasks }),

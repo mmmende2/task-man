@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { InteractiveApp } from '../ui/InteractiveApp.js';
 import { consumeExitOutput } from '../ui/exitOutput.js';
 import { ApiError } from '../api-client.js';
+import { RemoteStoreError } from '../remote-store.js';
 import { initDebugLog, debugLog } from '../debug-log.js';
 
 export function launchInteractive(opts: { debug?: boolean } = {}) {
@@ -13,11 +14,15 @@ export function launchInteractive(opts: { debug?: boolean } = {}) {
   // the TUI. Swallow only transport-shaped errors — the 2s poll re-syncs
   // the visible state either way. Anything else is a real bug and should
   // still crash loudly.
+  //
+  // These used to be recognised by regex-matching the message text, which
+  // silently stopped matching the moment a string was reworded. RemoteStore
+  // now throws a typed error instead.
   process.on('unhandledRejection', (err) => {
     const transient =
+      err instanceof RemoteStoreError ||
       err instanceof ApiError ||
-      err instanceof TypeError ||
-      (err instanceof Error && /unreachable|Cannot reach|Access denied/.test(err.message));
+      err instanceof TypeError;
     debugLog('unhandledRejection', { transient, message: err instanceof Error ? err.message : String(err) });
     if (!transient) throw err;
   });

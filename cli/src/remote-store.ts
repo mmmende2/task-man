@@ -18,6 +18,46 @@ const CF_ACCESS_TOKEN_HEADER = 'cf-access-token';
 // 401/403 — without it, a retry would just resend the same stale token.
 export type AuthHeadersProvider = (forceRefresh?: boolean) => Promise<Record<string, string>>;
 
+/**
+ * Why a remote call failed, as a value rather than as prose.
+ *
+ * Callers have to tell "you are not logged in" apart from "the server is
+ * mid-deploy": the first is a dead end until the user acts, the second clears
+ * itself in seconds. They used to be distinguishable only by regex-matching
+ * the message (see commands/interactive.ts), which quietly broke the moment
+ * anyone reworded a string.
+ */
+export type RemoteFailureKind =
+  /** No Access session, or it expired. Recovered by `task-man login`. */
+  | 'unauthenticated'
+  /** The cloudflared binary isn't installed, so login is impossible. */
+  | 'no-cloudflared'
+  /** DNS/refused/offline, or Cloudflare answering 5xx for a restarting origin. */
+  | 'unreachable'
+  /** The origin answered and rejected the request for some other reason. */
+  | 'server';
+
+export class RemoteStoreError extends Error {
+  constructor(
+    readonly kind: RemoteFailureKind,
+    message: string,
+    readonly url?: string,
+  ) {
+    super(message);
+    this.name = 'RemoteStoreError';
+  }
+}
+
+/**
+ * `unauthenticated` and `no-cloudflared` don't clear on their own — retrying
+ * just re-spawns cloudflared to be told "no" again. Callers use this to stop
+ * polling and wait for the user, where `unreachable`/`server` stay on the
+ * poll because a restarting origin heals itself in seconds.
+ */
+export function isDeadEnd(kind: RemoteFailureKind): boolean {
+  return kind === 'unauthenticated' || kind === 'no-cloudflared';
+}
+
 // Cloudflare Access service token: non-expiring, for headless MCP (no
 // interactive login available). No caching, nothing to refresh.
 export function serviceTokenAuth(clientId: string, clientSecret: string): AuthHeadersProvider {
@@ -39,13 +79,17 @@ export function cloudflaredJwtAuth(baseUrl: string, cloudflaredPath?: string): A
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') {
-        throw new Error("cloudflared not found. Install it (brew install cloudflared) and run 'task-man login'.");
+        throw new RemoteStoreError(
+          'no-cloudflared',
+          'cloudflared not found. Install it (brew install cloudflared) and run `task-man login`.',
+          baseUrl,
+        );
       }
-      throw new Error(`Not authenticated to ${baseUrl}. Run 'task-man login'.`);
+      throw new RemoteStoreError('unauthenticated', `Not authenticated to ${baseUrl}. Run \`task-man login\`.`, baseUrl);
     }
     const token = stdout.trim();
     if (!token) {
-      throw new Error(`Not authenticated to ${baseUrl}. Run 'task-man login'.`);
+      throw new RemoteStoreError('unauthenticated', `Not authenticated to ${baseUrl}. Run \`task-man login\`.`, baseUrl);
     }
     return token;
   }
@@ -107,7 +151,11 @@ export class RemoteStore implements Store {
       if (status === 401 || status === 403) {
         if (retried.auth) {
           // Already retried once with a forced-fresh token — give up clearly.
-          throw new Error(`Access denied for ${this.baseUrl}. Run 'task-man login' (your session may have expired).`);
+          throw new RemoteStoreError(
+            'unauthenticated',
+            `Access denied for ${this.baseUrl}. Run \`task-man login\` (your session may have expired).`,
+            this.baseUrl,
+          );
         }
         return this.req<T>(path, init, { ...retried, auth: true });
       }
@@ -119,8 +167,10 @@ export class RemoteStore implements Store {
       // Idempotency-Key, so writes can't double-apply.
       if (status === 502 || status === 503 || status === 504) {
         if (retried.network) {
-          throw new Error(
+          throw new RemoteStoreError(
+            'unreachable',
             `${this.baseUrl} is unreachable (HTTP ${status}) — the server may be restarting. Try again in a moment.`,
+            this.baseUrl,
           );
         }
         await new Promise((r) => setTimeout(r, 1500));
@@ -129,7 +179,7 @@ export class RemoteStore implements Store {
       if (err instanceof TypeError) {
         // fetch() throws TypeError on network failure (DNS, refused, offline).
         if (retried.network) {
-          throw new Error(`Cannot reach ${this.baseUrl}. Check your connection.`);
+          throw new RemoteStoreError('unreachable', `Cannot reach ${this.baseUrl}. Check your connection.`, this.baseUrl);
         }
         return this.req<T>(path, init, { ...retried, network: true });
       }
