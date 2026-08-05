@@ -1,5 +1,12 @@
 # task-man-web
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [8904220]
+  - task-man@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes
