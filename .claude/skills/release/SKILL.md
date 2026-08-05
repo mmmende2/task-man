@@ -95,10 +95,25 @@ Give the operator one block they can paste, with the version already filled in �
 not a description of what to do. State what success looks like so they can tell
 a good deploy from a bad one without asking.
 
+**Decide whether `git pull` belongs in the block before you write it.** The
+droplet's checkout exists for one reason: to supply `deploy/docker-compose.yml`
+for `-f` to read. Nothing is built on the box — the compose service is `image:`
+with no `build:`, so it can only pull from GHCR. If the deploy config didn't
+change, pulling the repo accomplishes nothing:
+
+```sh
+git diff --stat <previous-tag>..<this-tag> -- deploy/ Dockerfile
+```
+
+Empty → omit the `git pull` line. Non-empty → include it, and say which file
+changed and why it matters. Don't hedge with a "only needed if…" comment: it's
+the first line of a block someone is about to paste, which is exactly where an
+optional-looking step reads as mandatory, and the operator has no way to
+evaluate the condition.
+
 ```sh
 ssh <your-droplet>
 cd /opt/task-man/src
-git pull                       # only needed if deploy/ files changed this release
 
 export TASK_MAN_TAG=vX.Y.Z     # required — compose has no default, by design
 docker compose -f deploy/docker-compose.yml pull task-man
@@ -129,6 +144,10 @@ docker compose -f deploy/docker-compose.yml up -d
 Only tags published since the pull-based flow went live exist in GHCR. Offer
 the rollback command proactively alongside the deploy block — the moment
 someone needs it is the worst moment to go looking for it.
+
+Rollback never needs `git pull` either. The old image already carries its own
+code; only `deploy/docker-compose.yml` comes off disk, and rolling the app back
+does not roll the compose file back.
 
 ## Security — this repo is public
 
