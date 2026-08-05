@@ -9,6 +9,8 @@ vi.mock('../ui/hooks/useTaskStore.js', () => ({
   useTaskStore: () => ({
     tasks: [],
     reload: () => {},
+    connection: { state: 'local' },
+    hasLoaded: true,
     store: {
       update: vi.fn(() => Promise.resolve({})),
       load: vi.fn(() => Promise.resolve([])),

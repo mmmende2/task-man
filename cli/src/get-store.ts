@@ -5,8 +5,30 @@ import { TaskStore } from './store.js';
 import type { Store } from './store-interface.js';
 import type { TaskManConfig } from './types.js';
 
+/**
+ * `client.mode` is a contract, not a preference.
+ *
+ * A config that says 'remote' but can't produce a RemoteStore used to fall
+ * through to the local store, so a misconfigured client silently read a
+ * different set of tasks than the one it was pointed at — indistinguishable,
+ * from the outside, from the server simply being empty. Refuse instead.
+ */
+export class StoreConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StoreConfigError';
+  }
+}
+
 function buildStore(client: TaskManConfig['client']): Store {
-  if (client?.mode === 'remote' && client.remote_url) {
+  if (client?.mode === 'remote') {
+    if (!client.remote_url) {
+      throw new StoreConfigError(
+        'client.mode is "remote" but client.remote_url is not set. ' +
+          'Set it with `task-man config client.remote_url <url>`, ' +
+          'or go back to the local store with `task-man config client.mode local`.',
+      );
+    }
     return new RemoteStore(client.remote_url, { authHeaders: authFromConfig(client) });
   }
   return new LocalStore(new TaskStore());

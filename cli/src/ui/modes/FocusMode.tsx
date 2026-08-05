@@ -180,8 +180,8 @@ export function FocusMode({
         const task = navTarget === 'subtasks' ? selectedSubtask : selectedTask;
         if (!task) return;
         setEditingId(task.id);
-        // Both 'start' (i) and 'end' (A) place cursor at end in focus mode
-        setEditState({ text: task.title, cursor: task.title.length });
+        // vim: i opens at the start of the line, A appends at the end.
+        setEditState({ text: task.title, cursor: action.variant === 'start' ? 0 : task.title.length });
         setVimMode('insert');
         break;
       }

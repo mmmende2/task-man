@@ -227,17 +227,18 @@ export function WriteMode({
   const reviewCategoryAssist: CategoryEditAssist | null = useMemo(() => {
     if (editing?.type !== 'category') return null;
     const partial = editing.text;
-    if (!partial) return { ghost: null, list: [], didYouMean: null };
+    if (!partial) return { ghost: null, topMatch: null, list: [], didYouMean: null };
     const { top, list } = suggestPrefix(partial, categoriesList);
     if (top) {
       return {
         ghost: top.name.length > partial.length ? top.name.slice(partial.length) : null,
+        topMatch: top.name,
         list: list.map(c => c.name),
         didYouMean: null,
       };
     }
     const fuzzy = suggestFuzzy(partial, categoriesList);
-    return { ghost: null, list: [], didYouMean: fuzzy?.name ?? null };
+    return { ghost: null, topMatch: null, list: [], didYouMean: fuzzy?.name ?? null };
   }, [editing, categoriesList]);
 
   const getSelectedTask = (): Task | null => {
@@ -299,6 +300,12 @@ export function WriteMode({
     const rep = canonical.includes(' ') ? `"${canonical}" ` : `${canonical} `;
     setInputText(inputText.slice(0, end) + rep);
   };
+
+  // vim placement, as in Focus and Plan: `i` opens at the start of the line,
+  // `A` appends at the end. Parent titles are `A`-only here — `i` on a parent
+  // means "go type", which in this pane is the capture input.
+  type EditAt = 'start' | 'end';
+  const cursorFor = (text: string, at: EditAt) => (at === 'start' ? 0 : text.length);
 
   const startEditTitle = () => {
     const task = getSelectedTask();
@@ -404,10 +411,11 @@ export function WriteMode({
 
   const acceptEditCategoryGhost = () => {
     if (!editing || editing.type !== 'category' || !reviewCategoryAssist) return;
-    const canonical = (() => {
-      if (reviewCategoryAssist.ghost) return editing.text + reviewCategoryAssist.ghost;
-      return reviewCategoryAssist.didYouMean;
-    })();
+    // Replace what was typed with the stored category outright. Rebuilding it
+    // as `editing.text + ghost` kept the user's casing for the typed prefix,
+    // so "house" + " Work" saved a second category "house Work" alongside the
+    // real "House Work" — see CategoryEditAssist.topMatch.
+    const canonical = reviewCategoryAssist.topMatch ?? reviewCategoryAssist.didYouMean;
     if (!canonical) return;
     setEditing({ ...editing, text: canonical, cursor: canonical.length });
   };
@@ -527,10 +535,10 @@ export function WriteMode({
     });
   };
 
-  const startEditSubtaskTitle = () => {
+  const startEditSubtaskTitle = (at: EditAt) => {
     const sub = getSelectedSubtask();
     if (!sub) return;
-    setEditing({ id: sub.id, type: 'subtask-title', text: sub.title, cursor: sub.title.length });
+    setEditing({ id: sub.id, type: 'subtask-title', text: sub.title, cursor: cursorFor(sub.title, at) });
   };
 
   const startCreateSubtask = () => {
@@ -634,12 +642,6 @@ export function WriteMode({
     // --- Review sub-mode ---
     const buffer = keyBufferRef.current;
 
-    if (buffer === 'c' && input === 'c') {
-      clearKeyBuffer();
-      if (navTarget === 'subtasks') startEditSubtaskTitle();
-      else startEditTitle();
-      return;
-    }
     if (buffer === 'd' && input === 'd') {
       clearKeyBuffer();
       cutSelected();
@@ -654,13 +656,19 @@ export function WriteMode({
 
     if (input === 'G') { jumpCursor('bottom'); return; }
 
-    if (input === 'c' || input === 'd' || input === 'g') {
+    // `c` opens the category editor immediately. It used to wait out the
+    // sequence timeout in case a second `c` was coming; with `cc` gone
+    // there's nothing to disambiguate.
+    if (input === 'c') {
+      if (navTarget === 'tasks') startEditCategory();
+      return;
+    }
+
+    if (input === 'd' || input === 'g') {
       keyBufferRef.current = input;
       keyBufferTimerRef.current = setTimeout(() => {
-        const pending = keyBufferRef.current;
         keyBufferRef.current = '';
         keyBufferTimerRef.current = null;
-        if (pending === 'c' && navTarget === 'tasks') startEditCategory();
       }, SEQ_TIMEOUT);
       return;
     }
@@ -669,8 +677,15 @@ export function WriteMode({
     if (key.tab) { handleTab(); return; }
     if (input === 'w') { changeSubMode('capture'); return; }
     if (input === 'i') {
-      if (navTarget === 'subtasks') { startEditSubtaskTitle(); return; }
+      if (navTarget === 'subtasks') { startEditSubtaskTitle('start'); return; }
+      // On a parent task `i` means "go type" — capture is this pane's input.
       changeSubMode('capture');
+      return;
+    }
+    // A: opens the title editor at the end of the line, matching Focus and Plan.
+    if (input === 'A') {
+      if (navTarget === 'subtasks') startEditSubtaskTitle('end');
+      else startEditTitle();
       return;
     }
     if (input === 'j' || key.downArrow) {

@@ -7,7 +7,7 @@ import type { ServerType } from '@hono/node-server';
 import { TaskStore } from '../store.js';
 import { LocalStore } from '../local-store.js';
 import { createApp } from '../server/routes.js';
-import { RemoteStore } from '../remote-store.js';
+import { isDeadEnd, RemoteStore, RemoteStoreError } from '../remote-store.js';
 import { ApiError } from '../api-client.js';
 import { localDateString } from '../local-date.js';
 
@@ -133,4 +133,35 @@ describe('RemoteStore (against a real in-process server)', () => {
 
     void added;
   });
+
+  // Callers have to tell "log in" apart from "wait a moment", and they used
+  // to do it by regex-matching the message text.
+  it('classifies a persistent 401 as unauthenticated, not a network blip', async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (() => Promise.resolve(new Response('denied', { status: 401 }))) as typeof fetch;
+
+    try {
+      const err = await remote.load().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(RemoteStoreError);
+      expect((err as RemoteStoreError).kind).toBe('unauthenticated');
+      expect(isDeadEnd((err as RemoteStoreError).kind)).toBe(true);
+      expect((err as RemoteStoreError).message).toMatch(/task-man login/);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it('classifies a persistent gateway error as unreachable, which is worth retrying', async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (() => Promise.resolve(new Response('bad', { status: 503 }))) as typeof fetch;
+
+    try {
+      const err = await remote.load().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(RemoteStoreError);
+      expect((err as RemoteStoreError).kind).toBe('unreachable');
+      expect(isDeadEnd((err as RemoteStoreError).kind)).toBe(false);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }, 10_000);
 });

@@ -4,6 +4,8 @@ import type { Task, TaskScope } from '../types.js';
 import type { AppMode, WriteSubMode } from './types.js';
 import type { VimMode } from './hooks/useVimKeys.js';
 import { useTaskStore } from './hooks/useTaskStore.js';
+import { ConnectionGate } from './shared/ConnectionGate.js';
+import { StatusBanner } from './shared/StatusBanner.js';
 import { useTerminalDimensionsSetup, TerminalDimensionsProvider, useTerminalHeight } from './hooks/useTerminalWidth.js';
 import { Header } from './shared/Header.js';
 import { Footer } from './shared/Footer.js';
@@ -37,7 +39,14 @@ function InteractiveAppInner() {
   const [writeSubMode, setWriteSubMode] = useState<WriteSubMode>('capture');
   const [planFocus, setPlanFocus] = useState<'tasks' | 'categories'>('tasks');
 
-  const { tasks, reload, store } = useTaskStore(undefined, 2000);
+  const { tasks, reload, store, connection, hasLoaded } = useTaskStore(undefined, 2000);
+
+  // Remote mode shows the connection state instead of a task list until a
+  // load has actually succeeded — an empty list must never stand in for
+  // "couldn't read the store". After the first success the app stays up and
+  // StatusBanner carries the bad news, so a deploy blip doesn't eject the
+  // user from whatever they were doing.
+  const gated = !store || (!hasLoaded && connection.state !== 'local' && connection.state !== 'connected');
 
   // Separate parent tasks from subtasks
   const { parentTasks, subtaskMap } = useMemo(() => {
@@ -89,6 +98,7 @@ function InteractiveAppInner() {
   useEffect(() => {
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
     const now = Date.now();
+    if (!store) return;
     store.load().then(all => {
       const stale = all.filter(t =>
         t.focused &&
@@ -138,9 +148,14 @@ function InteractiveAppInner() {
     } else if (input === '~') {
       cycleScope();
     }
-  }, { isActive: mode !== 'write' && mode !== 'refine' });
+  }, { isActive: !gated && mode !== 'write' && mode !== 'refine' });
 
   const termHeight = useTerminalHeight();
+
+  // Below this line `store` is non-null — `gated` covers the null case.
+  if (gated || !store) {
+    return <ConnectionGate connection={connection} onRetry={reload} />;
+  }
 
   return (
     <Box flexDirection="column" height={termHeight} overflow="hidden">
@@ -149,6 +164,8 @@ function InteractiveAppInner() {
         scope={scopeFilter}
         taskCount={{ focused: focusedTasks.length, total: filteredTasks.length }}
       />
+
+      <StatusBanner connection={connection} />
 
       <Box flexDirection="column" flexGrow={1} overflow="hidden">
       {mode === 'focus' ? (
@@ -207,7 +224,7 @@ function InteractiveAppInner() {
       <Box flexGrow={1} />
       </Box>
 
-      <Footer mode={mode} vimMode={vimMode} holdingTitle={holdingTitle} writeSubMode={mode === 'write' ? writeSubMode : undefined} planFocus={mode === 'plan' ? planFocus : undefined} />
+      <Footer mode={mode} vimMode={vimMode} holdingTitle={holdingTitle} writeSubMode={mode === 'write' ? writeSubMode : undefined} planFocus={mode === 'plan' ? planFocus : undefined} connection={connection} />
     </Box>
   );
 }
