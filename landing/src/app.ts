@@ -50,10 +50,15 @@ export function createApp(env: LandingEnv, opts: CreateAppOptions = {}): Hono {
 
   app.get('/healthz', (c) => c.json({ ok: true, build: process.env.TASK_MAN_BUILD ?? 'dev', time: new Date().toISOString() }));
 
-  // Turnstile site keys are meant to be public (they're embedded in page HTML
-  // on every other Turnstile-protected site) — safe to serve unauthenticated.
-  // `null` tells the front end to skip rendering the widget (dev mode).
-  app.get('/api/config', (c) => c.json({ turnstileSiteKey: env.turnstileSiteKey }));
+  // Both values are public by construction — the Turnstile site key is
+  // embedded in page HTML on every Turnstile-protected site, and productUrl is
+  // the hostname visitors are being invited to — so this stays
+  // unauthenticated. `null` on either tells the front end to leave that piece
+  // out: no site key means no widget (dev mode), no product URL means the
+  // "Open the app" links stay hidden rather than pointing nowhere.
+  app.get('/api/config', (c) =>
+    c.json({ turnstileSiteKey: env.turnstileSiteKey, productUrl: env.productUrl }),
+  );
 
   app.post('/api/signup', async (c) => {
     const json = await c.req.json().catch(() => ({}));

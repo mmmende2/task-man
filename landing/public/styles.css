@@ -1,0 +1,689 @@
+/*
+ * Landing page styles.
+ *
+ * The :root block and the button/input resets below are COPIED from
+ * web/src/theme.css — that file is the source of truth for the palette, and
+ * this one is a hand-kept mirror. The landing service has no bundler (its
+ * build is `tsc` over src/; public/ is copied verbatim into the image), so
+ * there is no import to share. Change a token there, re-copy it here.
+ *
+ * Same caveat as the original: the TUI names its colors in ANSI ('magenta',
+ * 'cyan'), so these hexes are screen equivalents, not extracted constants.
+ */
+:root {
+  --bg: #0c0814;
+  --bg-elev: #16101e;
+  --bg-row: #1a1326;
+  --border: #2b2140;
+  --fg: #f4f1fa;
+  --fg-dim: #8a7fa5;
+  --fg-muted: #5d557a;
+
+  --cyan: #00a5a5;
+  --magenta: #ff79c6;
+  --purple: #bd93f9;
+  --yellow: #f1fa8c;
+
+  --accent: #ff79c6;
+  --accent-soft: #c64a96;
+  --focus: #00e5ff;
+  --priority-high: #ff4f9a;
+  --priority-medium: #00e5ff;
+  --priority-low: #5d557a;
+
+  --status-done: #38d9a9;
+  --status-progress: #f1fa8c;
+
+  --tap-min: 44px;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  color-scheme: dark;
+}
+
+/* Landing-only additions to the token set. */
+:root {
+  --mono: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Monaco,
+    Consolas, 'Liberation Mono', monospace;
+  --shell: min(1040px, 100% - 48px);
+  --section-gap: clamp(64px, 8vw, 96px);
+  --topbar-h: 65px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The `hidden` attribute only gets `display: none` from the UA stylesheet, and
+   any author rule beats that — `.pill { display: inline-flex }` was enough to
+   keep a hidden "Open the app" link on screen, pointing at "#". The app links
+   depend on `hidden` to stay out of the page until /api/config supplies a URL,
+   so make it win outright. */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+/* Carried from web/src/theme.css so form controls and the wordmark read as
+   the same product the visitor is about to sign up for. */
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-height: var(--tap-min);
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+input,
+textarea {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 121, 198, 0.18);
+}
+
+.mono {
+  font-family: var(--mono);
+}
+
+a {
+  color: var(--focus);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────────
+   Mirrors .focus-header in web/src/pages/Focus.css: sticky, bordered
+   underneath, blurred backdrop. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+
+.brand {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.brand-magenta {
+  color: var(--magenta);
+}
+
+.brand-cyan {
+  color: var(--focus);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The cyan pill from .nav-link (web/src/pages/Focus.css). */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--focus);
+  border: 1px solid var(--focus);
+  background: rgba(0, 229, 255, 0.06);
+  border-radius: 999px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pill:hover {
+  background: rgba(0, 229, 255, 0.14);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a0d18;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.cta:hover {
+  background: #ff92d1;
+  border-color: #ff92d1;
+}
+
+.cta-lg,
+.pill-lg {
+  height: 48px;
+  padding: 0 24px;
+  font-size: 15px;
+}
+
+/* ── Shell + sections ─────────────────────────────────────────────────
+   One padding rule, applied by `section`, so nothing below can quietly
+   cancel it. */
+.shell {
+  width: var(--shell);
+  margin-inline: auto;
+}
+
+section {
+  padding-block: var(--section-gap);
+  border-top: 1px solid var(--border);
+  /* The top bar is sticky, so an anchor jump would otherwise park the
+     section heading underneath it. */
+  scroll-margin-top: var(--topbar-h);
+}
+
+.hero {
+  border-top: none;
+  padding-block: clamp(56px, 9vw, 104px) var(--section-gap);
+}
+
+/* Structural marker: a mono label with a leading dot, echoing the icon's
+   dot-and-stroke figure. Not numbered — these sections aren't a sequence. */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  margin: 0 0 18px 0;
+}
+
+.eyebrow::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--focus);
+  flex-shrink: 0;
+}
+
+.eyebrow.magenta::before {
+  background: var(--magenta);
+}
+
+.eyebrow.purple::before {
+  background: var(--purple);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+h1 {
+  font-size: clamp(38px, 6.4vw, 62px);
+  letter-spacing: -0.03em;
+  max-width: 17ch;
+}
+
+h2 {
+  font-size: clamp(27px, 3.6vw, 38px);
+  max-width: 20ch;
+}
+
+h3 {
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.lede {
+  color: var(--fg-dim);
+  font-size: clamp(17px, 2vw, 19px);
+  line-height: 1.6;
+  max-width: 56ch;
+  margin: 20px 0 0 0;
+}
+
+.section-lede {
+  color: var(--fg-dim);
+  font-size: 17px;
+  line-height: 1.6;
+  max-width: 60ch;
+  margin: 16px 0 0 0;
+}
+
+.hero h1 .accent {
+  color: var(--magenta);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.hero-note {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  margin: 18px 0 0 0;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(320px, 420px);
+  gap: clamp(32px, 5vw, 64px);
+  align-items: center;
+}
+
+/* ── The working-set card ─────────────────────────────────────────────
+   The hero's thesis, in the product's own vocabulary: three focus rows
+   with priority dots — the same figure as the icon — where the tasks
+   are the three surfaces. Row styling tracks .focus-row / .row-head /
+   .prio-dot in web/src/pages/Focus.css. */
+.workingset {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.workingset-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px 14px 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.workingset-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ws-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg-row);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.prio-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1.5px solid transparent;
+}
+
+.prio-dot.high {
+  background: var(--priority-high);
+}
+
+.prio-dot.medium {
+  background: var(--priority-medium);
+}
+
+.prio-dot.outline {
+  background: transparent;
+  border-color: var(--purple);
+}
+
+.ws-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+}
+
+.ws-row .chip {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 9px;
+  flex-shrink: 0;
+}
+
+/* One orchestrated moment: the rows arrive the way a list populates. */
+@media (prefers-reduced-motion: no-preference) {
+  .ws-row {
+    animation: ws-in 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .ws-row:nth-child(1) { animation-delay: 120ms; }
+  .ws-row:nth-child(2) { animation-delay: 220ms; }
+  .ws-row:nth-child(3) { animation-delay: 320ms; }
+
+  @keyframes ws-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+}
+
+/* ── Surfaces ─────────────────────────────────────────────────────────── */
+.surfaces {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-top: 40px;
+}
+
+.surface {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+/* Each card carries the priority dot of its row in the hero list, so the
+   two blocks read as the same three things twice. */
+.surface-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  margin-bottom: 16px;
+}
+
+.surface p {
+  color: var(--fg-dim);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 10px 0 0 0;
+}
+
+/* ── Screenshots ──────────────────────────────────────────────────────── */
+figure {
+  margin: 40px 0 0 0;
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+figcaption {
+  color: var(--fg-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-top: 14px;
+  max-width: 68ch;
+}
+
+/* Capped at the width the README uses. Left uncapped these are 1748px tall
+   and a single screenshot outgrows the viewport. */
+.phone-shots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px clamp(20px, 4vw, 48px);
+  margin: 40px 0 0 0;
+}
+
+.phone-shots figure {
+  flex: 0 1 220px;
+  max-width: 220px;
+  min-width: 0;
+  margin: 0;
+}
+
+.phone-shots figcaption {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.6px;
+}
+
+/* Two columns, not three: there are four screens, and auto-fitting them into
+   a 3-wide grid leaves a ragged single item on the second row. */
+.screens {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 12px 48px;
+  margin-top: 48px;
+  padding: 0;
+  list-style: none;
+}
+
+.screens li {
+  color: var(--fg-dim);
+  font-size: 15px;
+  line-height: 1.6;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.screens b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ── How it works ─────────────────────────────────────────────────────── */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-top: 40px;
+}
+
+.fact {
+  border-left: 2px solid var(--border);
+  padding: 4px 0 4px 18px;
+}
+
+.fact h3 {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--focus);
+}
+
+.fact p {
+  color: var(--fg-dim);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 10px 0 0 0;
+}
+
+/* ── Signup ───────────────────────────────────────────────────────────── */
+.signup-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(320px, 440px);
+  gap: clamp(32px, 5vw, 64px);
+  align-items: start;
+}
+
+#signup-form {
+  display: grid;
+  gap: 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+
+.field .hint {
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+#submit-btn {
+  min-height: 48px;
+  font-weight: 600;
+  color: #1a0d18;
+  background: var(--accent);
+  border-color: var(--accent);
+  border-radius: 999px;
+}
+
+#submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#status {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--status-done);
+}
+
+#status.error {
+  color: var(--priority-high);
+}
+
+#status:empty {
+  display: none;
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding-block: 40px;
+}
+
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  font-size: 14px;
+}
+
+.footer-links a {
+  color: var(--fg-dim);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: var(--fg);
+}
+
+/* ── Narrow screens ───────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .hero-grid,
+  .signup-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-grid .workingset {
+    max-width: 460px;
+  }
+}
+
+@media (max-width: 560px) {
+  :root {
+    --shell: min(1040px, 100% - 36px);
+  }
+
+  .topbar {
+    padding: 12px 18px;
+  }
+
+  /* The pill is the redundant one on a phone — the hero repeats it. */
+  .topbar .pill {
+    display: none;
+  }
+
+  .phone-shots {
+    gap: 32px;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --fg-dim: #cfc6e6;
+    --fg-muted: #a89dc4;
+    --border: #4d3f6a;
+  }
+}

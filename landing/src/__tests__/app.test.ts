@@ -52,6 +52,32 @@ describe('landing app', () => {
     expect((await res.json()).ok).toBe(true);
   });
 
+  it('serves the product URL and Turnstile site key from /api/config', async () => {
+    // PRODUCT_URL only loads as part of the all-or-nothing v1 group, so the
+    // email vars come along with it (see env.ts).
+    const app = createApp(
+      env({
+        RESEND_API_KEY: 're_test',
+        SIGNUP_NOTIFY_TO: 'me@example.com',
+        PRODUCT_URL: 'https://tasks.example.com',
+        TURNSTILE_SECRET_KEY: 'secret',
+        TURNSTILE_SITE_KEY: 'site',
+      }),
+    );
+    const res = await app.request('/api/config');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      turnstileSiteKey: 'site',
+      productUrl: 'https://tasks.example.com',
+    });
+  });
+
+  it('reports a null product URL when PRODUCT_URL is unset, so the page hides the app link', async () => {
+    const app = createApp(env());
+    const res = await app.request('/api/config');
+    expect(await res.json()).toEqual({ turnstileSiteKey: null, productUrl: null });
+  });
+
   it('rejects a malformed email with 400', async () => {
     const app = createApp(env());
     const res = await app.request('/api/signup', {
