@@ -3,43 +3,284 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>task-man</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1.25rem; color: #eaeaea; background: #121212; }
-    h1 { margin-bottom: 0.25rem; }
-    p.lede { color: #aaa; }
-    form { display: grid; gap: 0.75rem; margin-top: 2rem; }
-    label { font-size: 0.85rem; font-weight: 600; }
-    input, textarea { font: inherit; padding: 0.5rem 0.6rem; border: 1px solid #444; border-radius: 6px; background: #1e1e1e; color: #eaeaea; }
-    button { font: inherit; padding: 0.6rem 1rem; border: none; border-radius: 6px; background: #eaeaea; color: #121212; cursor: pointer; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    #status { margin-top: 1rem; font-size: 0.9rem; }
-  </style>
+  <title>task-man — a focus-first task manager for your terminal, your phone, and Claude</title>
+  <meta name="description" content="Pull a few things into a tight working set, triage the rest, and let Claude capture and refine tasks over MCP. One store, three surfaces, always in sync." />
+  <meta name="theme-color" content="#0c0814" />
+
+  <!-- Icons mirror web/public/icons/ so the landing page and the app share a
+       tab icon. No webmanifest here — this page isn't an installable PWA. -->
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/icons/icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="task-man" />
+  <meta property="og:description" content="A focus-first task manager you run from three places at once — your terminal, your phone, and Claude." />
+  <meta property="og:image" content="/icons/icon-512.png" />
+  <meta name="twitter:card" content="summary" />
+
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <h1>task-man</h1>
-  <p class="lede">
-    A focus-first task manager you run from your terminal, your phone, and Claude.
-    Request access below — signups are approved by hand.
-  </p>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="task-man home"
+      ><span class="brand-magenta">task-</span><span class="brand-cyan">man</span></a
+    >
+    <nav class="topbar-actions">
+      <!-- Hidden until /api/config hands over a product URL; a deployment
+           without PRODUCT_URL set shows no app link at all rather than a
+           dead one. -->
+      <a class="pill" data-product-link href="#" hidden>Open the app</a>
+      <a class="cta" href="#signup">Request access</a>
+    </nav>
+  </header>
 
-  <form id="signup-form">
-    <div>
-      <label for="email">Email</label><br />
-      <input id="email" name="email" type="email" required maxlength="254" />
+  <main>
+    <section class="hero">
+      <div class="shell hero-grid">
+        <div>
+          <h1>Your working set, in <span class="accent">three places at once</span>.</h1>
+          <p class="lede">
+            task-man is a focus-first task manager you run from your terminal, your phone,
+            and Claude. Pull a few things into a tight working set, triage the rest, and let
+            Claude capture and refine tasks while you work.
+          </p>
+          <div class="hero-actions">
+            <a class="cta cta-lg" href="#signup">Request access</a>
+            <a class="pill pill-lg" data-product-link href="#" hidden>Open the app</a>
+          </div>
+          <p class="hero-note">Access is approved by hand. Tell us a bit about yourself below.</p>
+        </div>
+
+        <!-- The same figure as the icon: three rows, three dots. Here the
+             tasks are the three surfaces. -->
+        <div class="workingset" aria-label="Example focus list">
+          <div class="workingset-head">
+            <span>Focus</span>
+            <span>3 tasks</span>
+          </div>
+          <div class="workingset-rows">
+            <div class="ws-row">
+              <span class="prio-dot high"></span>
+              <span class="ws-title">Plan the week in the terminal</span>
+              <span class="chip">tui</span>
+            </div>
+            <div class="ws-row">
+              <span class="prio-dot medium"></span>
+              <span class="ws-title">Check it off from the train</span>
+              <span class="chip">phone</span>
+            </div>
+            <div class="ws-row">
+              <span class="prio-dot outline"></span>
+              <span class="ws-title">Let Claude file the rest</span>
+              <span class="chip">mcp</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell">
+        <p class="eyebrow">Three surfaces</p>
+        <h2>One working set, wherever you are.</h2>
+        <p class="section-lede">
+          All three surfaces read and write the same tasks through your server, and
+          authorization is per-identity — you see your tasks, Claude's agents see theirs.
+        </p>
+
+        <div class="surfaces">
+          <div class="surface">
+            <div class="surface-mark"><span class="prio-dot high" aria-hidden="true"></span>tui</div>
+            <h3>Terminal</h3>
+            <p>
+              A vim-keyed TUI for planning and doing the work where you already live: a focus
+              list, a triage view, capture, refine, and metrics — all keyboard-driven.
+            </p>
+          </div>
+          <div class="surface">
+            <div class="surface-mark"><span class="prio-dot medium" aria-hidden="true"></span>phone</div>
+            <h3>Phone</h3>
+            <p>
+              A fast, installable web app. Add it to your home screen and it feels native:
+              swipe your focus list, triage the backlog, refine with a card-flip flow.
+            </p>
+          </div>
+          <div class="surface">
+            <div class="surface-mark"><span class="prio-dot outline" aria-hidden="true"></span>mcp</div>
+            <h3>Claude</h3>
+            <p>
+              An MCP server, so Claude can add, prioritize, and refine tasks — and email you
+              a wrap-up report at day's end.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell">
+        <p class="eyebrow magenta">In the terminal</p>
+        <h2>The full keyboard workflow. No mouse.</h2>
+        <p class="section-lede">
+          Focus mode is your working set. <code class="mono">Space</code> promotes and demotes
+          tasks in triage, capture takes inline flags, and refine is one keystroke per answer.
+        </p>
+        <figure>
+          <img
+            src="/img/tui-focus.png"
+            width="1938"
+            height="836"
+            loading="lazy"
+            decoding="async"
+            alt="task-man Focus mode in the terminal"
+          />
+          <figcaption>The terminal UI — your working set, keyboard-driven.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell">
+        <p class="eyebrow purple">On your phone</p>
+        <h2>The same tasks, tap-driven.</h2>
+        <p class="section-lede">
+          Add it to your home screen and it feels native — no app store, no separate list to
+          keep in sync.
+        </p>
+
+        <div class="phone-shots">
+          <figure>
+            <img
+              src="/img/focus.png"
+              width="804"
+              height="1748"
+              loading="lazy"
+              decoding="async"
+              alt="Focus — your working set"
+            />
+            <figcaption>Focus</figcaption>
+          </figure>
+          <figure>
+            <img
+              src="/img/refine.png"
+              width="804"
+              height="1748"
+              loading="lazy"
+              decoding="async"
+              alt="Refine — rapid card-flip triage"
+            />
+            <figcaption>Refine</figcaption>
+          </figure>
+          <figure>
+            <img
+              src="/img/metrics.png"
+              width="804"
+              height="1748"
+              loading="lazy"
+              decoding="async"
+              alt="Metrics — end-of-day report"
+            />
+            <figcaption>Metrics</figcaption>
+          </figure>
+        </div>
+
+        <ul class="screens">
+          <li>
+            <b>Focus</b> — the small set you've committed to. Priority dots, categories,
+            subtask progress, one tap to capture.
+          </li>
+          <li>
+            <b>Backlog</b> — everything else, with your focused tasks pinned on top, so you
+            promote and demote the working set in one place.
+          </li>
+          <li>
+            <b>Refine</b> — rapid-fire triage: one card per unfinished detail (scope, time
+            estimate, vibe, priority, category), answered with a tap.
+          </li>
+          <li>
+            <b>Metrics</b> — the day report: what got done, the you-vs-Claude split,
+            subtasks, and a short insight line.
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell">
+        <p class="eyebrow">How it works</p>
+        <h2>Your tasks, on your server.</h2>
+
+        <div class="facts">
+          <div class="fact">
+            <h3>One store</h3>
+            <p>
+              The TUI, the web app, and the MCP server all talk to the same small server, so
+              every surface sees the same tasks the moment they change.
+            </p>
+          </div>
+          <div class="fact">
+            <h3>Gated at the edge</h3>
+            <p>
+              The app sits behind Cloudflare Access. The server verifies Access's signed
+              token on every API request — nothing is reachable unauthenticated.
+            </p>
+          </div>
+          <div class="fact">
+            <h3>Yours to host</h3>
+            <p>
+              task-man is open source and runs on a $6 droplet. Prefer no server at all? Run
+              it locally against a plain file store — same workflow, no account.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="signup">
+      <div class="shell signup-grid">
+        <div>
+          <p class="eyebrow magenta">Request access</p>
+          <h2>Ask for an invite.</h2>
+          <p class="section-lede">
+            Signups are approved by hand, one at a time. Leave your email and we'll write back
+            when your account is open — then you sign in with the same address.
+          </p>
+        </div>
+
+        <form id="signup-form">
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" required maxlength="254" />
+          </div>
+          <div class="field">
+            <label for="name">Name <span class="hint">(optional)</span></label>
+            <input id="name" name="name" type="text" autocomplete="name" maxlength="200" />
+          </div>
+          <div class="field">
+            <label for="note">Anything we should know? <span class="hint">(optional)</span></label>
+            <textarea id="note" name="note" rows="3" maxlength="2000"></textarea>
+          </div>
+          <div id="turnstile-container"></div>
+          <button id="submit-btn" type="submit">Request access</button>
+          <div id="status" role="status"></div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <a class="brand" href="/" aria-label="task-man home"
+        ><span class="brand-magenta">task-</span><span class="brand-cyan">man</span></a
+      >
+      <nav class="footer-links">
+        <a href="https://github.com/mmmende2/task-man">GitHub</a>
+        <a href="#signup">Request access</a>
+        <a data-product-link href="#" hidden>Open the app</a>
+      </nav>
     </div>
-    <div>
-      <label for="name">Name (optional)</label><br />
-      <input id="name" name="name" type="text" maxlength="200" />
-    </div>
-    <div>
-      <label for="note">Anything we should know? (optional)</label><br />
-      <textarea id="note" name="note" rows="3" maxlength="2000"></textarea>
-    </div>
-    <div id="turnstile-container"></div>
-    <button id="submit-btn" type="submit">Request access</button>
-  </form>
-  <div id="status" role="status"></div>
+  </footer>
 
   <script>
     (function () {
@@ -60,15 +301,35 @@
         document.head.appendChild(script);
       }
 
+      // The app's hostname isn't known at build time — it comes from the
+      // PRODUCT_URL env var. Links stay hidden unless the server hands one
+      // over, so a deployment without it shows no link rather than a dead one.
+      function showProductLinks(productUrl) {
+        if (!productUrl) return;
+        var links = document.querySelectorAll('[data-product-link]');
+        for (var i = 0; i < links.length; i++) {
+          links[i].href = productUrl;
+          links[i].hidden = false;
+        }
+      }
+
       fetch('/api/config')
         .then(function (res) { return res.json(); })
-        .then(function (config) { loadTurnstile(config.turnstileSiteKey); })
+        .then(function (config) {
+          loadTurnstile(config.turnstileSiteKey);
+          showProductLinks(config.productUrl);
+        })
         .catch(function () { /* dev mode / offline: form still works without a widget */ });
+
+      function setStatus(message, isError) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle('error', !!isError);
+      }
 
       form.addEventListener('submit', function (event) {
         event.preventDefault();
         submitBtn.disabled = true;
-        statusEl.textContent = '';
+        setStatus('', false);
 
         var turnstileToken =
           turnstileWidgetId !== null && window.turnstile ? window.turnstile.getResponse(turnstileWidgetId) : undefined;
@@ -90,16 +351,16 @@
           })
           .then(function (result) {
             if (result.ok) {
-              statusEl.textContent = result.body.message || "Thanks — you're on the list.";
+              setStatus(result.body.message || "Thanks — you're on the list.", false);
               form.reset();
               if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
             } else {
-              statusEl.textContent = result.body.error || 'Something went wrong — please try again.';
+              setStatus(result.body.error || 'Something went wrong — please try again.', true);
               submitBtn.disabled = false;
             }
           })
           .catch(function () {
-            statusEl.textContent = 'Something went wrong — please try again.';
+            setStatus('Something went wrong — please try again.', true);
             submitBtn.disabled = false;
           });
       });
