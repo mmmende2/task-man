@@ -14,4 +14,5 @@ node_modules
 cli/dist
 cli/dist-web
 web/dist
+landing/dist
 **/*.md

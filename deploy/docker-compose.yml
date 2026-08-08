@@ -32,6 +32,38 @@ services:
     # this container, over the internal docker network. No inbound ports on
     # the droplet itself.
 
+  # Public landing page + approval-gated signup (docs/landing-signup-plan.md).
+  # Unlike task-man, this hostname carries NO Cloudflare Access application —
+  # that's what makes it public. Released in lockstep with task-man: same
+  # TASK_MAN_TAG, same deploy.
+  landing:
+    image: ghcr.io/mmmende2/task-man-landing:${TASK_MAN_TAG:?set TASK_MAN_TAG to the version to deploy, e.g. v0.5.1}
+    restart: unless-stopped
+    environment:
+      # Resend notification of new signups. Leave all three unset to run in
+      # dev mode (signups are recorded but no email is sent) — see
+      # landing/src/env.ts; this is all-or-nothing, not individually optional.
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - SIGNUP_NOTIFY_TO=${SIGNUP_NOTIFY_TO}
+      - PRODUCT_URL=${PRODUCT_URL}
+      # CAPTCHA on the signup form. Unset = Turnstile verification is skipped
+      # (fine for first boot before the Turnstile site is configured, not for
+      # a public droplet long-term).
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
+      - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
+      # One-click approve/deny links + the Cloudflare Access group mutation.
+      # Also all-or-nothing; unset all four to fall back to v1 (notify only,
+      # approve by hand in the Zero Trust dashboard).
+      - SIGNUP_HMAC_SECRET=${SIGNUP_HMAC_SECRET}
+      - CF_API_TOKEN=${CF_API_TOKEN}
+      - CF_ACCOUNT_ID=${CF_ACCOUNT_ID}
+      - CF_ACCESS_GROUP_ID=${CF_ACCESS_GROUP_ID}
+    volumes:
+      - landing-data:/root/.task-man-landing
+    networks:
+      - internal
+    # No `ports:` here either — same reasoning as task-man above.
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
@@ -42,6 +74,7 @@ services:
       - internal
     depends_on:
       - task-man
+      - landing
 
 networks:
   internal:
@@ -49,3 +82,4 @@ networks:
 
 volumes:
   task-man-data:
+  landing-data:
