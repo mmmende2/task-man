@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>task-man</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1.25rem; color: #1a1a1a; }
+    h1 { margin-bottom: 0.25rem; }
+    p.lede { color: #555; }
+    form { display: grid; gap: 0.75rem; margin-top: 2rem; }
+    label { font-size: 0.85rem; font-weight: 600; }
+    input, textarea { font: inherit; padding: 0.5rem 0.6rem; border: 1px solid #ccc; border-radius: 6px; }
+    button { font: inherit; padding: 0.6rem 1rem; border: none; border-radius: 6px; background: #1a1a1a; color: white; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #status { margin-top: 1rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>task-man</h1>
+  <p class="lede">
+    A focus-first task manager you run from your terminal, your phone, and Claude.
+    Request access below — signups are approved by hand.
+  </p>
+
+  <form id="signup-form">
+    <div>
+      <label for="email">Email</label><br />
+      <input id="email" name="email" type="email" required maxlength="254" />
+    </div>
+    <div>
+      <label for="name">Name (optional)</label><br />
+      <input id="name" name="name" type="text" maxlength="200" />
+    </div>
+    <div>
+      <label for="note">Anything we should know? (optional)</label><br />
+      <textarea id="note" name="note" rows="3" maxlength="2000"></textarea>
+    </div>
+    <div id="turnstile-container"></div>
+    <button id="submit-btn" type="submit">Request access</button>
+  </form>
+  <div id="status" role="status"></div>
+
+  <script>
+    (function () {
+      var form = document.getElementById('signup-form');
+      var statusEl = document.getElementById('status');
+      var submitBtn = document.getElementById('submit-btn');
+      var turnstileContainer = document.getElementById('turnstile-container');
+      var turnstileWidgetId = null;
+
+      function loadTurnstile(siteKey) {
+        if (!siteKey) return;
+        var script = document.createElement('script');
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.async = true;
+        script.onload = function () {
+          turnstileWidgetId = window.turnstile.render(turnstileContainer, { sitekey: siteKey });
+        };
+        document.head.appendChild(script);
+      }
+
+      fetch('/api/config')
+        .then(function (res) { return res.json(); })
+        .then(function (config) { loadTurnstile(config.turnstileSiteKey); })
+        .catch(function () { /* dev mode / offline: form still works without a widget */ });
+
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        submitBtn.disabled = true;
+        statusEl.textContent = '';
+
+        var turnstileToken =
+          turnstileWidgetId !== null && window.turnstile ? window.turnstile.getResponse(turnstileWidgetId) : undefined;
+
+        var payload = {
+          email: document.getElementById('email').value,
+          name: document.getElementById('name').value || undefined,
+          note: document.getElementById('note').value || undefined,
+          turnstileToken: turnstileToken || undefined,
+        };
+
+        fetch('/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then(function (res) {
+            return res.json().then(function (body) { return { ok: res.ok, body: body }; });
+          })
+          .then(function (result) {
+            if (result.ok) {
+              statusEl.textContent = result.body.message || "Thanks — you're on the list.";
+              form.reset();
+              if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
+            } else {
+              statusEl.textContent = result.body.error || 'Something went wrong — please try again.';
+              submitBtn.disabled = false;
+            }
+          })
+          .catch(function () {
+            statusEl.textContent = 'Something went wrong — please try again.';
+            submitBtn.disabled = false;
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

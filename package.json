@@ -3,12 +3,13 @@
   "private": true,
   "workspaces": [
     "cli",
-    "web"
+    "web",
+    "landing"
   ],
   "scripts": {
     "dev": "concurrently -k -n api,web -c magenta,cyan \"task-man serve\" \"npm run dev -w task-man-web\"",
-    "build": "npm run build -w task-man && npm run build -w task-man-web",
-    "test": "npm run test -w task-man && npm run test -w task-man-web"
+    "build": "npm run build -w task-man && npm run build -w task-man-web && npm run build -w task-man-landing",
+    "test": "npm run test -w task-man && npm run test -w task-man-web && npm run test -w task-man-landing"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

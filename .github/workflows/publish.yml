@@ -41,6 +41,7 @@ jobs:
         id: meta
         run: |
           IMAGE=ghcr.io/mmmende2/task-man
+          LANDING_IMAGE=ghcr.io/mmmende2/task-man-landing
           # --tags is REQUIRED, not cosmetic. actions/checkout resolves a tag
           # push by force-fetching the triggering SHA straight into
           # refs/tags/<tag> ("git fetch --no-tags origin +<sha>:refs/tags/v0.6.0"),
@@ -51,15 +52,21 @@ jobs:
           # lightweight tags too, so the clobbered tag is still found.
           # --match keeps stray non-release tags out of the anchor.
           DESCRIBE=$(git describe --tags --long --always --match 'v[0-9]*')
-          TAGS="${IMAGE}:sha-$(git rev-parse --short HEAD),${IMAGE}:${DESCRIBE}"
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAGS="${IMAGE}:sha-${SHORT_SHA},${IMAGE}:${DESCRIBE}"
+          LANDING_TAGS="${LANDING_IMAGE}:sha-${SHORT_SHA},${LANDING_IMAGE}:${DESCRIBE}"
           if [ "${{ github.ref_type }}" = "tag" ]; then
             TAGS="${TAGS},${IMAGE}:${{ github.ref_name }}"
+            LANDING_TAGS="${LANDING_TAGS},${LANDING_IMAGE}:${{ github.ref_name }}"
           else
             TAGS="${TAGS},${IMAGE}:latest"
+            LANDING_TAGS="${LANDING_TAGS},${LANDING_IMAGE}:latest"
           fi
           echo "describe=${DESCRIBE}" >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "landing_tags=${LANDING_TAGS}" >> "$GITHUB_OUTPUT"
           echo "==> publishing: ${TAGS}"
+          echo "==> publishing: ${LANDING_TAGS}"
 
       # Turn a mis-stamped release into a RED build instead of a wrong image.
       # On a vX.Y.Z tag push the describe anchor must be that exact tag with
@@ -115,4 +122,22 @@ jobs:
           # ignoring the lightweight tag actions/checkout leaves behind, fixed in
           # the `meta` step above. Kept because the cache hazard is real and
           # separate.
+          no-cache-filters: runtime
+
+      # Second image, same commit, same tag scheme: the public landing +
+      # signup service (docs/landing-signup-plan.md). Separate Dockerfile,
+      # separate GHCR repo — deployed as its own compose service, released
+      # in lockstep with the main image via the same TASK_MAN_TAG.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: landing/Dockerfile
+          platforms: linux/amd64 # matches the droplet
+          push: true
+          tags: ${{ steps.meta.outputs.landing_tags }}
+          build-args: GIT_DESCRIBE=${{ steps.meta.outputs.describe }}
+          cache-from: type=gha,scope=landing
+          cache-to: type=gha,scope=landing,mode=max
+          # Same stamp-inheritance hazard as the main image's runtime stage
+          # (see the comment above) — force it to rebuild every run.
           no-cache-filters: runtime
