@@ -4,8 +4,8 @@ import { loadEnv } from './env.js';
 
 const env = loadEnv();
 
-if (!env.turnstileSecretKey) {
-  console.warn('[landing] TURNSTILE_SECRET_KEY not set — CAPTCHA verification is disabled (dev mode).');
+if (!env.turnstileEnabled) {
+  console.warn('[landing] SIGNUP_ALLOW_NO_CAPTCHA=1 — CAPTCHA verification is explicitly disabled (dev mode).');
 }
 if (!env.emailEnabled) {
   console.warn('[landing] RESEND_API_KEY/SIGNUP_NOTIFY_TO/PRODUCT_URL not set — signup notifications are disabled (dev mode).');

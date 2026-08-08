@@ -75,8 +75,10 @@ export function createApp(env: LandingEnv, opts: CreateAppOptions = {}): Hono {
     const record = existing ?? (await signupStore.append({ email, name: name ?? null, note: note ?? null }));
 
     if (!existing && env.emailEnabled) {
-      const origin = new URL(c.req.url).origin;
-      const links = env.v2Enabled ? buildDecideLinks(origin, record, env.signupHmacSecret!) : null;
+      // The link origin comes from configured LANDING_PUBLIC_URL, not the
+      // request's Host header — a spoofed Host must not be able to steer a
+      // single-use approve/deny token into an attacker-controlled origin.
+      const links = env.v2Enabled ? buildDecideLinks(env.landingPublicUrl!, record, env.signupHmacSecret!) : null;
       try {
         await sendSignupNotification(env.resendApiKey!, env.signupNotifyTo!, record, links);
       } catch (err) {

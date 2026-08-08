@@ -86,8 +86,9 @@ landing/
    optional, length-capped). Invalid → 400.
 2. Verify the Turnstile token (`cf-turnstile-response` field) against
    `https://challenges.cloudflare.com/turnstile/v0/siteverify` with
-   `TURNSTILE_SECRET_KEY`. Fail → 403. **If the env var is unset, skip
-   verification and log one startup warning** — that's local-dev mode.
+   `TURNSTILE_SECRET_KEY`. Fail → 403. Both Turnstile vars unset **and**
+   `SIGNUP_ALLOW_NO_CAPTCHA=1` skips verification and logs one startup
+   warning — that's local-dev mode; any other combination fails startup.
 3. Dedupe: if the email already has a record in any status, return the exact
    same 200 body as a fresh signup ("you're on the list") — responses must not
    reveal whether an email is known (no enumeration oracle).
@@ -127,11 +128,17 @@ base64url, minted in the notification email. Handler:
 | `RESEND_API_KEY` | v1 | outbound email |
 | `SIGNUP_NOTIFY_TO` | v1 | operator's address |
 | `PRODUCT_URL` | v1 | e.g. `https://tasks.example.com`, used in welcome email |
-| `TURNSTILE_SECRET_KEY` | prod | server-side CAPTCHA check (unset = dev mode) |
-| `TURNSTILE_SITE_KEY` | prod | injected into the form page |
+| `TURNSTILE_SECRET_KEY` | yes* | server-side CAPTCHA check |
+| `TURNSTILE_SITE_KEY` | yes* | injected into the form page |
+| `SIGNUP_ALLOW_NO_CAPTCHA` | no | set to `1` to explicitly boot without Turnstile (dev only) |
 | `SIGNUP_HMAC_SECRET` | v2 | decide-link signing |
 | `CF_API_TOKEN` | v2 | scoped: Account → Access Groups → Edit |
 | `CF_ACCOUNT_ID`, `CF_ACCESS_GROUP_ID` | v2 | group to mutate |
+| `LANDING_PUBLIC_URL` | v2 | e.g. `https://tasks.example.com`, base origin baked into approve/deny links (not derived from the request) |
+
+\* Turnstile is all-or-nothing like the v1/v2 groups: both vars set, or both
+unset **and** `SIGNUP_ALLOW_NO_CAPTCHA=1`. Startup throws otherwise — a
+droplet deploy can't accidentally go live without CAPTCHA.
 
 ## Work item 2 — Docker image
 
@@ -173,6 +180,7 @@ landing:
     - CF_API_TOKEN=${CF_API_TOKEN}
     - CF_ACCOUNT_ID=${CF_ACCOUNT_ID}
     - CF_ACCESS_GROUP_ID=${CF_ACCESS_GROUP_ID}
+    - LANDING_PUBLIC_URL=${LANDING_PUBLIC_URL}
   volumes:
     - landing-data:/root/.task-man-landing
   networks:

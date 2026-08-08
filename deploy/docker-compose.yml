@@ -46,18 +46,22 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY}
       - SIGNUP_NOTIFY_TO=${SIGNUP_NOTIFY_TO}
       - PRODUCT_URL=${PRODUCT_URL}
-      # CAPTCHA on the signup form. Unset = Turnstile verification is skipped
-      # (fine for first boot before the Turnstile site is configured, not for
-      # a public droplet long-term).
+      # CAPTCHA on the signup form. Both-or-neither; the container refuses to
+      # start if unset (fail closed on the public droplet — see env.ts). No
+      # SIGNUP_ALLOW_NO_CAPTCHA passthrough here on purpose: production must
+      # not have a way to opt out of CAPTCHA.
       - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
       # One-click approve/deny links + the Cloudflare Access group mutation.
-      # Also all-or-nothing; unset all four to fall back to v1 (notify only,
-      # approve by hand in the Zero Trust dashboard).
+      # Also all-or-nothing; unset all five to fall back to v1 (notify only,
+      # approve by hand in the Zero Trust dashboard). LANDING_PUBLIC_URL fixes
+      # the origin baked into approve/deny links so it can't be steered by a
+      # spoofed request Host header.
       - SIGNUP_HMAC_SECRET=${SIGNUP_HMAC_SECRET}
       - CF_API_TOKEN=${CF_API_TOKEN}
       - CF_ACCOUNT_ID=${CF_ACCOUNT_ID}
       - CF_ACCESS_GROUP_ID=${CF_ACCESS_GROUP_ID}
+      - LANDING_PUBLIC_URL=${LANDING_PUBLIC_URL}
     volumes:
       - landing-data:/root/.task-man-landing
     networks:

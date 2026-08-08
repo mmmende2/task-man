@@ -13,10 +13,14 @@ export interface LandingEnv {
   cfApiToken: string | null;
   cfAccountId: string | null;
   cfAccessGroupId: string | null;
+  /** Normalized origin of LANDING_PUBLIC_URL, e.g. "https://tasks.example.com". */
+  landingPublicUrl: string | null;
   /** True only when every v2 (one-click approval) var is set. */
   v2Enabled: boolean;
   /** True only when every v1 (email notification) var is set. */
   emailEnabled: boolean;
+  /** True only when both Turnstile vars are set. */
+  turnstileEnabled: boolean;
 }
 
 // Each of these is a group of vars that only makes sense set together — a
@@ -49,10 +53,37 @@ export function loadEnv(env: NodeJS.ProcessEnv = process.env): LandingEnv {
     CF_API_TOKEN: env.CF_API_TOKEN,
     CF_ACCOUNT_ID: env.CF_ACCOUNT_ID,
     CF_ACCESS_GROUP_ID: env.CF_ACCESS_GROUP_ID,
+    LANDING_PUBLIC_URL: env.LANDING_PUBLIC_URL,
   });
   if (v2.anySet && !v2.allSet) {
     throw new Error(
-      `landing: partial one-click-approval config — missing ${v2.missing.join(', ')}. Set SIGNUP_HMAC_SECRET, CF_API_TOKEN, CF_ACCOUNT_ID and CF_ACCESS_GROUP_ID together, or leave all four unset to run notify-only (v1).`,
+      `landing: partial one-click-approval config — missing ${v2.missing.join(', ')}. Set SIGNUP_HMAC_SECRET, CF_API_TOKEN, CF_ACCOUNT_ID, CF_ACCESS_GROUP_ID and LANDING_PUBLIC_URL together, or leave all five unset to run notify-only (v1).`,
+    );
+  }
+
+  let landingPublicUrl: string | null = null;
+  if (v2.allSet) {
+    try {
+      landingPublicUrl = new URL(env.LANDING_PUBLIC_URL!).origin;
+    } catch {
+      throw new Error(`landing: LANDING_PUBLIC_URL is not a valid URL: ${env.LANDING_PUBLIC_URL}`);
+    }
+  }
+
+  // CAPTCHA is required on a public deployment. A missing/partial Turnstile
+  // config fails startup unless the operator explicitly opts out (dev only).
+  const turnstile = groupStatus({
+    TURNSTILE_SECRET_KEY: env.TURNSTILE_SECRET_KEY,
+    TURNSTILE_SITE_KEY: env.TURNSTILE_SITE_KEY,
+  });
+  if (turnstile.anySet && !turnstile.allSet) {
+    throw new Error(
+      `landing: partial Turnstile config — missing ${turnstile.missing.join(', ')}. Set TURNSTILE_SECRET_KEY and TURNSTILE_SITE_KEY together, or leave both unset (with SIGNUP_ALLOW_NO_CAPTCHA=1) to run without CAPTCHA.`,
+    );
+  }
+  if (!turnstile.allSet && env.SIGNUP_ALLOW_NO_CAPTCHA !== '1') {
+    throw new Error(
+      'landing: TURNSTILE_SECRET_KEY/TURNSTILE_SITE_KEY not set. Set both, or set SIGNUP_ALLOW_NO_CAPTCHA=1 to explicitly run without CAPTCHA (dev only — never on a public deployment).',
     );
   }
 
@@ -68,7 +99,9 @@ export function loadEnv(env: NodeJS.ProcessEnv = process.env): LandingEnv {
     cfApiToken: env.CF_API_TOKEN || null,
     cfAccountId: env.CF_ACCOUNT_ID || null,
     cfAccessGroupId: env.CF_ACCESS_GROUP_ID || null,
+    landingPublicUrl,
     v2Enabled: v2.allSet,
     emailEnabled: v1.allSet,
+    turnstileEnabled: turnstile.allSet,
   };
 }

@@ -34,7 +34,7 @@ describe('landing app', () => {
   });
 
   function env(overrides: Record<string, string | undefined> = {}): LandingEnv {
-    return loadEnv({ LANDING_DATA_DIR: dir, ...overrides });
+    return loadEnv({ LANDING_DATA_DIR: dir, SIGNUP_ALLOW_NO_CAPTCHA: '1', ...overrides });
   }
 
   function signupsOnDisk(): unknown[] {
@@ -91,7 +91,7 @@ describe('landing app', () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: false }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const app = createApp(env({ TURNSTILE_SECRET_KEY: 'secret' }));
+    const app = createApp(env({ TURNSTILE_SECRET_KEY: 'secret', TURNSTILE_SITE_KEY: 'pk' }));
     const res = await app.request('/api/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -105,7 +105,7 @@ describe('landing app', () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    const app = createApp(env({ TURNSTILE_SECRET_KEY: 'secret' }));
+    const app = createApp(env({ TURNSTILE_SECRET_KEY: 'secret', TURNSTILE_SITE_KEY: 'pk' }));
     const res = await app.request('/api/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -167,6 +167,7 @@ describe('landing app', () => {
       CF_API_TOKEN: 'cf-token',
       CF_ACCOUNT_ID: 'acct',
       CF_ACCESS_GROUP_ID: 'group',
+      LANDING_PUBLIC_URL: 'https://tasks.example.com',
     });
     const app = createApp(fullEnv);
 
@@ -196,13 +197,16 @@ describe('landing app', () => {
       CF_API_TOKEN: 'cf-token',
       CF_ACCOUNT_ID: 'acct',
       CF_ACCESS_GROUP_ID: 'group',
+      LANDING_PUBLIC_URL: 'https://tasks.example.com',
       RESEND_API_KEY: 'k',
       SIGNUP_NOTIFY_TO: 'owner@example.com',
       PRODUCT_URL: 'https://tasks.example.com',
     });
     const app = createApp(fullEnv);
 
-    const signupRes = await app.request('/api/signup', {
+    // A full attacker-controlled URL stands in for what @hono/node-server
+    // would build c.req.url from a spoofed Host header in production.
+    const signupRes = await app.request('http://evil.attacker.example/api/signup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'approve-me@example.com' }),
@@ -210,6 +214,9 @@ describe('landing app', () => {
     expect(signupRes.status).toBe(200);
     const html = sendMock.mock.calls[0][0].html as string;
     expect(html).toContain('/api/signup/decide');
+    // Link origin comes from LANDING_PUBLIC_URL, never from the request's own origin.
+    expect(html).toContain('https://tasks.example.com/api/signup/decide');
+    expect(html).not.toContain('evil.attacker.example');
 
     const record = (signupsOnDisk() as Array<{ id: string; email: string }>)[0];
     const token = mintDecideToken(
@@ -246,6 +253,7 @@ describe('landing app', () => {
       CF_API_TOKEN: 'cf-token',
       CF_ACCOUNT_ID: 'acct',
       CF_ACCESS_GROUP_ID: 'group',
+      LANDING_PUBLIC_URL: 'https://tasks.example.com',
     });
     const app = createApp(fullEnv);
 
