@@ -296,9 +296,25 @@
         script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
         script.async = true;
         script.onload = function () {
-          turnstileWidgetId = window.turnstile.render(turnstileContainer, { sitekey: siteKey });
+          // `action` is the explicit-render equivalent of the declarative
+          // widget's data-action attribute — this page renders the widget from
+          // JS (the site key arrives from /api/config at runtime), so there is
+          // no cf-turnstile div to put an attribute on.
+          turnstileWidgetId = window.turnstile.render(turnstileContainer, {
+            sitekey: siteKey,
+            action: 'turnstile-spin-v2',
+          });
         };
         document.head.appendChild(script);
+      }
+
+      // Turnstile tokens are single-use: siteverify redeems the token, so a
+      // retry that reuses it is rejected as timeout-or-duplicate. Any path
+      // that lets the visitor submit again must first get a fresh one.
+      function resetTurnstile() {
+        if (turnstileWidgetId !== null && window.turnstile) {
+          window.turnstile.reset(turnstileWidgetId);
+        }
       }
 
       // The app's hostname isn't known at build time — it comes from the
@@ -353,14 +369,19 @@
             if (result.ok) {
               setStatus(result.body.message || "Thanks — you're on the list.", false);
               form.reset();
-              if (turnstileWidgetId !== null && window.turnstile) window.turnstile.reset(turnstileWidgetId);
+              resetTurnstile();
             } else {
+              // The token was already redeemed by the failed attempt, so the
+              // retry this re-enables needs a fresh one — otherwise a visitor
+              // who trips validation once can never get through.
               setStatus(result.body.error || 'Something went wrong — please try again.', true);
+              resetTurnstile();
               submitBtn.disabled = false;
             }
           })
           .catch(function () {
             setStatus('Something went wrong — please try again.', true);
+            resetTurnstile();
             submitBtn.disabled = false;
           });
       });
