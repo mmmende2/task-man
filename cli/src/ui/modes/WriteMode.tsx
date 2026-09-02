@@ -214,9 +214,19 @@ export function WriteMode({
   // category field), since only one can be active at a time.
   const captureCategoryCycle = useCategoryCycle();
   const reviewCategoryCycle = useCategoryCycle();
+  // Tab finalizes the `-c` token into plain text with a trailing space, which
+  // makes categoryMatch's live regex parse (and therefore `active`) go false
+  // right as cycling starts — force it back on so the candidate row doesn't
+  // vanish the moment there's something to cycle through.
   const effectiveCategoryMatch = useMemo(() => (
     captureCategoryCycle.cycle
-      ? { ...categoryMatch, list: captureCategoryCycle.cycle.list, highlightIndex: captureCategoryCycle.cycle.index }
+      ? {
+          ...categoryMatch,
+          active: true,
+          list: captureCategoryCycle.cycle.list,
+          highlightIndex: captureCategoryCycle.cycle.index,
+          overflowCount: captureCategoryCycle.cycle.overflowCount,
+        }
       : categoryMatch
   ), [categoryMatch, captureCategoryCycle.cycle]);
 
@@ -253,7 +263,12 @@ export function WriteMode({
   }, [editing, categoriesList]);
   const effectiveReviewCategoryAssist: CategoryEditAssist | null = useMemo(() => (
     reviewCategoryCycle.cycle && reviewCategoryAssist
-      ? { ...reviewCategoryAssist, list: reviewCategoryCycle.cycle.list, highlightIndex: reviewCategoryCycle.cycle.index }
+      ? {
+          ...reviewCategoryAssist,
+          list: reviewCategoryCycle.cycle.list,
+          highlightIndex: reviewCategoryCycle.cycle.index,
+          overflowCount: reviewCategoryCycle.cycle.overflowCount,
+        }
       : reviewCategoryAssist
   ), [reviewCategoryAssist, reviewCategoryCycle.cycle]);
 
@@ -785,8 +800,8 @@ export function WriteMode({
   const capturePaneRows = subMode === 'capture'
     ? 2 /* padding */
       + 2 /* prompt + preview/help */
-      + (categoryMatch.active && categoryMatch.list.length > 1 ? 1 : 0)
-      + (categoryMatch.active && categoryMatch.didYouMean ? 1 : 0)
+      + (effectiveCategoryMatch.active && effectiveCategoryMatch.list.length > 1 ? 1 : 0)
+      + (effectiveCategoryMatch.active && effectiveCategoryMatch.didYouMean ? 1 : 0)
       + (anchorTitle ? 1 : 0)
     : 0;
   const entryListMaxRows = Math.max(3, termHeight - 10 - capturePaneRows);

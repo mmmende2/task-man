@@ -25,6 +25,8 @@ export interface CategoryEditAssist {
   didYouMean: string | null;
   /** Index into `list` that Tab-cycling has landed on; the row rendered bold. Defaults to 0. */
   highlightIndex?: number;
+  /** Candidates beyond the shown/cycle-able set. Unset while typing (derive from `list.length` instead); set once a cycle freezes the list. */
+  overflowCount?: number;
 }
 
 export interface CaptureAnchor {
@@ -179,6 +181,7 @@ export function EntryList({
               list={categoryAssist.list}
               highlightIndex={categoryAssist.highlightIndex ?? 0}
               indent="         "
+              overflowCount={categoryAssist.overflowCount}
             />,
           );
         } else if (categoryAssist?.didYouMean) {

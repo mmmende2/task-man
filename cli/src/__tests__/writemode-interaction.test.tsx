@@ -384,9 +384,17 @@ describe('WriteMode interaction', () => {
 
     result.stdin.write('\t');
     await vi.waitFor(() => expect(result.text()).toContain('-c Health'));
+    // The candidate row must stay visible once cycling starts, not just
+    // before the first Tab — it previously vanished here because Tab
+    // finalizes the token, which made the live regex parse (and `active`)
+    // go false right as cycling began.
+    expect(result.text()).toContain('Health · House Work');
+    expect(result.text()).toContain('[tab] cycle');
 
     result.stdin.write('\t');
     await vi.waitFor(() => expect(result.text()).toContain('"House Work"'));
+    expect(result.text()).toContain('Health · House Work');
+    expect(result.text()).toContain('[tab] cycle');
 
     result.stdin.write('\r');
 
@@ -395,6 +403,41 @@ describe('WriteMode interaction', () => {
       expect(task).toBeDefined();
       expect(task!.categories).toEqual(['House Work']);
     });
+  });
+
+  it('capture line: cycling caps at 5 candidates and flags the rest as overflow', async () => {
+    // Six categories share the "h" prefix; equal counts break ties
+    // alphabetically, so the top 5 are Habits, Health, Hobbies, Holidays,
+    // Home — House Work is the 6th and must be unreachable by Tab.
+    for (const name of ['Habits', 'Health', 'Hobbies', 'Holidays', 'Home', 'House Work']) {
+      await store.add({
+        title: `${name}-task`, categories: [name], scope: 'personal', created_by: 'human', session_id: getCurrentSessionId(),
+      });
+    }
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    typeChars(result.stdin, 'clean dishes -c h');
+    await vi.waitFor(() => expect(result.text()).toContain('-c h'));
+    expect(result.text()).toContain('Habits · Health · Hobbies · Holidays · Home');
+    expect(result.text()).not.toContain('House Work');
+    expect(result.text()).toContain('+1 more');
+
+    // 5 Tabs walk Habits -> Health -> Hobbies -> Holidays -> Home. Each Tab
+    // must be awaited individually — the cycle state a Tab reads is only
+    // current once the prior Tab's render has landed.
+    for (const name of ['Habits', 'Health', 'Hobbies', 'Holidays', 'Home']) {
+      result.stdin.write('\t');
+      await vi.waitFor(() => expect(result.text()).toContain(`-c ${name}`));
+    }
+    expect(result.text()).not.toContain('House Work');
+    expect(result.text()).toContain('+1 more');
+
+    // A 6th Tab wraps back to the start of the capped list, not House Work.
+    result.stdin.write('\t');
+    await vi.waitFor(() => expect(result.text()).toContain('-c Habits'));
+    expect(result.text()).not.toContain('House Work');
   });
 
   it('review-pane category autocomplete keeps the stored casing', async () => {
