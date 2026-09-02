@@ -257,12 +257,18 @@ export function WriteMode({
 
     const scope: TaskScope = parsed.scope ?? (scopeFilter !== 'all' ? scopeFilter : 'personal');
     const parentId = colonPrefix && cursorId ? cursorId : null;
+    // Same snap-to-stored-casing as the review-pane category edit: a fully
+    // typed `-c` category that only differs in case from an existing one
+    // must reuse it rather than saving a near-duplicate.
+    const categories = parsed.categories.map(
+      c => categoriesList.find(existing => existing.name.toLowerCase() === c.toLowerCase())?.name ?? c,
+    );
 
     store.add({
       title: parsed.title,
       priority: parsed.priority,
       scope,
-      categories: parsed.categories,
+      categories,
       description: parsed.description ?? undefined,
       parent_id: parentId ?? undefined,
       focused: parsed.focused,
@@ -382,7 +388,13 @@ export function WriteMode({
         });
       }
     } else if (editing.type === 'category') {
-      const next = editing.text.trim();
+      const typed = editing.text.trim();
+      // Enter doesn't require the Tab-accept step, so a fully-typed name that
+      // just differs in case from an existing category (e.g. "house Work" vs
+      // the stored "House Work") must still snap to the stored casing here —
+      // otherwise it saves as a near-duplicate category instead of reusing it.
+      const existing = categoriesList.find(c => c.name.toLowerCase() === typed.toLowerCase());
+      const next = existing ? existing.name : typed;
       const prev = task.categories ?? [];
       const nextCats = next ? [next] : [];
       if (JSON.stringify(prev) !== JSON.stringify(nextCats)) {

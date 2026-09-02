@@ -354,6 +354,76 @@ describe('PlanMode interaction', () => {
     });
   });
 
+  it('c retags via Tab-accept using the stored casing, not the typed prefix', async () => {
+    // 'AAA' sorts before 'House Work', so the walk below reliably lands on
+    // the uncategorized-adjacent task first.
+    await store.add({ title: 'Has-cat', categories: ['House Work'] });
+    await store.add({ title: 'Anchor', categories: ['AAA'] });
+    await store.add({ title: 'No-cat' });
+
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: store.load() }),
+    );
+    cleanup = result.cleanup;
+    await vi.waitFor(() => expect(result.text()).toContain('No-cat'));
+
+    await vi.waitFor(() => expect(result.lines().find(l => l.includes('▸'))).toBeTruthy());
+    for (let i = 0; i < 8; i++) {
+      if (result.lines().find(l => l.includes('▸'))?.includes('No-cat')) break;
+      result.stdin.write('j');
+      await new Promise(r => setTimeout(r, 25));
+    }
+    expect(result.lines().find(l => l.includes('▸'))).toContain('No-cat');
+
+    // Tab-accepting a partial must use the stored casing outright, not the
+    // typed prefix spliced onto the ghost suffix.
+    result.stdin.write('c');
+    await vi.waitFor(() => expect(result.text()).toContain('category:'));
+    for (const ch of 'hou') result.stdin.write(ch);
+    await vi.waitFor(() => expect(result.text()).toMatch(/category: hou.*se Work/));
+    result.stdin.write('\t');
+    await vi.waitFor(() => expect(result.text()).toContain('category: House Work'));
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const t = store.load().find(x => x.title === 'No-cat');
+      expect(t?.categories).toEqual(['House Work']);
+    });
+  });
+
+  it('c retags with Enter (no Tab) still snaps a fully-typed mismatched-case name', async () => {
+    await store.add({ title: 'Has-cat', categories: ['House Work'] });
+    await store.add({ title: 'Anchor', categories: ['AAA'] });
+    await store.add({ title: 'No-cat' });
+
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: store.load() }),
+    );
+    cleanup = result.cleanup;
+    await vi.waitFor(() => expect(result.text()).toContain('No-cat'));
+
+    await vi.waitFor(() => expect(result.lines().find(l => l.includes('▸'))).toBeTruthy());
+    for (let i = 0; i < 8; i++) {
+      if (result.lines().find(l => l.includes('▸'))?.includes('No-cat')) break;
+      result.stdin.write('j');
+      await new Promise(r => setTimeout(r, 25));
+    }
+    expect(result.lines().find(l => l.includes('▸'))).toContain('No-cat');
+
+    // Typing the full name by hand (no Tab) must also snap to the stored
+    // casing on save, not create a case-variant duplicate category.
+    result.stdin.write('c');
+    await vi.waitFor(() => expect(result.text()).toContain('category:'));
+    for (const ch of 'house work') result.stdin.write(ch);
+    await new Promise(r => setTimeout(r, 50));
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const t = store.load().find(x => x.title === 'No-cat');
+      expect(t?.categories).toEqual(['House Work']);
+    });
+  });
+
   it('S no longer changes a task scope — the binding is gone', async () => {
     const result = renderWithDimensions(
       createElement(PlanModeHarness, { store, initialTasks: tasks }),

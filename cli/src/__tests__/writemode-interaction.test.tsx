@@ -397,6 +397,47 @@ describe('WriteMode interaction', () => {
     });
   });
 
+  it('saving a category edit with Enter (no Tab) still snaps mismatched case to the stored category', async () => {
+    // Typing the full name by hand instead of accepting the ghost with Tab
+    // must not create a case-variant duplicate category on save.
+    // "AAA" sorts before "House Work" in the category-grouped list, so the
+    // default cursor lands on this task, not the one seeding "House Work".
+    const target = await store.add({
+      title: 'existing',
+      categories: ['AAA'],
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+    await store.add({
+      title: 'other',
+      categories: ['House Work'],
+      scope: 'personal',
+      created_by: 'human',
+      session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('existing'));
+    result.stdin.write('\x1B');
+    await vi.waitFor(() => expect(result.text()).toContain('REVIEW'));
+
+    result.stdin.write('c');
+    await new Promise(r => setTimeout(r, 100));
+    for (let i = 0; i < 'AAA'.length; i++) result.stdin.write('\x7f');
+
+    typeChars(result.stdin, 'house work');
+    await new Promise(r => setTimeout(r, 100));
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const task = store.load().find(t => t.id === target.id);
+      expect(task!.categories).toEqual(['House Work']);
+    });
+  });
+
   it('A opens the parent title editor at the end of the line', async () => {
     await store.add({
       title: 'abcd',

@@ -182,13 +182,18 @@ export function PlanMode({
   // Prefix completion for the `c` editor, matching Write's review pane —
   // categories are typed constantly, so the ghost is what keeps them from
   // drifting into near-duplicates.
-  const categoryGhost = useMemo(() => {
+  const knownCategories = useMemo(
+    () => getAllCategories([...focusedTasks, ...backlogTasks]),
+    [focusedTasks, backlogTasks],
+  );
+  const categoryTopMatch = useMemo(() => {
     if (!editingCategoryId || !editText) return null;
-    const known = getAllCategories([...focusedTasks, ...backlogTasks]);
-    const { top } = suggestPrefix(editText, known);
-    if (!top || top.name.length <= editText.length) return null;
-    return top.name.slice(editText.length);
-  }, [editingCategoryId, editText, focusedTasks, backlogTasks]);
+    return suggestPrefix(editText, knownCategories).top?.name ?? null;
+  }, [editingCategoryId, editText, knownCategories]);
+  const categoryGhost = useMemo(() => {
+    if (!categoryTopMatch || categoryTopMatch.length <= editText.length) return null;
+    return categoryTopMatch.slice(editText.length);
+  }, [categoryTopMatch, editText]);
 
   const totalCount = orderedTasks.length;
 
@@ -492,7 +497,12 @@ export function PlanMode({
 
     if (editingCategoryId) {
       const task = orderedTasks.find(t => t.id === editingCategoryId);
-      const next = editText.trim();
+      const typed = editText.trim();
+      // Enter doesn't require the Tab-accept step, so a fully-typed name that
+      // only differs in case from an existing category must still snap to
+      // the stored casing here, not just when the ghost is explicitly taken.
+      const existing = knownCategories.find(c => c.name.toLowerCase() === typed.toLowerCase());
+      const next = existing ? existing.name : typed;
       const prev = task?.categories ?? [];
       const nextCats = next ? [next] : [];
       if (task && JSON.stringify(prev) !== JSON.stringify(nextCats)) {
@@ -584,10 +594,10 @@ export function PlanMode({
       else setEditState(prev => moveCursor(prev, to));
     },
     onInsertTab: () => {
-      if (categoryGhost) setEditState(prev => {
-        const text = prev.text + categoryGhost;
-        return { text, cursor: text.length };
-      });
+      // Replace what was typed with the stored category outright — splicing
+      // the ghost onto the typed prefix keeps the user's casing and can save
+      // a near-duplicate category (see WriteMode's acceptEditCategoryGhost).
+      if (categoryTopMatch) setEditState({ text: categoryTopMatch, cursor: categoryTopMatch.length });
     },
     onInsertEnter: saveEdit,
     onInsertEscape: saveEdit,
