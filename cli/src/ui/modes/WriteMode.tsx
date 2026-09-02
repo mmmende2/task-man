@@ -13,6 +13,7 @@ import { isLocalToday } from '../../local-date.js';
 import {
   useCategoryMatch,
   useCategoryCycle,
+  candidatesFor,
   getAllCategories,
   suggestPrefix,
   suggestFuzzy,
@@ -213,9 +214,11 @@ export function WriteMode({
   // category field), since only one can be active at a time.
   const captureCategoryCycle = useCategoryCycle();
   const reviewCategoryCycle = useCategoryCycle();
-  const effectiveCategoryMatch = captureCategoryCycle.cycle
-    ? { ...categoryMatch, list: captureCategoryCycle.cycle.list, highlightIndex: captureCategoryCycle.cycle.index }
-    : categoryMatch;
+  const effectiveCategoryMatch = useMemo(() => (
+    captureCategoryCycle.cycle
+      ? { ...categoryMatch, list: captureCategoryCycle.cycle.list, highlightIndex: captureCategoryCycle.cycle.index }
+      : categoryMatch
+  ), [categoryMatch, captureCategoryCycle.cycle]);
 
   const anchorTitle = useMemo(() => {
     if (!cursorId) return null;
@@ -236,22 +239,23 @@ export function WriteMode({
   const reviewCategoryAssist: CategoryEditAssist | null = useMemo(() => {
     if (editing?.type !== 'category') return null;
     const partial = editing.text;
-    if (!partial) return { ghost: null, topMatch: null, list: [], didYouMean: null };
+    if (!partial) return { ghost: null, list: [], didYouMean: null };
     const { top, list } = suggestPrefix(partial, categoriesList);
     if (top) {
       return {
         ghost: top.name.length > partial.length ? top.name.slice(partial.length) : null,
-        topMatch: top.name,
         list: list.map(c => c.name),
         didYouMean: null,
       };
     }
     const fuzzy = suggestFuzzy(partial, categoriesList);
-    return { ghost: null, topMatch: null, list: [], didYouMean: fuzzy?.name ?? null };
+    return { ghost: null, list: [], didYouMean: fuzzy?.name ?? null };
   }, [editing, categoriesList]);
-  const effectiveReviewCategoryAssist: CategoryEditAssist | null = reviewCategoryCycle.cycle && reviewCategoryAssist
-    ? { ...reviewCategoryAssist, list: reviewCategoryCycle.cycle.list, highlightIndex: reviewCategoryCycle.cycle.index }
-    : reviewCategoryAssist;
+  const effectiveReviewCategoryAssist: CategoryEditAssist | null = useMemo(() => (
+    reviewCategoryCycle.cycle && reviewCategoryAssist
+      ? { ...reviewCategoryAssist, list: reviewCategoryCycle.cycle.list, highlightIndex: reviewCategoryCycle.cycle.index }
+      : reviewCategoryAssist
+  ), [reviewCategoryAssist, reviewCategoryCycle.cycle]);
 
   const getSelectedTask = (): Task | null => {
     if (!cursorId) return null;
@@ -321,9 +325,7 @@ export function WriteMode({
     }
 
     if (!categoryMatch.active) return;
-    const candidates = categoryMatch.list.length > 0
-      ? categoryMatch.list
-      : categoryMatch.didYouMean ? [categoryMatch.didYouMean] : [];
+    const candidates = candidatesFor(categoryMatch.list, categoryMatch.didYouMean);
     const chosen = captureCategoryCycle.onTab(candidates);
     if (!chosen) return;
     const partial = categoryMatch.partial;
@@ -466,9 +468,7 @@ export function WriteMode({
     // "house Work" alongside the real "House Work". Tab cycles through every
     // candidate this way (frozen from the first press — see useCategoryCycle);
     // Enter always saves whatever's currently showing.
-    const candidates = reviewCategoryAssist.list.length > 0
-      ? reviewCategoryAssist.list
-      : reviewCategoryAssist.didYouMean ? [reviewCategoryAssist.didYouMean] : [];
+    const candidates = candidatesFor(reviewCategoryAssist.list, reviewCategoryAssist.didYouMean);
     const chosen = reviewCategoryCycle.onTab(candidates);
     if (!chosen) return;
     setEditing({ ...editing, text: chosen, cursor: chosen.length });

@@ -16,6 +16,7 @@ import { SearchBar } from '../shared/SearchBar.js';
 import { insertChar, deleteBack, moveCursor, type TextBuffer } from '../shared/textInput.js';
 import { getAllCategories, suggestPrefix, useCategoryCycle } from '../hooks/useCategoryMatch.js';
 import { CURSOR_GLYPH } from '../shared/selection.js';
+import { CategoryCandidateRow } from '../shared/CategoryCandidates.js';
 
 interface Props {
   focusedTasks: Task[];
@@ -702,15 +703,12 @@ export function PlanMode({
         );
         if (categoryDisplayList.length > 1) {
           taskRows.push(
-            <Box key={`${task.id}-cat-list`}>
-              <Text dimColor>{'         ↳ '}</Text>
-              {categoryDisplayList.slice(0, 5).map((name, i) => (
-                <Text key={name} dimColor={i !== categoryHighlightIndex} bold={i === categoryHighlightIndex}>
-                  {i > 0 ? ' · ' : ''}{name}
-                </Text>
-              ))}
-              <Text dimColor>{'  [tab] cycle'}</Text>
-            </Box>
+            <CategoryCandidateRow
+              key={`${task.id}-cat-list`}
+              list={categoryDisplayList}
+              highlightIndex={categoryHighlightIndex}
+              indent="         "
+            />
           );
         }
       } else {

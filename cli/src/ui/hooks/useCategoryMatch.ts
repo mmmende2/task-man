@@ -13,8 +13,6 @@ export interface CategoryMatchResult {
   active: boolean;
   /** Completion to append after the partial (ghost text). Null if no prefix match or partial is exact. */
   ghost: string | null;
-  /** Full canonical name of top prefix match (used when accepting ghost). */
-  topMatch: string | null;
   /** Short list of candidate categories (top first) — includes the top match. */
   list: string[];
   /** Near-miss suggestion: partial is not a prefix of any category but is within Levenshtein 2. */
@@ -127,7 +125,6 @@ export function useCategoryMatch(inputText: string, tasks: Task[]): CategoryMatc
         partial: '',
         active: false,
         ghost: null,
-        topMatch: null,
         list: [],
         didYouMean: null,
       };
@@ -142,7 +139,6 @@ export function useCategoryMatch(inputText: string, tasks: Task[]): CategoryMatc
         partial,
         active: true,
         ghost,
-        topMatch: top.name,
         list: list.map(c => c.name),
         didYouMean: null,
       };
@@ -153,11 +149,15 @@ export function useCategoryMatch(inputText: string, tasks: Task[]): CategoryMatc
       partial,
       active: true,
       ghost: null,
-      topMatch: null,
       list: [],
       didYouMean: fuzzy?.name ?? null,
     };
   }, [inputText, cats]);
+}
+
+/** Candidates to cycle through: the prefix-match list, or the fuzzy did-you-mean as a lone fallback. */
+export function candidatesFor(list: string[], didYouMean: string | null): string[] {
+  return list.length > 0 ? list : didYouMean ? [didYouMean] : [];
 }
 
 export interface CategoryCycleState {

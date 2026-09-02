@@ -1,5 +1,6 @@
 import { Box, Text } from 'ink';
 import type { CategoryMatchResult } from '../../hooks/useCategoryMatch.js';
+import { CategoryCandidateRow, DidYouMeanRow } from '../../shared/CategoryCandidates.js';
 
 interface Props {
   inputText: string;
@@ -45,22 +46,14 @@ export function CapturePane({ inputText, cursor, categoryMatch, preview, lastCre
         <Text dimColor>  Type task title. Flags: -p pri -c cat -s scope -d "desc" -f focus</Text>
       )}
       {categoryMatch.active && categoryMatch.list.length > 1 && (
-        <Box>
-          <Text dimColor>  {'↳ '}</Text>
-          {categoryMatch.list.slice(0, 5).map((name, i) => (
-            <Text key={name} dimColor={i !== (categoryMatch.highlightIndex ?? 0)} bold={i === (categoryMatch.highlightIndex ?? 0)}>
-              {i > 0 ? ' · ' : ''}{name}
-            </Text>
-          ))}
-          <Text dimColor>{'  [tab] cycle'}</Text>
-        </Box>
+        <CategoryCandidateRow
+          list={categoryMatch.list}
+          highlightIndex={categoryMatch.highlightIndex ?? 0}
+          indent="  "
+        />
       )}
       {categoryMatch.active && categoryMatch.didYouMean && (
-        <Box>
-          <Text dimColor>  {'↳ Did you mean: '}</Text>
-          <Text color="yellow">{categoryMatch.didYouMean}</Text>
-          <Text dimColor>?  [tab]</Text>
-        </Box>
+        <DidYouMeanRow name={categoryMatch.didYouMean} indent="  " />
       )}
       {!isSubtaskInput && lastCreatedTitle && (
         <Box>

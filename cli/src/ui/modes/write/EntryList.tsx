@@ -7,6 +7,7 @@ import { PriorityDot } from '../../shared/PriorityDot.js';
 import { SessionDot } from '../../shared/SessionDot.js';
 import { InlineEdit } from '../../shared/InlineEdit.js';
 import { CURSOR_GLYPH, type CursorTone } from '../../shared/selection.js';
+import { CategoryCandidateRow, DidYouMeanRow } from '../../shared/CategoryCandidates.js';
 
 export type EditingField = 'title' | 'category' | 'description' | 'subtask-title' | 'subtask-create';
 
@@ -20,15 +21,6 @@ export interface EntryListEditing {
 
 export interface CategoryEditAssist {
   ghost: string | null;
-  /**
-   * Full canonical name of the top prefix match.
-   *
-   * Accepting a completion must use this, never `typed + ghost`: the match is
-   * case-insensitive, so typing "house" against the category "House Work"
-   * produces the ghost " Work" and re-joining them yields "house Work" — a
-   * brand-new category one keystroke away from the real one.
-   */
-  topMatch: string | null;
   list: string[];
   didYouMean: string | null;
   /** Index into `list` that Tab-cycling has landed on; the row rendered bold. Defaults to 0. */
@@ -181,25 +173,17 @@ export function EntryList({
           </Box>,
         );
         if (categoryAssist?.list && categoryAssist.list.length > 1) {
-          const highlight = categoryAssist.highlightIndex ?? 0;
           rows.push(
-            <Box key={`edit-cat-list-${task.id}`}>
-              <Text dimColor>{'         ↳ '}</Text>
-              {categoryAssist.list.slice(0, 5).map((name, i) => (
-                <Text key={name} dimColor={i !== highlight} bold={i === highlight}>
-                  {i > 0 ? ' · ' : ''}{name}
-                </Text>
-              ))}
-              <Text dimColor>{'  [tab] cycle'}</Text>
-            </Box>,
+            <CategoryCandidateRow
+              key={`edit-cat-list-${task.id}`}
+              list={categoryAssist.list}
+              highlightIndex={categoryAssist.highlightIndex ?? 0}
+              indent="         "
+            />,
           );
         } else if (categoryAssist?.didYouMean) {
           rows.push(
-            <Box key={`edit-cat-dym-${task.id}`}>
-              <Text dimColor>{'         ↳ Did you mean: '}</Text>
-              <Text color="yellow">{categoryAssist.didYouMean}</Text>
-              <Text dimColor>?  [tab]</Text>
-            </Box>,
+            <DidYouMeanRow key={`edit-cat-dym-${task.id}`} name={categoryAssist.didYouMean} indent="         " />,
           );
         }
       }
