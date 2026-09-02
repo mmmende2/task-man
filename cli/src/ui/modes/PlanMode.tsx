@@ -14,7 +14,7 @@ import { SessionDot } from '../shared/SessionDot.js';
 import { InlineEdit } from '../shared/InlineEdit.js';
 import { SearchBar } from '../shared/SearchBar.js';
 import { insertChar, deleteBack, moveCursor, type TextBuffer } from '../shared/textInput.js';
-import { getAllCategories, suggestPrefix } from '../hooks/useCategoryMatch.js';
+import { getAllCategories, suggestPrefix, useCategoryCycle } from '../hooks/useCategoryMatch.js';
 import { CURSOR_GLYPH } from '../shared/selection.js';
 
 interface Props {
@@ -186,14 +186,20 @@ export function PlanMode({
     () => getAllCategories([...focusedTasks, ...backlogTasks]),
     [focusedTasks, backlogTasks],
   );
-  const categoryTopMatch = useMemo(() => {
-    if (!editingCategoryId || !editText) return null;
-    return suggestPrefix(editText, knownCategories).top?.name ?? null;
+  const categoryMatchList = useMemo(() => {
+    if (!editingCategoryId || !editText) return [];
+    return suggestPrefix(editText, knownCategories).list.map(c => c.name);
   }, [editingCategoryId, editText, knownCategories]);
+  const categoryTopMatch = categoryMatchList[0] ?? null;
   const categoryGhost = useMemo(() => {
     if (!categoryTopMatch || categoryTopMatch.length <= editText.length) return null;
     return categoryTopMatch.slice(editText.length);
   }, [categoryTopMatch, editText]);
+  // Tab cycles through categoryMatchList, Enter selects — see WriteMode's
+  // acceptEditCategoryGhost / useCategoryCycle for the full rationale.
+  const categoryCycle = useCategoryCycle();
+  const categoryDisplayList = categoryCycle.cycle ? categoryCycle.cycle.list : categoryMatchList;
+  const categoryHighlightIndex = categoryCycle.cycle?.index ?? 0;
 
   const totalCount = orderedTasks.length;
 
@@ -397,6 +403,7 @@ export function PlanMode({
         const current = task.categories?.[0] ?? '';
         setEditingCategoryId(task.id);
         setEditState({ text: current, cursor: current.length });
+        categoryCycle.reset();
         setVimMode('insert');
         break;
       }
@@ -514,6 +521,7 @@ export function PlanMode({
       }
       setEditingCategoryId(null);
       setEditState({ text: '', cursor: 0 });
+      categoryCycle.reset();
       setVimMode('normal');
       return;
     }
@@ -583,11 +591,17 @@ export function PlanMode({
     onAction: handleAction,
     onInsertChar: (char) => {
       if (isSearching) setSearchBuf(prev => insertChar(prev, char));
-      else setEditState(prev => insertChar(prev, char));
+      else {
+        if (editingCategoryId) categoryCycle.reset();
+        setEditState(prev => insertChar(prev, char));
+      }
     },
     onInsertBackspace: () => {
       if (isSearching) setSearchBuf(prev => deleteBack(prev));
-      else setEditState(prev => deleteBack(prev));
+      else {
+        if (editingCategoryId) categoryCycle.reset();
+        setEditState(prev => deleteBack(prev));
+      }
     },
     onInsertCursor: (to) => {
       if (isSearching) setSearchBuf(prev => moveCursor(prev, to));
@@ -597,7 +611,11 @@ export function PlanMode({
       // Replace what was typed with the stored category outright — splicing
       // the ghost onto the typed prefix keeps the user's casing and can save
       // a near-duplicate category (see WriteMode's acceptEditCategoryGhost).
-      if (categoryTopMatch) setEditState({ text: categoryTopMatch, cursor: categoryTopMatch.length });
+      // Tab cycles through categoryMatchList (frozen from the first press —
+      // see useCategoryCycle); Enter always saves whatever's showing.
+      if (!editingCategoryId) return;
+      const chosen = categoryCycle.onTab(categoryMatchList);
+      if (chosen) setEditState({ text: chosen, cursor: chosen.length });
     },
     onInsertEnter: saveEdit,
     onInsertEscape: saveEdit,
@@ -682,6 +700,19 @@ export function PlanMode({
             {categoryGhost && <Text dimColor>{categoryGhost}</Text>}
           </Box>
         );
+        if (categoryDisplayList.length > 1) {
+          taskRows.push(
+            <Box key={`${task.id}-cat-list`}>
+              <Text dimColor>{'         ↳ '}</Text>
+              {categoryDisplayList.slice(0, 5).map((name, i) => (
+                <Text key={name} dimColor={i !== categoryHighlightIndex} bold={i === categoryHighlightIndex}>
+                  {i > 0 ? ' · ' : ''}{name}
+                </Text>
+              ))}
+              <Text dimColor>{'  [tab] cycle'}</Text>
+            </Box>
+          );
+        }
       } else {
         const sessionColor = getSessionHexColor(task.session_id, config);
         const activeSel = isSelected && panelFocus === 'tasks';

@@ -12,6 +12,7 @@ import { parseWriteInput, type ParsedEntry } from '../../parse-entry.js';
 import { isLocalToday } from '../../local-date.js';
 import {
   useCategoryMatch,
+  useCategoryCycle,
   getAllCategories,
   suggestPrefix,
   suggestFuzzy,
@@ -207,6 +208,14 @@ export function WriteMode({
   const subtaskCursor = Math.max(0, Math.min(subtaskBuffer.length, capture.cursor - subtaskPrefixLen));
 
   const categoryMatch = useCategoryMatch(inputText, allTasks);
+  // Tab cycles through candidates, Enter commits whatever is showing — one
+  // cycle per editing surface (capture's `-c` flag vs. an existing task's
+  // category field), since only one can be active at a time.
+  const captureCategoryCycle = useCategoryCycle();
+  const reviewCategoryCycle = useCategoryCycle();
+  const effectiveCategoryMatch = captureCategoryCycle.cycle
+    ? { ...categoryMatch, list: captureCategoryCycle.cycle.list, highlightIndex: captureCategoryCycle.cycle.index }
+    : categoryMatch;
 
   const anchorTitle = useMemo(() => {
     if (!cursorId) return null;
@@ -240,6 +249,9 @@ export function WriteMode({
     const fuzzy = suggestFuzzy(partial, categoriesList);
     return { ghost: null, topMatch: null, list: [], didYouMean: fuzzy?.name ?? null };
   }, [editing, categoriesList]);
+  const effectiveReviewCategoryAssist: CategoryEditAssist | null = reviewCategoryCycle.cycle && reviewCategoryAssist
+    ? { ...reviewCategoryAssist, list: reviewCategoryCycle.cycle.list, highlightIndex: reviewCategoryCycle.cycle.index }
+    : reviewCategoryAssist;
 
   const getSelectedTask = (): Task | null => {
     if (!cursorId) return null;
@@ -279,6 +291,7 @@ export function WriteMode({
         setCursorId(task.id);
       }
       setInputText('');
+      resetCaptureCategoryCycle();
       undoStack.push({
         undo: async () => { await store.remove(task.id); },
       });
@@ -286,25 +299,44 @@ export function WriteMode({
     });
   };
 
+  // Tab always finalizes the token (closing quote + trailing space) so typing
+  // can continue right after it, same as a single accept always did. That
+  // finalized text makes the `-c` token unparseable as a live partial, so a
+  // second Tab can't re-derive "where did the category token start" from
+  // categoryMatch — we remember the start offset from the first Tab instead,
+  // and slice from there again on every subsequent press in the same cycle.
+  const [captureCatStart, setCaptureCatStart] = useState<number | null>(null);
+  const resetCaptureCategoryCycle = () => {
+    captureCategoryCycle.reset();
+    setCaptureCatStart(null);
+  };
+
   const acceptCategoryGhost = () => {
-    const canonical = categoryMatch.topMatch ?? categoryMatch.didYouMean;
-    if (!canonical || !categoryMatch.active) return;
+    if (captureCategoryCycle.cycle && captureCatStart !== null) {
+      const chosen = captureCategoryCycle.onTab([]);
+      if (!chosen) return;
+      const rep = chosen.includes(' ') ? `"${chosen}" ` : `${chosen} `;
+      setInputText(inputText.slice(0, captureCatStart) + rep);
+      return;
+    }
+
+    if (!categoryMatch.active) return;
+    const candidates = categoryMatch.list.length > 0
+      ? categoryMatch.list
+      : categoryMatch.didYouMean ? [categoryMatch.didYouMean] : [];
+    const chosen = captureCategoryCycle.onTab(candidates);
+    if (!chosen) return;
     const partial = categoryMatch.partial;
 
     // Quoted partial: -c "partial
     const reQuoted = /(^|\s)-c\s+"([^"]*)$/;
     const mq = inputText.match(reQuoted);
-    if (mq) {
-      const end = inputText.length - partial.length - 1; // -1 for leading quote
-      setInputText(inputText.slice(0, end) + `"${canonical}" `);
-      return;
-    }
+    const start = mq ? inputText.length - partial.length - 1 : inputText.length - partial.length; // -1 for leading quote
+    if (!mq && !/(^|\s)-c\s+([^\s]*)$/.test(inputText)) return;
 
-    const re = /(^|\s)-c\s+([^\s]*)$/;
-    if (!re.test(inputText)) return;
-    const end = inputText.length - partial.length;
-    const rep = canonical.includes(' ') ? `"${canonical}" ` : `${canonical} `;
-    setInputText(inputText.slice(0, end) + rep);
+    setCaptureCatStart(start);
+    const rep = chosen.includes(' ') ? `"${chosen}" ` : `${chosen} `;
+    setInputText(inputText.slice(0, start) + rep);
   };
 
   // vim placement, as in Focus and Plan: `i` opens at the start of the line,
@@ -323,6 +355,7 @@ export function WriteMode({
     const task = getSelectedTask();
     if (!task) return;
     const current = task.categories?.[0] ?? '';
+    reviewCategoryCycle.reset();
     setEditing({ id: task.id, type: 'category', text: current, cursor: current.length });
   };
 
@@ -416,20 +449,29 @@ export function WriteMode({
         });
       }
     }
+    reviewCategoryCycle.reset();
     setEditing(null);
   };
 
-  const cancelEdit = () => setEditing(null);
+  const cancelEdit = () => {
+    reviewCategoryCycle.reset();
+    setEditing(null);
+  };
 
   const acceptEditCategoryGhost = () => {
     if (!editing || editing.type !== 'category' || !reviewCategoryAssist) return;
-    // Replace what was typed with the stored category outright. Rebuilding it
-    // as `editing.text + ghost` kept the user's casing for the typed prefix,
-    // so "house" + " Work" saved a second category "house Work" alongside the
-    // real "House Work" — see CategoryEditAssist.topMatch.
-    const canonical = reviewCategoryAssist.topMatch ?? reviewCategoryAssist.didYouMean;
-    if (!canonical) return;
-    setEditing({ ...editing, text: canonical, cursor: canonical.length });
+    // Replace what was typed with the stored category outright — never
+    // `editing.text + ghost`. Rebuilding it that way kept the user's casing
+    // for the typed prefix, so "house" + " Work" saved a second category
+    // "house Work" alongside the real "House Work". Tab cycles through every
+    // candidate this way (frozen from the first press — see useCategoryCycle);
+    // Enter always saves whatever's currently showing.
+    const candidates = reviewCategoryAssist.list.length > 0
+      ? reviewCategoryAssist.list
+      : reviewCategoryAssist.didYouMean ? [reviewCategoryAssist.didYouMean] : [];
+    const chosen = reviewCategoryCycle.onTab(candidates);
+    if (!chosen) return;
+    setEditing({ ...editing, text: chosen, cursor: chosen.length });
   };
 
   const currentSubtasks = useMemo(() => {
@@ -597,10 +639,12 @@ export function WriteMode({
         return;
       }
       if (key.backspace || key.delete) {
+        if (editing.type === 'category') reviewCategoryCycle.reset();
         setEditing(prev => prev ? { ...prev, ...deleteBack(prev) } : prev);
         return;
       }
       if (isPrintable(input, key)) {
+        if (editing.type === 'category') reviewCategoryCycle.reset();
         setEditing(prev => prev ? { ...prev, ...insertChar(prev, input) } : prev);
       }
       return;
@@ -642,10 +686,12 @@ export function WriteMode({
       const move = cursorMoveFor(input, key);
       if (move) { setCapture(prev => moveCursor(prev, move)); return; }
       if (key.backspace || key.delete) {
+        resetCaptureCategoryCycle();
         setCapture(prev => deleteBack(prev));
         return;
       }
       if (isPrintable(input, key)) {
+        resetCaptureCategoryCycle();
         setCapture(prev => insertChar(prev, input));
       }
       return;
@@ -761,7 +807,7 @@ export function WriteMode({
           cursorId={cursorId}
           subtaskCursorId={navTarget === 'subtasks' ? getSelectedSubtask()?.id ?? null : null}
           editing={editing ?? undefined}
-          categoryAssist={reviewCategoryAssist}
+          categoryAssist={effectiveReviewCategoryAssist}
           currentSessionId={currentSessionId}
           emptyMessage={timeFilter === 'today' ? 'Nothing captured today yet.' : 'No tasks.'}
           maxRows={entryListMaxRows}
@@ -777,7 +823,7 @@ export function WriteMode({
           <CapturePane
             inputText={inputText}
             cursor={capture.cursor}
-            categoryMatch={categoryMatch}
+            categoryMatch={effectiveCategoryMatch}
             preview={preview}
             lastCreatedTitle={anchorTitle}
             isSubtaskInput={isSubtaskInput}

@@ -360,6 +360,43 @@ describe('WriteMode interaction', () => {
     });
   });
 
+  it('capture line: repeated Tab on -c cycles candidates, second Tab is not a no-op', async () => {
+    // "Health" outranks "House Work" by count, so it's the first Tab's pick.
+    // A second Tab right after (no typing in between) must move to the next
+    // candidate instead of doing nothing — the finalized "-c Health " token
+    // can't be re-parsed as a live partial, so this only works if cycling
+    // state survives independently of the live parse.
+    await store.add({
+      title: 'health-1', categories: ['Health'], scope: 'personal', created_by: 'human', session_id: getCurrentSessionId(),
+    });
+    await store.add({
+      title: 'health-2', categories: ['Health'], scope: 'personal', created_by: 'human', session_id: getCurrentSessionId(),
+    });
+    await store.add({
+      title: 'house-1', categories: ['House Work'], scope: 'personal', created_by: 'human', session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    typeChars(result.stdin, 'clean dishes -c h');
+    await vi.waitFor(() => expect(result.text()).toContain('-c h'));
+
+    result.stdin.write('\t');
+    await vi.waitFor(() => expect(result.text()).toContain('-c Health'));
+
+    result.stdin.write('\t');
+    await vi.waitFor(() => expect(result.text()).toContain('"House Work"'));
+
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const task = store.load().find(t => t.title === 'clean dishes');
+      expect(task).toBeDefined();
+      expect(task!.categories).toEqual(['House Work']);
+    });
+  });
+
   it('review-pane category autocomplete keeps the stored casing', async () => {
     // Typing "hou" against "House Work" produces the ghost "se Work".
     // Accepting used to splice that onto what was typed, so a partial in the
@@ -430,6 +467,51 @@ describe('WriteMode interaction', () => {
 
     typeChars(result.stdin, 'house work');
     await new Promise(r => setTimeout(r, 100));
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const task = store.load().find(t => t.id === target.id);
+      expect(task!.categories).toEqual(['House Work']);
+    });
+  });
+
+  it('review-pane category editor: repeated Tab cycles candidates, Enter selects whichever is showing', async () => {
+    // "Health" outranks "House Work" by count, so a bare "h" prefix offers
+    // both with "Health" first. A second Tab (no typing in between) should
+    // move to "House Work" instead of being a no-op.
+    const target = await store.add({
+      title: 'existing', categories: ['AAA'], scope: 'personal', created_by: 'human', session_id: getCurrentSessionId(),
+    });
+    await store.add({
+      title: 'health-1', categories: ['Health'], scope: 'personal', created_by: 'human', session_id: getCurrentSessionId(),
+    });
+    await store.add({
+      title: 'health-2', categories: ['Health'], scope: 'personal', created_by: 'human', session_id: getCurrentSessionId(),
+    });
+    await store.add({
+      title: 'house-1', categories: ['House Work'], scope: 'personal', created_by: 'human', session_id: getCurrentSessionId(),
+    });
+
+    const result = renderWrite();
+    cleanup = result.cleanup;
+
+    await vi.waitFor(() => expect(result.text()).toContain('existing'));
+    result.stdin.write('\x1B');
+    await vi.waitFor(() => expect(result.text()).toContain('REVIEW'));
+
+    result.stdin.write('c');
+    await new Promise(r => setTimeout(r, 100));
+    for (let i = 0; i < 'AAA'.length; i++) result.stdin.write('\x7f');
+
+    result.stdin.write('h');
+    await vi.waitFor(() => expect(result.text()).toMatch(/category: h.*ealth/));
+
+    result.stdin.write('\t');
+    await vi.waitFor(() => expect(result.text()).toContain('category: Health'));
+
+    result.stdin.write('\t');
+    await vi.waitFor(() => expect(result.text()).toContain('category: House Work'));
+
     result.stdin.write('\r');
 
     await vi.waitFor(() => {

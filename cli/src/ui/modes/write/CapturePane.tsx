@@ -48,10 +48,11 @@ export function CapturePane({ inputText, cursor, categoryMatch, preview, lastCre
         <Box>
           <Text dimColor>  {'↳ '}</Text>
           {categoryMatch.list.slice(0, 5).map((name, i) => (
-            <Text key={name} dimColor={i !== 0} bold={i === 0}>
+            <Text key={name} dimColor={i !== (categoryMatch.highlightIndex ?? 0)} bold={i === (categoryMatch.highlightIndex ?? 0)}>
               {i > 0 ? ' · ' : ''}{name}
             </Text>
           ))}
+          <Text dimColor>{'  [tab] cycle'}</Text>
         </Box>
       )}
       {categoryMatch.active && categoryMatch.didYouMean && (
