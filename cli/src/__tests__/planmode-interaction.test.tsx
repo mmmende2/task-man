@@ -424,6 +424,54 @@ describe('PlanMode interaction', () => {
     });
   });
 
+  it('c retags: repeated Tab cycles candidates, second Tab is not a no-op', async () => {
+    // "Health" outranks "House Work" by count, so it's the first Tab's pick.
+    // The list row this test asserts on only renders once cycling starts —
+    // Plan mode had no candidate list at all before this change.
+    await store.add({ title: 'Health-1', categories: ['Health'] });
+    await store.add({ title: 'Health-2', categories: ['Health'] });
+    await store.add({ title: 'House-1', categories: ['House Work'] });
+    await store.add({ title: 'No-cat' });
+
+    // Extra height: the category groups here push row count past the
+    // default 24-row viewport if any prior test (or real local usage —
+    // hiddenCategories persists to the real config file, unscoped from
+    // the test) left categories hidden, the row budget shifts and this
+    // overflows differently on a clean environment than on a dirty one.
+    const result = renderWithDimensions(
+      createElement(PlanModeHarness, { store, initialTasks: store.load() }),
+      { height: 40 },
+    );
+    cleanup = result.cleanup;
+    await vi.waitFor(() => expect(result.text()).toContain('No-cat'));
+
+    await vi.waitFor(() => expect(result.lines().find(l => l.includes('▸'))).toBeTruthy());
+    for (let i = 0; i < 10; i++) {
+      if (result.lines().find(l => l.includes('▸'))?.includes('No-cat')) break;
+      result.stdin.write('j');
+      await new Promise(r => setTimeout(r, 25));
+    }
+    expect(result.lines().find(l => l.includes('▸'))).toContain('No-cat');
+
+    result.stdin.write('c');
+    await vi.waitFor(() => expect(result.text()).toContain('category:'));
+    result.stdin.write('h');
+    await vi.waitFor(() => expect(result.text()).toMatch(/category: h.*ealth/));
+
+    result.stdin.write('\t');
+    await vi.waitFor(() => expect(result.text()).toContain('category: Health'));
+
+    result.stdin.write('\t');
+    await vi.waitFor(() => expect(result.text()).toContain('category: House Work'));
+
+    result.stdin.write('\r');
+
+    await vi.waitFor(() => {
+      const t = store.load().find(x => x.title === 'No-cat');
+      expect(t?.categories).toEqual(['House Work']);
+    });
+  });
+
   it('S no longer changes a task scope — the binding is gone', async () => {
     const result = renderWithDimensions(
       createElement(PlanModeHarness, { store, initialTasks: tasks }),

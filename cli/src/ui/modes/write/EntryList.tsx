@@ -31,6 +31,8 @@ export interface CategoryEditAssist {
   topMatch: string | null;
   list: string[];
   didYouMean: string | null;
+  /** Index into `list` that Tab-cycling has landed on; the row rendered bold. Defaults to 0. */
+  highlightIndex?: number;
 }
 
 export interface CaptureAnchor {
@@ -179,14 +181,16 @@ export function EntryList({
           </Box>,
         );
         if (categoryAssist?.list && categoryAssist.list.length > 1) {
+          const highlight = categoryAssist.highlightIndex ?? 0;
           rows.push(
             <Box key={`edit-cat-list-${task.id}`}>
               <Text dimColor>{'         ↳ '}</Text>
               {categoryAssist.list.slice(0, 5).map((name, i) => (
-                <Text key={name} dimColor={i !== 0} bold={i === 0}>
+                <Text key={name} dimColor={i !== highlight} bold={i === highlight}>
                   {i > 0 ? ' · ' : ''}{name}
                 </Text>
               ))}
+              <Text dimColor>{'  [tab] cycle'}</Text>
             </Box>,
           );
         } else if (categoryAssist?.didYouMean) {

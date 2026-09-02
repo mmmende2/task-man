@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Task } from '../../types.js';
 
 export interface CategoryInfo {
@@ -19,6 +19,8 @@ export interface CategoryMatchResult {
   list: string[];
   /** Near-miss suggestion: partial is not a prefix of any category but is within Levenshtein 2. */
   didYouMean: string | null;
+  /** Index into `list` that Tab-cycling has landed on; the row rendered bold. Defaults to 0. */
+  highlightIndex?: number;
 }
 
 /** Build a ranked list of categories with task counts. */
@@ -156,4 +158,42 @@ export function useCategoryMatch(inputText: string, tasks: Task[]): CategoryMatc
       didYouMean: fuzzy?.name ?? null,
     };
   }, [inputText, cats]);
+}
+
+export interface CategoryCycleState {
+  /** The candidate names being cycled through, frozen from the first Tab press. */
+  list: string[];
+  /** Index into `list` of the currently-accepted candidate. */
+  index: number;
+}
+
+/**
+ * Tab-to-cycle, Enter-to-select for a category autocomplete field.
+ *
+ * The first Tab accepts the top candidate and freezes the candidate list;
+ * each subsequent Tab (with no other edit in between) advances to the next
+ * one, wrapping around. The list must stay frozen across those presses —
+ * re-deriving prefix matches from the just-accepted candidate would usually
+ * collapse to a list of one (itself), breaking the cycle. Call `reset()` on
+ * any edit other than Tab (a keystroke, starting/ending the edit) so a stale
+ * cycle doesn't carry into unrelated text.
+ */
+export function useCategoryCycle() {
+  const [cycle, setCycle] = useState<CategoryCycleState | null>(null);
+
+  /** Tab pressed. `candidates` is the live prefix-match list, used only to start a fresh cycle. Returns the name to commit, or null if there's nothing to cycle through. */
+  const onTab = (candidates: string[]): string | null => {
+    if (cycle) {
+      const index = (cycle.index + 1) % cycle.list.length;
+      setCycle({ list: cycle.list, index });
+      return cycle.list[index];
+    }
+    if (candidates.length === 0) return null;
+    setCycle({ list: candidates, index: 0 });
+    return candidates[0];
+  };
+
+  const reset = () => setCycle(null);
+
+  return { cycle, onTab, reset };
 }
