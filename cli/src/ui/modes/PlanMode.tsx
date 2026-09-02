@@ -201,6 +201,7 @@ export function PlanMode({
   const categoryCycle = useCategoryCycle();
   const categoryDisplayList = categoryCycle.cycle ? categoryCycle.cycle.list : categoryMatchList;
   const categoryHighlightIndex = categoryCycle.cycle?.index ?? 0;
+  const categoryOverflowCount = categoryCycle.cycle?.overflowCount;
 
   const totalCount = orderedTasks.length;
 
@@ -708,6 +709,7 @@ export function PlanMode({
               list={categoryDisplayList}
               highlightIndex={categoryHighlightIndex}
               indent="         "
+              overflowCount={categoryOverflowCount}
             />
           );
         }

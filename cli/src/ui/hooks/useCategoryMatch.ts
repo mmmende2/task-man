@@ -19,7 +19,12 @@ export interface CategoryMatchResult {
   didYouMean: string | null;
   /** Index into `list` that Tab-cycling has landed on; the row rendered bold. Defaults to 0. */
   highlightIndex?: number;
+  /** Candidates beyond the shown/cycle-able set. Unset while typing (derive from `list.length` instead); set once a cycle freezes the list. */
+  overflowCount?: number;
 }
+
+/** Candidate rows render at most this many names; a frozen cycle never cycles past it either. */
+export const MAX_CATEGORY_CANDIDATES = 5;
 
 /** Build a ranked list of categories with task counts. */
 export function getAllCategories(tasks: Task[]): CategoryInfo[] {
@@ -161,17 +166,21 @@ export function candidatesFor(list: string[], didYouMean: string | null): string
 }
 
 export interface CategoryCycleState {
-  /** The candidate names being cycled through, frozen from the first Tab press. */
+  /** The candidate names being cycled through, frozen from the first Tab press. Capped to MAX_CATEGORY_CANDIDATES. */
   list: string[];
   /** Index into `list` of the currently-accepted candidate. */
   index: number;
+  /** How many candidates beyond `list` were dropped by the cap — 0 if none. */
+  overflowCount: number;
 }
 
 /**
  * Tab-to-cycle, Enter-to-select for a category autocomplete field.
  *
- * The first Tab accepts the top candidate and freezes the candidate list;
- * each subsequent Tab (with no other edit in between) advances to the next
+ * The first Tab accepts the top candidate and freezes the candidate list —
+ * capped to MAX_CATEGORY_CANDIDATES, since that's all the row can ever show;
+ * a match beyond the cap is reached by narrowing the typed prefix instead.
+ * Each subsequent Tab (with no other edit in between) advances to the next
  * one, wrapping around. The list must stay frozen across those presses —
  * re-deriving prefix matches from the just-accepted candidate would usually
  * collapse to a list of one (itself), breaking the cycle. Call `reset()` on
@@ -185,12 +194,14 @@ export function useCategoryCycle() {
   const onTab = (candidates: string[]): string | null => {
     if (cycle) {
       const index = (cycle.index + 1) % cycle.list.length;
-      setCycle({ list: cycle.list, index });
+      setCycle({ ...cycle, index });
       return cycle.list[index];
     }
     if (candidates.length === 0) return null;
-    setCycle({ list: candidates, index: 0 });
-    return candidates[0];
+    const list = candidates.slice(0, MAX_CATEGORY_CANDIDATES);
+    const overflowCount = Math.max(0, candidates.length - MAX_CATEGORY_CANDIDATES);
+    setCycle({ list, index: 0, overflowCount });
+    return list[0];
   };
 
   const reset = () => setCycle(null);
