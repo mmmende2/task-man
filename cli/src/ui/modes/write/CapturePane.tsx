@@ -50,6 +50,7 @@ export function CapturePane({ inputText, cursor, categoryMatch, preview, lastCre
           list={categoryMatch.list}
           highlightIndex={categoryMatch.highlightIndex ?? 0}
           indent="  "
+          overflowCount={categoryMatch.overflowCount}
         />
       )}
       {categoryMatch.active && categoryMatch.didYouMean && (
