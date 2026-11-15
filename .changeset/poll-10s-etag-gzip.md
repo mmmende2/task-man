@@ -13,3 +13,6 @@ the droplet sent 131 GB last month.
 - `/api/*` responses are gzip-compressed (`hono/compress`).
 - `/api/*` GETs carry an `ETag` and `Cache-Control: private, no-cache`, so an
   unchanged list is a body-less `304` that the browser revalidates for free.
+- The remote TUI (`RemoteStore.load()`) now revalidates with `If-None-Match` and
+  reuses its cached list on a `304`, so its 2 s poll costs a few hundred bytes
+  when nothing changed while still showing MCP/web writes within 2 s.
