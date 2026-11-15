@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { localDateString, isLocalToday, addDays, defaultMetricsDate } from '../local-date.js';
+import { localDateString, isLocalToday, addDays, defaultMetricsDate, startOfLocalDayIso } from '../local-date.js';
 
 describe('local-date', () => {
   afterEach(() => {
@@ -100,5 +100,18 @@ describe('local-date', () => {
         expect(defaultMetricsDate({ scope, lastWorkDay: null, now: afternoon })).toBe(TODAY);
       }
     });
+  });
+});
+
+describe('startOfLocalDayIso', () => {
+  it('is local midnight of the given day, and every moment that day is on/after it', () => {
+    const now = new Date(2026, 6, 10, 15, 30, 0); // local 15:30
+    const start = new Date(startOfLocalDayIso(now));
+    expect(start.getHours()).toBe(0);
+    expect(start.getMinutes()).toBe(0);
+    expect(localDateString(start)).toBe('2026-07-10');
+    expect(now.getTime()).toBeGreaterThanOrEqual(start.getTime());
+    // one millisecond earlier is yesterday locally
+    expect(localDateString(new Date(start.getTime() - 1))).toBe('2026-07-09');
   });
 });

@@ -21,6 +21,15 @@ export function localDateString(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * The instant the user's local day began, as an ISO-8601 string. Sent to the
+ * server as `done_since` so it can drop done tasks the Focus/Backlog views
+ * would hide anyway. Always call fresh (see localDateString).
+ */
+export function startOfLocalDayIso(now: Date = new Date()): string {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+}
+
 /** True if `iso` (an ISO-8601 timestamp string) falls on the local "today". */
 export function isLocalToday(iso: string | null | undefined): boolean {
   return isOnLocalDate(iso, localDateString());
