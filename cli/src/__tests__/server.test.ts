@@ -32,6 +32,39 @@ describe('server', () => {
     expect(typeof body.time).toBe('string');
   });
 
+  describe('GET /api/tasks bandwidth', () => {
+    const create = (title: string) =>
+      app.request('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+
+    it('gzips large responses when the client accepts it', async () => {
+      for (let i = 0; i < 40; i++) await create(`A reasonably long task title number ${i} to pad the list out`);
+      const res = await app.request('/api/tasks', { headers: { 'Accept-Encoding': 'gzip' } });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Encoding')).toBe('gzip');
+    });
+
+    it('answers 304 with no body when the list is unchanged, 200 once it changes', async () => {
+      await create('first');
+      const first = await app.request('/api/tasks');
+      const tag = first.headers.get('ETag');
+      expect(tag).toBeTruthy();
+      expect(first.headers.get('Cache-Control')).toBe('private, no-cache');
+
+      const same = await app.request('/api/tasks', { headers: { 'If-None-Match': tag! } });
+      expect(same.status).toBe(304);
+      expect(await same.text()).toBe('');
+
+      await create('second');
+      const changed = await app.request('/api/tasks', { headers: { 'If-None-Match': tag! } });
+      expect(changed.status).toBe(200);
+      expect(changed.headers.get('ETag')).not.toBe(tag);
+    });
+  });
+
   it('creates a task (created_by human) and lists it', async () => {
     const res = await app.request('/api/tasks', {
       method: 'POST',

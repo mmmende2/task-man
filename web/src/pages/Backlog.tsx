@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError, reloadForAuth } from '../api';
 import type { Task } from '../types';
-import { usePoll } from '../lib/use-poll';
+import { usePoll, TASK_POLL_MS } from '../lib/use-poll';
 import { useLongPress } from '../lib/use-long-press';
 import { NavMenu } from '../components/NavMenu';
 import { sortTasks } from 'task-man/handlers';
@@ -61,7 +61,7 @@ export function BacklogPage() {
     }
   }, [nav]);
 
-  const { data: tasks, loading, failures, refresh } = usePoll(fetcher, 2000);
+  const { data: tasks, loading, failures, refresh } = usePoll(fetcher, TASK_POLL_MS);
 
   // Backlog view shows EVERY non-done parent — focused + unfocused —
   // so you can manage the working set from one place. Done parents

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
+/** How often the task views (Focus, Backlog) refetch. Was 2s; at ~700 KB per fetch that was ~26 GB/day per open tab. */
+export const TASK_POLL_MS = 10_000;
+
 interface PollState<T> {
   data: T | undefined;
   error: Error | undefined;
