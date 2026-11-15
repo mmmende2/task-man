@@ -89,6 +89,14 @@ export interface ListTasksInput {
    */
   parent_id?: string | null;
   include_done?: boolean;
+  /**
+   * ISO-8601 instant. When set (and no explicit `status`), done tasks completed
+   * before it are dropped to keep the payload small. Kept: every open task,
+   * every done task completed at/after the instant, and any subtask whose
+   * parent is kept (so progress on an open parent still counts its old done
+   * subtasks).
+   */
+  done_since?: string;
   sort?: SortKey;
   limit?: number;
 }
@@ -109,6 +117,17 @@ export async function listTasks(store: Store, input: ListTasksInput = {}): Promi
   let tasks = await store.query(filters);
   if (input.include_done === false && !input.status) {
     tasks = tasks.filter(t => t.status !== 'done');
+  }
+  if (input.done_since && !input.status) {
+    const since = Date.parse(input.done_since);
+    if (!Number.isNaN(since)) {
+      const kept = new Set(
+        tasks
+          .filter(t => t.status !== 'done' || (!!t.completed_at && Date.parse(t.completed_at) >= since))
+          .map(t => t.id),
+      );
+      tasks = tasks.filter(t => kept.has(t.id) || (t.parent_id !== null && kept.has(t.parent_id)));
+    }
   }
   tasks = sortTasks(tasks, input.sort);
   if (input.limit && input.limit > 0) tasks = tasks.slice(0, input.limit);

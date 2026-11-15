@@ -120,6 +120,9 @@ export const listQuery = z.object({
   category: z.string().optional(),
   parent_id: z.string().optional(),
   include_done: boolish,
+  // ISO-8601 instant. Done tasks completed before it are omitted (open tasks and
+  // subtasks of anything returned are kept) — the web's "open + done today" view.
+  done_since: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'done_since must be an ISO-8601 timestamp').optional(),
   sort: z.enum(['priority', 'created_at', 'created_at_desc', 'updated_at', 'focus']).optional(),
   limit: z.coerce.number().int().positive().optional(),
 });

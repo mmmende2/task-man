@@ -32,6 +32,27 @@ describe('server', () => {
     expect(typeof body.time).toBe('string');
   });
 
+  it('GET /api/tasks?done_since= trims old done tasks and rejects a bad timestamp', async () => {
+    const post = (body: object) =>
+      app.request('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    await post({ title: 'open one' });
+    const old = await (await post({ title: 'old done' })).json();
+    await store.update(old.id, { status: 'done', completed_at: '2020-01-01T00:00:00.000Z' });
+
+    const all = await (await app.request('/api/tasks')).json();
+    expect(all).toHaveLength(2);
+
+    const trimmed = await (await app.request('/api/tasks?done_since=2026-01-01T00:00:00.000Z')).json();
+    expect(trimmed.map((t: { title: string }) => t.title)).toEqual(['open one']);
+
+    const bad = await app.request('/api/tasks?done_since=not-a-date');
+    expect(bad.status).toBe(400);
+  });
+
   describe('GET /api/tasks bandwidth', () => {
     const create = (title: string) =>
       app.request('/api/tasks', {

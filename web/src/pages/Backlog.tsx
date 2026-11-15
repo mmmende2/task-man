@@ -6,7 +6,7 @@ import { usePoll, TASK_POLL_MS } from '../lib/use-poll';
 import { useLongPress } from '../lib/use-long-press';
 import { NavMenu } from '../components/NavMenu';
 import { sortTasks } from 'task-man/handlers';
-import { isLocalToday } from 'task-man/local-date';
+import { isLocalToday, startOfLocalDayIso } from 'task-man/local-date';
 import { CategoryFilterButton } from '../components/CategoryFilterDrawer';
 import { ScopeChip, loadScopeFilter, saveScopeFilter, matchesScope, type ScopeFilter } from '../components/ScopeChip';
 import './Backlog.css';
@@ -52,7 +52,8 @@ export function BacklogPage() {
 
   const fetcher = useCallback(async () => {
     try {
-      return await api.listTasks();
+      // Only what this view shows: open tasks + today's completions (see done_since).
+      return await api.listTasks({ done_since: startOfLocalDayIso() });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         reloadForAuth();

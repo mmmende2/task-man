@@ -12,7 +12,7 @@ import { Brand } from '../components/Brand';
 import { sortTasks } from 'task-man/handlers';
 // Shared local-midnight retention rule — same source of truth the TUI uses
 // (see cli/src/local-date.ts comment for the timezone bug it fixes).
-import { isLocalToday } from 'task-man/local-date';
+import { isLocalToday, startOfLocalDayIso } from 'task-man/local-date';
 import { ScopeChip, loadScopeFilter, saveScopeFilter, matchesScope, type ScopeFilter } from '../components/ScopeChip';
 import './Focus.css';
 
@@ -34,7 +34,8 @@ export function FocusPage() {
   // local "today", matching the TUI.
   const fetcher = useCallback(async () => {
     try {
-      return await api.listTasks();
+      // Only what this view shows: open tasks + today's completions (see done_since).
+      return await api.listTasks({ done_since: startOfLocalDayIso() });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         reloadForAuth();

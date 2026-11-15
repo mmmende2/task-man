@@ -61,6 +61,45 @@ describe('handlers', () => {
     expect(open.map((t) => t.title)).toEqual(['Focused todo']);
   });
 
+  describe('listTasks done_since (open + done-today view)', () => {
+    const since = '2026-07-10T07:00:00.000Z';
+    const doneAt = (id: string, completed_at: string) =>
+      store.update(id, { status: 'done', completed_at });
+
+    it('drops done tasks completed before the cutoff, keeps open ones and recent completions', async () => {
+      const open = await createTask(store, { title: 'open' });
+      const old = await createTask(store, { title: 'old done' });
+      const recent = await createTask(store, { title: 'recent done' });
+      await doneAt(old.id, '2026-07-01T12:00:00.000Z');
+      await doneAt(recent.id, '2026-07-10T15:00:00.000Z');
+
+      const titles = (await listTasks(store, { done_since: since })).map((t) => t.title).sort();
+      expect(titles).toEqual(['open', 'recent done']);
+      expect(open.id).toBeTruthy();
+    });
+
+    it('keeps old done subtasks of a kept parent, drops them under a dropped parent', async () => {
+      const openParent = await createTask(store, { title: 'open parent' });
+      const oldSub = await createTask(store, { title: 'old sub of open', parent_id: openParent.id });
+      await doneAt(oldSub.id, '2026-06-01T12:00:00.000Z');
+
+      const oldParent = await createTask(store, { title: 'old parent' });
+      const orphanSub = await createTask(store, { title: 'old sub of old', parent_id: oldParent.id });
+      await doneAt(oldParent.id, '2026-06-01T12:00:00.000Z');
+      await doneAt(orphanSub.id, '2026-06-01T12:00:00.000Z');
+
+      const titles = (await listTasks(store, { done_since: since })).map((t) => t.title).sort();
+      expect(titles).toEqual(['old sub of open', 'open parent']);
+    });
+
+    it('is ignored when an explicit status filter is given', async () => {
+      const old = await createTask(store, { title: 'old done' });
+      await doneAt(old.id, '2026-06-01T12:00:00.000Z');
+      const res = await listTasks(store, { status: 'done', done_since: since });
+      expect(res.map((t) => t.title)).toEqual(['old done']);
+    });
+  });
+
   it('sortTasks "focus" orders by priority desc then updated_at desc', async () => {
     const low = await createTask(store, { title: 'low', priority: 'low' });
     const highOld = await createTask(store, { title: 'high-old', priority: 'high' });
