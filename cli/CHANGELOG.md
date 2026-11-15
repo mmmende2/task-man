@@ -1,5 +1,55 @@
 # task-man
 
+## 0.9.0
+
+### Minor Changes
+
+- 427b6b4: TUI: category autocomplete now lets you cycle through every candidate instead of only ever offering the top one.
+
+  A prefix like `h` could match several categories, but Tab always accepted the most-used one — there was no way to reach the others short of typing enough characters to disambiguate.
+
+  - **Tab now cycles through the ranked candidate list**, wrapping around; Enter saves whichever one is currently showing. This works in Write's review pane, its capture-line `-c` flag, and Plan mode's retag editor.
+  - **Plan mode's retag editor gains the candidate list** (`↳ Health · House Work`) that Write's panes already showed, so cycling is visible there too.
+
+### Patch Changes
+
+- cc7028b: TUI: retagging a task's category no longer creates a case-variant duplicate when you finish typing the name yourself instead of accepting the autocomplete ghost.
+
+  Pressing Enter on a category edit saved whatever case you'd typed verbatim, so typing `house work` against the stored `House Work` created a second, near-identical category instead of reusing it. Tab-accept in Plan mode had the same bug in a different shape: it spliced the ghost suffix onto the typed prefix (`h` + `ouse Work` → `house Work`) rather than swapping in the stored name outright.
+
+  - **Enter now snaps to the stored casing** when the typed text is an exact case-insensitive match, in both Write's review pane and Plan mode's retag editor.
+  - **Plan mode's Tab-accept replaces the typed text with the canonical name**, matching how Write's review pane already worked.
+
+- 3311ada: Fix the category Tab-cycle candidate row (added in the previous release) disappearing the moment you actually start cycling, on both the capture line and the review-pane category editor.
+
+  Tab finalizes the `-c` token into plain text with a trailing space, which made the live prefix-match state go inactive right as cycling began — so the "↳ Health · House Work [tab] cycle" row vanished after the first Tab and stayed hidden through every subsequent one, even though the cycle itself was still advancing correctly under the hood.
+
+  - **Cycling now caps at 5 candidates** (matching the number the row can show) and shows a `+N more` count when a prefix matches more; a match beyond the cap is reached by typing more of the prefix instead of by Tab.
+
+- 1266ea6: **Web + server:** cut the droplet's outbound bandwidth.
+
+  The Focus and Backlog views re-downloaded the entire task list (~700 KB of
+  uncompressed JSON) every 2 seconds. One open tab was ~2.4 Mb/s, ~26 GB/day, and
+  the droplet sent 131 GB last month.
+
+  - The task views now poll every 10 seconds (`TASK_POLL_MS`).
+  - `/api/*` responses are gzip-compressed (`hono/compress`).
+  - `/api/*` GETs carry an `ETag` and `Cache-Control: private, no-cache`, so an
+    unchanged list is a body-less `304` that the browser revalidates for free.
+  - The remote TUI (`RemoteStore.load()`) now revalidates with `If-None-Match` and
+    reuses its cached list on a `304`, so its 2 s poll costs a few hundred bytes
+    when nothing changed while still showing MCP/web writes within 2 s.
+
+- 56306b7: **Web:** Focus and Backlog fetch only what they show.
+
+  They used to download every task ever, including ~1,000 old done tasks they
+  immediately discarded (86% of the payload). `GET /api/tasks` now accepts
+  `done_since=<ISO instant>`: it drops done tasks completed before that instant
+  but keeps open tasks, tasks completed since, and subtasks of any kept task (so
+  progress on an open parent still counts its old done subtasks). The views send
+  the start of the user's local day. On the production store that is 564 KB ->
+  110 KB raw (87 KB -> 17.5 KB gzipped). An explicit `status` filter overrides it.
+
 ## 0.8.0
 
 ### Minor Changes
