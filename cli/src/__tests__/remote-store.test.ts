@@ -80,6 +80,35 @@ describe('RemoteStore (against a real in-process server)', () => {
     await expect(remote.update('nonexistent', { status: 'done' })).rejects.toBeInstanceOf(ApiError);
   });
 
+  it('load() revalidates with If-None-Match and reuses the cached list on 304', async () => {
+    await remote.add({ title: 'Cached' });
+    const seen: { status: number; inm: string | null }[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      const res = await realFetch(...args);
+      const headers = new Headers((args[1] as RequestInit | undefined)?.headers);
+      seen.push({ status: res.status, inm: headers.get('If-None-Match') });
+      return res;
+    }) as typeof fetch;
+
+    try {
+      const first = await remote.load(); // cold: 200, remembers the ETag
+      const second = await remote.load(); // unchanged: 304, served from cache
+      expect(second).toEqual(first);
+      expect(second).not.toBe(first); // callers get their own array
+      expect(seen[0]).toEqual({ status: 200, inm: null });
+      expect(seen[1].status).toBe(304);
+      expect(seen[1].inm).toBeTruthy();
+
+      await remote.add({ title: 'Changed' }); // a write invalidates the ETag
+      const third = await remote.load();
+      expect(third).toHaveLength(2);
+      expect(seen[seen.length - 1].status).toBe(200);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
   it('rides through a transient 502 (Cloudflare while the origin restarts)', async () => {
     let calls = 0;
     const realFetch = globalThis.fetch;

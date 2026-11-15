@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createHttpClient, idempotencyKey } from './api-client.js';
+import { createHttpClient, idempotencyKey, type ConditionalCache } from './api-client.js';
 import { resolveCloudflared } from './cloudflared.js';
 import { applyFilter, completedOn, createdOn, inProgressUpdatedOn, resolvePrefix } from './task-filters.js';
 import type { Store, TaskChanges } from './store-interface.js';
@@ -142,10 +142,12 @@ export class RemoteStore implements Store {
     path: string,
     init: RequestInit = {},
     retried: { auth?: boolean; network?: boolean } = {},
+    cache?: ConditionalCache<T>,
   ): Promise<T> {
     const auth = await this.authHeaders(retried.auth);
     try {
-      return await this.client.req<T>(path, { ...init, headers: { ...auth, ...(init.headers ?? {}) } });
+      const reqInit = { ...init, headers: { ...auth, ...(init.headers ?? {}) } };
+      return cache ? await this.client.reqCached<T>(path, cache, reqInit) : await this.client.req<T>(path, reqInit);
     } catch (err) {
       const status = (err as { status?: number }).status;
       if (status === 401 || status === 403) {
@@ -157,7 +159,7 @@ export class RemoteStore implements Store {
             this.baseUrl,
           );
         }
-        return this.req<T>(path, init, { ...retried, auth: true });
+        return this.req<T>(path, init, { ...retried, auth: true }, cache);
       }
       // Cloudflare fronts the origin, so while the droplet container is
       // restarting (a deploy) the edge answers 502/503/504 for a few
@@ -174,21 +176,28 @@ export class RemoteStore implements Store {
           );
         }
         await new Promise((r) => setTimeout(r, 1500));
-        return this.req<T>(path, init, { ...retried, network: true });
+        return this.req<T>(path, init, { ...retried, network: true }, cache);
       }
       if (err instanceof TypeError) {
         // fetch() throws TypeError on network failure (DNS, refused, offline).
         if (retried.network) {
           throw new RemoteStoreError('unreachable', `Cannot reach ${this.baseUrl}. Check your connection.`, this.baseUrl);
         }
-        return this.req<T>(path, init, { ...retried, network: true });
+        return this.req<T>(path, init, { ...retried, network: true }, cache);
       }
       throw err;
     }
   }
 
+  // Last full-list response + its ETag. The TUI polls load() every 2s; when
+  // nothing changed the server answers 304 and this body is reused, so an idle
+  // poll costs a few hundred bytes instead of the whole list.
+  private loadCache: ConditionalCache<Task[]> = {};
+
   async load(): Promise<Task[]> {
-    return this.req<Task[]>('/api/store/tasks');
+    const tasks = await this.req<Task[]>('/api/store/tasks', {}, {}, this.loadCache);
+    // Hand callers their own array so an in-place sort can't corrupt the cache.
+    return [...tasks];
   }
 
   async query(filter: TaskFilter = {}): Promise<Task[]> {

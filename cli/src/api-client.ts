@@ -39,6 +39,11 @@ export interface HttpClientOptions {
   authHeaders?: () => Promise<Record<string, string>>;
 }
 
+export interface ConditionalCache<T> {
+  etag?: string;
+  body?: T;
+}
+
 export function createHttpClient(opts: HttpClientOptions = {}) {
   const base = opts.baseUrl ?? '';
   async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -50,5 +55,30 @@ export function createHttpClient(opts: HttpClientOptions = {}) {
     });
     return unwrap<T>(res);
   }
-  return { req, idempotencyKey };
+
+  /**
+   * Conditional GET. Sends If-None-Match from `cache` and, on a 304, returns
+   * the cached body without re-downloading it; otherwise parses the response
+   * and refreshes the cache (when the server sent an ETag). Used for the
+   * poll-heavy full-list read, where "nothing changed" is the common answer.
+   */
+  async function reqCached<T>(path: string, cache: ConditionalCache<T>, init: RequestInit = {}): Promise<T> {
+    const auth = opts.authHeaders ? await opts.authHeaders() : {};
+    const conditional: Record<string, string> =
+      cache.etag !== undefined && cache.body !== undefined ? { 'If-None-Match': cache.etag } : {};
+    const res = await fetch(base + path, {
+      credentials: opts.credentials,
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...auth, ...conditional, ...(init.headers ?? {}) },
+    });
+    if (res.status === 304 && cache.body !== undefined) return cache.body;
+    const body = await unwrap<T>(res);
+    const etag = res.headers.get('ETag');
+    if (etag) {
+      cache.etag = etag;
+      cache.body = body;
+    }
+    return body;
+  }
+  return { req, reqCached, idempotencyKey };
 }
